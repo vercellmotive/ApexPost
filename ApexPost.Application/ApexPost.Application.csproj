@@ -7,4 +7,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ApexPost.Domain\ApexPost.Domain.csproj" />
+  </ItemGroup>
+
 </Project>
