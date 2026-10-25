@@ -1,0 +1,46 @@
+﻿@model IReadOnlyList<ApexPost.Web.Models.ProductStockViewModel>
+@{
+    ViewData["Title"] = "Catalogue";
+}
+
+<h2>Product catalogue</h2>
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success" role="status">@success</div>
+}
+<table class="table table-striped">
+    <thead>
+        <tr><th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th>Stock at your branch</th>@if (User.IsInRole("BranchManager")) { <th>Adjust stock</th> }</tr>
+    </thead>
+    <tbody>
+        @foreach (var product in Model)
+        {
+            <tr>
+                <td>@product.Product.Id.Value</td>
+                <td>@product.Product.Name</td>
+                <td>@product.Product.Category</td>
+                <td>@product.Product.UnitPrice.Amount.ToString("C")</td>
+                <td>@product.QuantityOnHand</td>
+                @if (User.IsInRole("BranchManager"))
+                {
+                    <td>
+                        <form asp-controller="Stock" asp-action="Adjust" method="post" class="d-flex flex-wrap gap-2">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="productSku" value="@product.Product.Id.Value" />
+                            <label class="visually-hidden" for="quantity-@product.Product.Id.Value">Stock quantity change</label>
+                            <input id="quantity-@product.Product.Id.Value" name="quantityDelta" type="number" class="form-control" required />
+                            <label class="visually-hidden" for="reason-@product.Product.Id.Value">Adjustment reason</label>
+                            <select id="reason-@product.Product.Id.Value" name="reasonCode" class="form-select">
+                                @foreach (var reason in Enum.GetValues<ApexPost.Domain.Enums.StockAdjustmentReason>())
+                                {
+                                    <option value="@reason">@reason</option>
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-outline-primary">Apply</button>
+                        </form>
+                    </td>
+                }
+            </tr>
+        }
+    </tbody>
+</table>

@@ -1,0 +1,362 @@
+[
+  {
+    "Id": {
+      "Value": "SKU-001"
+    },
+    "Name": "Bubble Wrap Roll",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 8.5,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-002"
+    },
+    "Name": "Shipping Box Small",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 5,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-003"
+    },
+    "Name": "Shipping Box Large",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 12.5,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-004"
+    },
+    "Name": "Packing Tape",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 4.25,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-005"
+    },
+    "Name": "A4 Copy Paper",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 7.2,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-006"
+    },
+    "Name": "Pens Pack",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 3.75,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-007"
+    },
+    "Name": "Stapler",
+    "Category": "Office Supplies",
+    "UnitPrice": {
+      "Amount": 15,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-008"
+    },
+    "Name": "Desk Calendar",
+    "Category": "Office Supplies",
+    "UnitPrice": {
+      "Amount": 9.9,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-009"
+    },
+    "Name": "Document Folder",
+    "Category": "Office Supplies",
+    "UnitPrice": {
+      "Amount": 2.1,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-010"
+    },
+    "Name": "Postage Labels",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 2.8,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-011"
+    },
+    "Name": "Envelopes",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 6.4,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-012"
+    },
+    "Name": "Courier Satchel",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 11,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-013"
+    },
+    "Name": "Notepad",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 4.5,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-014"
+    },
+    "Name": "Letter Tray",
+    "Category": "Office Supplies",
+    "UnitPrice": {
+      "Amount": 24,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-015"
+    },
+    "Name": "Plastic Sleeve",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 1.2,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-016"
+    },
+    "Name": "Bubble Mailer Medium",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 2.9,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-017"
+    },
+    "Name": "Bubble Mailer Large",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 4.1,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-018"
+    },
+    "Name": "Cardboard Tube",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 6.8,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-019"
+    },
+    "Name": "Padded Envelope",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 3.2,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-020"
+    },
+    "Name": "Parcel String",
+    "Category": "Packaging",
+    "UnitPrice": {
+      "Amount": 2.4,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-021"
+    },
+    "Name": "Permanent Marker",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 2.6,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-022"
+    },
+    "Name": "Highlighter Set",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 5.5,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-023"
+    },
+    "Name": "Ballpoint Pens Blue",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 2.2,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-024"
+    },
+    "Name": "Notebook A5",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 3.8,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-025"
+    },
+    "Name": "Correction Tape",
+    "Category": "Stationery",
+    "UnitPrice": {
+      "Amount": 3.1,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-026"
+    },
+    "Name": "Desk Organiser",
+    "Category": "Office Supplies",
+    "UnitPrice": {
+      "Amount": 18.5,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-027"
+    },
+    "Name": "Scissors",
+    "Category": "Office Supplies",
+    "UnitPrice": {
+      "Amount": 7.25,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-028"
+    },
+    "Name": "Clipboard",
+    "Category": "Office Supplies",
+    "UnitPrice": {
+      "Amount": 6.4,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-029"
+    },
+    "Name": "Staple Remover",
+    "Category": "Office Supplies",
+    "UnitPrice": {
+      "Amount": 3.6,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  },
+  {
+    "Id": {
+      "Value": "SKU-030"
+    },
+    "Name": "Address Book",
+    "Category": "Office Supplies",
+    "UnitPrice": {
+      "Amount": 8.9,
+      "Currency": "AUD"
+    },
+    "TaxCategory": 1
+  }
+]

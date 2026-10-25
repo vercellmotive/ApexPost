@@ -1,0 +1,12 @@
+[
+  { "Id": "Zone 1", "Name": "Zone 1", "Multiplier": 1.00 },
+  { "Id": "Zone 2", "Name": "Zone 2", "Multiplier": 1.00 },
+  { "Id": "Zone 3", "Name": "Zone 3", "Multiplier": 1.25 },
+  { "Id": "Zone 4", "Name": "Zone 4", "Multiplier": 1.25 },
+  { "Id": "Zone 5", "Name": "Zone 5", "Multiplier": 1.50 },
+  { "Id": "Zone 6", "Name": "Zone 6", "Multiplier": 1.50 },
+  { "Id": "Zone 7", "Name": "Zone 7", "Multiplier": 1.75 },
+  { "Id": "Zone 8", "Name": "Zone 8", "Multiplier": 1.75 },
+  { "Id": "Zone 9", "Name": "Zone 9", "Multiplier": 2.00 },
+  { "Id": "Zone 10", "Name": "Zone 10", "Multiplier": 2.00 }
+]

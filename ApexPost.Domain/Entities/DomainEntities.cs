@@ -14,13 +14,14 @@ public class Branch : AggregateRoot<BranchCode>
     public required string Region { get; init; }
     public required TimeSpan OpenTime { get; init; }
     public required TimeSpan CloseTime { get; init; }
+    public string TimeZoneId { get; init; } = "Australia/Sydney";
     public bool IsActive { get; set; } = true;
     public List<string> CounterTerminals { get; init; } = [];
 
     public bool IsOpen(DateTimeOffset currentTime)
     {
-        if (IsActive) return false;
-        var time = currentTime.TimeOfDay;
+        if (!IsActive) return false;
+        var time = TimeZoneInfo.ConvertTime(currentTime, TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId)).TimeOfDay;
         return time >= OpenTime && time <= CloseTime;
     }
 
@@ -28,7 +29,64 @@ public class Branch : AggregateRoot<BranchCode>
     {
         if (!IsOpen(currentTime))
         {
-            throw new DomainValidationException($"Branch {Id.Value} is closed or inactive. Transaction are forbidden");
+            throw new DomainValidationException($"Branch {Id.Value} is closed or inactive. Transactions are forbidden.");
+        }
+    }
+}
+
+public class BranchStock : Entity<Guid>
+{
+    public required BranchCode BranchCode { get; init; }
+    public required Sku ProductSku { get; init; }
+    [System.Text.Json.Serialization.JsonInclude]
+    public int QuantityOnHand { get; private set; }
+    [System.Text.Json.Serialization.JsonInclude]
+    public HashSet<Guid> RestockedReversalTransactionIds { get; private set; } = [];
+
+    public void AddStock(int amount)
+    {
+        if (amount < 0) throw new DomainValidationException("Stock adjustments cannot be negative.");
+        QuantityOnHand += amount;
+    }
+
+    public void ReduceStock(int quantity)
+    {
+        if (quantity <= 0) throw new DomainValidationException("Quantity to reduce must be positive.");
+        if (QuantityOnHand - quantity < 0) throw new DomainValidationException("Branch stock cannot go negative.");
+        QuantityOnHand -= quantity;
+    }
+
+    public void ApplyAdjustment(int quantityDelta)
+    {
+        if (quantityDelta == 0)
+        {
+            throw new DomainValidationException("A stock adjustment must change inventory.");
+        }
+
+        if (quantityDelta > 0)
+        {
+            AddStock(quantityDelta);
+            return;
+        }
+
+        if (quantityDelta == int.MinValue)
+        {
+            throw new DomainValidationException("The stock adjustment quantity is out of range.");
+        }
+
+        ReduceStock(-quantityDelta);
+    }
+
+    public void RestockForReversal(Guid transactionId, int quantity)
+    {
+        if (quantity <= 0)
+        {
+            throw new DomainValidationException("Transaction reversal restock quantity must be positive.");
+        }
+
+        if (RestockedReversalTransactionIds.Add(transactionId))
+        {
+            AddStock(quantity);
         }
     }
 }
@@ -44,12 +102,16 @@ public class Staff : Entity<string>
     public void EnsureCanTransact(BranchCode currentBranch)
     {
         if(!IsActive) throw new UnauthorizedDomainActionException($"Staff {Id} is deactivated.");
+        if (Role is not (StaffRole.CounterClerk or StaffRole.BranchManager))
+        {
+            throw new UnauthorizedDomainActionException($"Staff role {Role} cannot process counter transactions.");
+        }
+
         if(HomeBranchCode != currentBranch) throw new UnauthorizedDomainActionException($"Staff member {Id} belongs to branch {HomeBranchCode.Value}, not {currentBranch.Value}");
     }
 }
 
-
-public class Production : Entity<Sku>
+public class Product : Entity<Sku>
 {
     public required string Name { get; init; }
     public required string Category { get; init; }
@@ -57,13 +119,51 @@ public class Production : Entity<Sku>
     public required TaxCategory TaxCategory { get; init; }
 }
 
+public class ShippingZone : Entity<string>
+{
+    public required string Name { get; init; }
+    public decimal Multiplier { get; init; }
+}
+
 public record ShippingDetails(bool IsParcel, Weight Weight, Dimensions Dimensions, string DestinationZone, ServiceLevel ServiceLevel);
 public record MoneyOrderDetails(Money Amount, string Sender, string Recipient, Money Fee);
-public record IdVerificationDetails(DocumentType DocType, string MaskedDocNumber, bool IsVerified);
+public sealed record IdVerificationDetails
+{
+    public DocumentType DocType { get; }
+    public string MaskedDocNumber { get; }
+    public bool IsVerified { get; }
+
+    public IdVerificationDetails(DocumentType docType, string maskedDocNumber, bool isVerified)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(maskedDocNumber);
+        if (maskedDocNumber.Length < 8
+            || maskedDocNumber[..^4].Any(character => character != '*')
+            || maskedDocNumber[^4..].Any(character => !char.IsAsciiLetterOrDigit(character)))
+        {
+            throw new ArgumentException("Only a masked document value ending in its last four characters may be stored.", nameof(maskedDocNumber));
+        }
+
+        DocType = docType;
+        MaskedDocNumber = maskedDocNumber;
+        IsVerified = isVerified;
+    }
+
+    public static IdVerificationDetails FromDocumentNumber(DocumentType documentType, string documentNumber, bool isVerified)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentNumber);
+        if (documentNumber.Length < 4)
+        {
+            throw new ArgumentException("The document number must contain at least four characters.", nameof(documentNumber));
+        }
+
+        var lastFour = documentNumber[^4..];
+        return new IdVerificationDetails(documentType, $"******{lastFour}", isVerified);
+    }
+}
 
 public record TransactionLineItem(
     Guid Id, 
-    string Description,
+    [property: NotBlank] string Description,
     LineItemType ItemType,
     int Quantity,
     Money UnitPrice,
@@ -83,13 +183,18 @@ public class Transaction : AggregateRoot<Guid>
     public required BranchCode BranchCode { get; init; }
     public required string CounterId { get; init; }
     public required string ClerkStaffId { get; init; }
+    [System.Text.Json.Serialization.JsonInclude]
     public TransactionStatus Status { get; private set; } = TransactionStatus.Open;
     public List<TransactionLineItem> LineItems { get; init; } = [];
+    [System.Text.Json.Serialization.JsonInclude]
     public string PaymentMethod { get; private set; } = "Pending";
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    [System.Text.Json.Serialization.JsonInclude]
     public string? VoidReason { get; private set; }
+    [System.Text.Json.Serialization.JsonInclude]
     public string? VoidedByManagerId { get; private set; }
-
+    [System.Text.Json.Serialization.JsonInclude]
+    public bool InventoryRestocked { get; private set; }
 
     public Money SubTotal => LineItems.Aggregate(Money.Zero, (acc, item) => acc + item.TotalPrice);
     public Money TotalTax => LineItems.Aggregate(Money.Zero, (acc, item) => acc + item.TaxAmount);
@@ -97,7 +202,33 @@ public class Transaction : AggregateRoot<Guid>
 
     public void AddLineItem(TransactionLineItem item)
     {
+        ArgumentNullException.ThrowIfNull(item);
+        DomainAttributeValidator.Validate(item);
         if (Status != TransactionStatus.Open) throw new DomainValidationException($"Cannot modify a finalized or voided transaction.");
+        if (item.Quantity <= 0) throw new DomainValidationException("Line item quantity must be positive.");
+        if (!Enum.IsDefined(item.TaxCategory))
+        {
+            throw new DomainValidationException("The line item tax category is not supported.");
+        }
+
+        var isValid = item.ItemType switch
+        {
+            LineItemType.RetailProduct => item.ProductSku is not null,
+            LineItemType.ParcelShipping => item.Shipping is not null,
+            LineItemType.MoneyOrder => item.MoneyOrder is { Amount.Amount: > 0 }
+                && !string.IsNullOrWhiteSpace(item.MoneyOrder.Sender)
+                && !string.IsNullOrWhiteSpace(item.MoneyOrder.Recipient)
+                && item.MoneyOrder.Amount.Currency == item.MoneyOrder.Fee.Currency
+                && item.UnitPrice == item.MoneyOrder.Amount + item.MoneyOrder.Fee,
+            LineItemType.IdentityVerification => item.IdVerification is { } verification
+                && Enum.IsDefined(verification.DocType),
+            _ => false
+        };
+        if (!isValid)
+        {
+            throw new DomainValidationException($"Line item details do not match item type {item.ItemType}.");
+        }
+
         LineItems.Add(item);
     }
 
@@ -105,24 +236,50 @@ public class Transaction : AggregateRoot<Guid>
     {
         if (Status != TransactionStatus.Open) throw new DomainValidationException("Transaction is not open for completion.");
         if (LineItems.Count == 0) throw new DomainValidationException("Cannot complete an empty basket.");
+        if (paymentMethod is not ("Cash" or "Card" or "EFTPOS")) throw new DomainValidationException("A supported payment method is required.");
+        if (highValueThreshold.Amount < 0) throw new DomainValidationException("The high-value money-order threshold cannot be negative.");
 
-
-        var highValueOrders = LineItems.Where(i => i.ItemType == LineItemType.MoneyOrder && i.MoneyOrder is not null && i.MoneyOrder.Amount >= highValueThreshold).ToList();
+        var highValueOrders = LineItems.Where(i => i.ItemType == LineItemType.MoneyOrder && i.MoneyOrder is not null && i.MoneyOrder.Amount > highValueThreshold).ToList();
         if (highValueOrders.Count > 0)
         {
-            var hasVeridiedId = LineItems.Any(i => i.ItemType == LineItemType.IdentityVerification && i.IdVerification is { IsVerified: true });
-            if (!hasVeridiedId) throw new DomainValidationException($"Money order exceeding {highValueThreshold.Amount} {highValueThreshold.Currency} require successful identity verification in the same basket.");
-
+            var hasVerifiedId = LineItems.Any(i => i.ItemType == LineItemType.IdentityVerification && i.IdVerification is { IsVerified: true });
+            if (!hasVerifiedId) throw new DomainValidationException($"Money order exceeding {highValueThreshold.Amount} {highValueThreshold.Currency} requires successful identity verification in the same basket.");
         }
 
         PaymentMethod = paymentMethod;
         Status = TransactionStatus.Paid;
         AddDomainEvent(new TransactionCompletedEvent(Id, BranchCode, GrandTotal));
+        foreach (var moneyOrder in LineItems.Where(item => item.MoneyOrder is not null))
+        {
+            AddDomainEvent(new MoneyOrderIssuedEvent(Id, BranchCode, moneyOrder.MoneyOrder!.Amount, moneyOrder.MoneyOrder.Recipient));
+        }
+    }
+
+    public void Refund(Staff manager, string reason)
+    {
+        EnsureManagerForTransaction(manager);
+        if (string.IsNullOrWhiteSpace(reason)) throw new DomainValidationException("A refund reason is required.");
+        if (Status != TransactionStatus.Paid) throw new DomainValidationException("Only paid transactions can be refunded.");
+
+        Status = TransactionStatus.Refunded;
+        VoidReason = reason;
+        VoidedByManagerId = manager.Id;
+        AddDomainEvent(new TransactionVoidedEvent(Id, BranchCode, manager.Id, reason));
+    }
+
+    public void MarkReversalInventoryRestocked()
+    {
+        if (Status is not (TransactionStatus.Refunded or TransactionStatus.Voided))
+        {
+            throw new DomainValidationException("Only voided or refunded transactions can complete inventory restocking.");
+        }
+
+        InventoryRestocked = true;
     }
 
     public void Void(Staff manager, string reason)
     {
-        if (manager.Role != StaffRole.BranchManager) throw new UnauthorizedDomainActionException("Only a Branch Manager can void transactions.");
+        EnsureManagerForTransaction(manager);
         if (string.IsNullOrWhiteSpace(reason)) throw new DomainValidationException("A void reason is required.");
         if (Status != TransactionStatus.Paid) throw new DomainValidationException("Only paid transactions can be voided.");
 
@@ -130,5 +287,13 @@ public class Transaction : AggregateRoot<Guid>
         VoidReason = reason;
         VoidedByManagerId = manager.Id;
         AddDomainEvent(new TransactionVoidedEvent(Id, BranchCode, manager.Id, reason));
+    }
+
+    private void EnsureManagerForTransaction(Staff manager)
+    {
+        if (!manager.IsActive || manager.Role != StaffRole.BranchManager || manager.HomeBranchCode != BranchCode)
+        {
+            throw new UnauthorizedDomainActionException("An active Branch Manager assigned to this branch is required.");
+        }
     }
 }

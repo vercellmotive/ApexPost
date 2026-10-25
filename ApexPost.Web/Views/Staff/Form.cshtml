@@ -1,0 +1,37 @@
+@model ApexPost.Web.Models.StaffFormViewModel
+@{
+    ViewData["Title"] = Model.Id is null ? "Add staff" : "Edit staff";
+    var branches = ViewBag.Branches as IEnumerable<ApexPost.Domain.Entities.Branch> ?? [];
+    var isEdit = Model.Id is not null;
+}
+
+<h2>@ViewData["Title"]</h2>
+<form asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@Model.Id" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <div class="mb-3">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" class="form-control" />
+        <span asp-validation-for="Email" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Role" class="form-label"></label>
+        <select asp-for="Role" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Enums.StaffRole>()" class="form-select"></select>
+    </div>
+    <div class="mb-3">
+        <label asp-for="HomeBranchCode" class="form-label">Home branch</label>
+        <select asp-for="HomeBranchCode" class="form-select">
+            @foreach (var branch in branches)
+            {
+                <option value="@branch.Id.Value">@branch.Id.Value — @branch.Name</option>
+            }
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+</form>

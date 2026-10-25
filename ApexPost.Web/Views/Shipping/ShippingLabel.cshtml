@@ -1,0 +1,59 @@
+@model ApexPost.Web.Models.ShippingLabelViewModel
+@{
+    ViewData["Title"] = "Shipping label preview";
+}
+
+<h2>Shipping label preview</h2>
+<form asp-action="ShippingLabel" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label asp-for="IsParcel" class="form-label">Item type</label>
+            <select asp-for="IsParcel" class="form-select">
+                <option value="true">Parcel</option>
+                <option value="false">Letter</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label asp-for="WeightKg" class="form-label">Weight (kg)</label>
+            <input asp-for="WeightKg" class="form-control" />
+        </div>
+        <div class="col-md-2">
+            <label asp-for="LengthCm" class="form-label">Length (cm)</label>
+            <input asp-for="LengthCm" class="form-control" />
+        </div>
+        <div class="col-md-2">
+            <label asp-for="WidthCm" class="form-label">Width (cm)</label>
+            <input asp-for="WidthCm" class="form-control" />
+        </div>
+        <div class="col-md-2">
+            <label asp-for="HeightCm" class="form-label">Height (cm)</label>
+            <input asp-for="HeightCm" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="DestinationZone" class="form-label">Destination zone</label>
+            <select asp-for="DestinationZone" class="form-select">
+                @for (var zone = 1; zone <= 10; zone++)
+                {
+                    <option value="Zone @zone">Zone @zone</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="ServiceLevel" class="form-label"></label>
+            <select asp-for="ServiceLevel" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Enums.ServiceLevel>()" class="form-select"></select>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary mt-3">Calculate and preview</button>
+</form>
+
+@if (Model.Price is decimal price)
+{
+    <section class="border rounded p-4 mt-4" aria-label="Shipping label">
+        <h3>ApexPost Logistics</h3>
+        <p>@(Model.IsParcel ? "Parcel" : "Letter") · @Model.ServiceLevel · @Model.DestinationZone</p>
+        <p>Weight: @Model.WeightKg kg</p>
+        <p class="fw-bold">Price: @price.ToString("C")</p>
+    </section>
+}

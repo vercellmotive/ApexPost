@@ -1,0 +1,1502 @@
+[
+  {
+    "Id": "9e1383fc-15c4-4ece-8a47-13de201f8f5b",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-001"
+    },
+    "QuantityOnHand": 4
+  },
+  {
+    "Id": "9e3c7df8-f084-403f-8c00-4d41eb906b91",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-002"
+    },
+    "QuantityOnHand": 7
+  },
+  {
+    "Id": "518c9c33-74b4-4f3b-bab9-19457bc2aac8",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-003"
+    },
+    "QuantityOnHand": 10
+  },
+  {
+    "Id": "c3bbb644-916a-4898-a2d7-901e4114798e",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-004"
+    },
+    "QuantityOnHand": 13
+  },
+  {
+    "Id": "dd99fb74-e100-40f5-8ecb-497790ba8ff7",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-005"
+    },
+    "QuantityOnHand": 16
+  },
+  {
+    "Id": "5824d257-f781-4b59-83b5-12cb1981585d",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-006"
+    },
+    "QuantityOnHand": 19
+  },
+  {
+    "Id": "f1ae36e1-1ae9-4611-8f56-e9ab80c5f32c",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-007"
+    },
+    "QuantityOnHand": 22
+  },
+  {
+    "Id": "08f04e67-c8a8-4750-b453-1ed5953040ad",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-008"
+    },
+    "QuantityOnHand": 25
+  },
+  {
+    "Id": "ea52a224-c043-409b-9c76-3f2416d1a90b",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-009"
+    },
+    "QuantityOnHand": 28
+  },
+  {
+    "Id": "d61baeef-07d3-4884-b502-fe4e121d0d44",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-010"
+    },
+    "QuantityOnHand": 31
+  },
+  {
+    "Id": "0e842956-701c-4bf0-b9ea-48b9a77ebf1f",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-011"
+    },
+    "QuantityOnHand": 34
+  },
+  {
+    "Id": "7174c681-94ec-4890-941c-fa6c2283e5ab",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-012"
+    },
+    "QuantityOnHand": 1
+  },
+  {
+    "Id": "c8e27927-a900-4859-8b85-8ecade268e65",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-013"
+    },
+    "QuantityOnHand": 4
+  },
+  {
+    "Id": "45c808d1-d941-4a6b-a426-770ecbfd5442",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-014"
+    },
+    "QuantityOnHand": 7
+  },
+  {
+    "Id": "72ad07d2-f49f-4a1d-a6e7-dfb30a669aeb",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-015"
+    },
+    "QuantityOnHand": 10
+  },
+  {
+    "Id": "d1c8a149-3944-4de8-b69f-14ee3ea56670",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-016"
+    },
+    "QuantityOnHand": 13
+  },
+  {
+    "Id": "420d566e-4098-4ba6-8c76-2a5ba42a12f3",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-017"
+    },
+    "QuantityOnHand": 16
+  },
+  {
+    "Id": "fdac09a9-a0a0-4211-b008-07fcb4ac7c17",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-018"
+    },
+    "QuantityOnHand": 19
+  },
+  {
+    "Id": "9dc5092c-e995-4c8f-9703-50979724ffcc",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-019"
+    },
+    "QuantityOnHand": 22
+  },
+  {
+    "Id": "9243a802-81a4-40d0-9f32-22a8d61ee66a",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-020"
+    },
+    "QuantityOnHand": 25
+  },
+  {
+    "Id": "57353c28-2126-4e3c-9b09-df9180e1c7d9",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-021"
+    },
+    "QuantityOnHand": 28
+  },
+  {
+    "Id": "4f81c40a-49c0-4114-a070-d9f50824ddb2",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-022"
+    },
+    "QuantityOnHand": 31
+  },
+  {
+    "Id": "0bb0f9bd-592d-44a2-aa5f-1bdd78a72a79",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-023"
+    },
+    "QuantityOnHand": 34
+  },
+  {
+    "Id": "48d44b97-8646-44d9-a652-5eb3d50291f1",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-024"
+    },
+    "QuantityOnHand": 1
+  },
+  {
+    "Id": "e5f6ef02-f14f-4a48-a45c-5b18dd2bb864",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-025"
+    },
+    "QuantityOnHand": 4
+  },
+  {
+    "Id": "afa92b80-0168-4006-a18b-b809dbc3d318",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-026"
+    },
+    "QuantityOnHand": 7
+  },
+  {
+    "Id": "0755d95b-ab0c-491e-bf7f-5a1a976edc2e",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-027"
+    },
+    "QuantityOnHand": 10
+  },
+  {
+    "Id": "224bd0e1-cc02-4326-b063-e6a04d028452",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-028"
+    },
+    "QuantityOnHand": 13
+  },
+  {
+    "Id": "2b03b632-3668-4563-a5e5-68d2639f5fc7",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-029"
+    },
+    "QuantityOnHand": 16
+  },
+  {
+    "Id": "8e6e8a8e-10ea-4252-a63c-3ff7bd4a75c7",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "ProductSku": {
+      "Value": "SKU-030"
+    },
+    "QuantityOnHand": 19
+  },
+  {
+    "Id": "2e0587d0-b872-4ba2-beff-e4793e741f58",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-001"
+    },
+    "QuantityOnHand": 11
+  },
+  {
+    "Id": "a53a9356-0298-4773-b1b6-cf1b93e7b58a",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-002"
+    },
+    "QuantityOnHand": 14
+  },
+  {
+    "Id": "6b59a5b6-2596-4543-ad8b-6a4997d43c40",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-003"
+    },
+    "QuantityOnHand": 17
+  },
+  {
+    "Id": "984c89b9-b00c-4cd6-b658-0e69052b2f5c",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-004"
+    },
+    "QuantityOnHand": 20
+  },
+  {
+    "Id": "39c8205f-8167-42d8-8cb6-a5965b40a37c",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-005"
+    },
+    "QuantityOnHand": 23
+  },
+  {
+    "Id": "78920e59-1d91-4920-a014-b0d7953c2be9",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-006"
+    },
+    "QuantityOnHand": 26
+  },
+  {
+    "Id": "b845dda6-45b9-45ab-8279-f33ff33bd806",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-007"
+    },
+    "QuantityOnHand": 29
+  },
+  {
+    "Id": "769f449e-d4c8-4daf-9e7e-45411fc5c13f",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-008"
+    },
+    "QuantityOnHand": 32
+  },
+  {
+    "Id": "401fab5f-4dcc-457b-8514-a4f807dc7f98",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-009"
+    },
+    "QuantityOnHand": 35
+  },
+  {
+    "Id": "c8acfb93-59c7-431a-b92f-723bc1f18026",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-010"
+    },
+    "QuantityOnHand": 2
+  },
+  {
+    "Id": "9dfcd720-1b12-4b99-ad97-0cb810e17d64",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-011"
+    },
+    "QuantityOnHand": 5
+  },
+  {
+    "Id": "7b0a5e9f-6684-424d-b47a-1051dd48e8a8",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-012"
+    },
+    "QuantityOnHand": 8
+  },
+  {
+    "Id": "093afbcc-c9c0-4ee4-b164-4b0a1f6c56f1",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-013"
+    },
+    "QuantityOnHand": 11
+  },
+  {
+    "Id": "b95fa95b-5eb1-4fa9-8ea4-22f966c580bc",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-014"
+    },
+    "QuantityOnHand": 14
+  },
+  {
+    "Id": "fd54eff8-3e98-4717-8827-ee19cb902a26",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-015"
+    },
+    "QuantityOnHand": 17
+  },
+  {
+    "Id": "784dc595-9821-409d-a549-ce73a55c987f",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-016"
+    },
+    "QuantityOnHand": 20
+  },
+  {
+    "Id": "f98ee8f3-efff-4eee-87ac-3a2df5c6b123",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-017"
+    },
+    "QuantityOnHand": 23
+  },
+  {
+    "Id": "2879ffe9-dfd6-4786-bac1-9d5f13bd6347",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-018"
+    },
+    "QuantityOnHand": 26
+  },
+  {
+    "Id": "11ea3638-b411-4dc2-aa4d-a02011c3355c",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-019"
+    },
+    "QuantityOnHand": 29
+  },
+  {
+    "Id": "d9c5316e-d286-4a7d-82ca-b1a7b719cc1d",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-020"
+    },
+    "QuantityOnHand": 32
+  },
+  {
+    "Id": "424ea006-3819-47a9-96d0-c592aa168d52",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-021"
+    },
+    "QuantityOnHand": 35
+  },
+  {
+    "Id": "6a451c19-5ada-4f1e-b503-1bbf545705f1",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-022"
+    },
+    "QuantityOnHand": 2
+  },
+  {
+    "Id": "c069d605-a685-4cd2-a722-a934858ed9be",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-023"
+    },
+    "QuantityOnHand": 5
+  },
+  {
+    "Id": "09dd555e-cd3f-423e-b706-dbfd87eb020f",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-024"
+    },
+    "QuantityOnHand": 8
+  },
+  {
+    "Id": "423cecf6-a01d-433a-ac06-f28eaaabeff3",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-025"
+    },
+    "QuantityOnHand": 11
+  },
+  {
+    "Id": "4961f67d-fe1b-43ff-af08-d059aa4c678c",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-026"
+    },
+    "QuantityOnHand": 14
+  },
+  {
+    "Id": "cd69b05f-f4a9-4581-918e-247ec8b22f72",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-027"
+    },
+    "QuantityOnHand": 17
+  },
+  {
+    "Id": "d4984506-c142-4e07-b3ba-f6b08a645961",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-028"
+    },
+    "QuantityOnHand": 20
+  },
+  {
+    "Id": "e05efca8-47d0-4dc2-b1fa-3dc504706f3d",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-029"
+    },
+    "QuantityOnHand": 23
+  },
+  {
+    "Id": "ff4ee188-5ee1-4ebe-8a70-053fc6b49100",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "ProductSku": {
+      "Value": "SKU-030"
+    },
+    "QuantityOnHand": 26
+  },
+  {
+    "Id": "60bb8e12-9130-428e-8693-095c40ffd1c7",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-001"
+    },
+    "QuantityOnHand": 18
+  },
+  {
+    "Id": "deb3260c-097d-49eb-8d11-6b401a166440",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-002"
+    },
+    "QuantityOnHand": 21
+  },
+  {
+    "Id": "2abb0ee9-5105-4dee-b1e7-5f999e9172aa",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-003"
+    },
+    "QuantityOnHand": 24
+  },
+  {
+    "Id": "768a912b-e7f6-4859-bdd5-b4d66672f30a",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-004"
+    },
+    "QuantityOnHand": 27
+  },
+  {
+    "Id": "faecaf50-4dd4-4b42-8ef0-2cc9911e6e15",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-005"
+    },
+    "QuantityOnHand": 30
+  },
+  {
+    "Id": "4458be4c-4ecc-40f1-88fc-b43435d8869c",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-006"
+    },
+    "QuantityOnHand": 33
+  },
+  {
+    "Id": "ba5c860c-5049-4e0a-9ac5-913686cbaa1c",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-007"
+    },
+    "QuantityOnHand": 36
+  },
+  {
+    "Id": "cda30c96-5a73-40a8-9c8f-7c7af1b3f79d",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-008"
+    },
+    "QuantityOnHand": 3
+  },
+  {
+    "Id": "3f7da498-b53f-4300-a582-0eaa57cc1be4",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-009"
+    },
+    "QuantityOnHand": 6
+  },
+  {
+    "Id": "97fd6913-8895-45be-8042-aa2a8959afaf",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-010"
+    },
+    "QuantityOnHand": 9
+  },
+  {
+    "Id": "0afed599-ff44-4c71-bd08-f88cb47ed5aa",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-011"
+    },
+    "QuantityOnHand": 12
+  },
+  {
+    "Id": "d510abc5-6bd4-4d52-bbe7-dbaa49b0c2fa",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-012"
+    },
+    "QuantityOnHand": 15
+  },
+  {
+    "Id": "dd64d025-7a71-4e1f-ac1b-33c73019462c",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-013"
+    },
+    "QuantityOnHand": 18
+  },
+  {
+    "Id": "866c8f49-72d8-47ff-b1e5-b79f93758d56",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-014"
+    },
+    "QuantityOnHand": 21
+  },
+  {
+    "Id": "d5ca0e70-82e7-4c9a-a3f6-8347a27183df",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-015"
+    },
+    "QuantityOnHand": 24
+  },
+  {
+    "Id": "1ff23332-bbf0-4738-9647-e0ede4c92d74",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-016"
+    },
+    "QuantityOnHand": 27
+  },
+  {
+    "Id": "d7c3d316-3e4a-4ee0-8478-1cdda9b56c34",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-017"
+    },
+    "QuantityOnHand": 30
+  },
+  {
+    "Id": "02884a1e-f694-45d4-aa34-a86089195b94",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-018"
+    },
+    "QuantityOnHand": 33
+  },
+  {
+    "Id": "acbd0d06-8e4b-4303-8dd9-b0af6ff47e5c",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-019"
+    },
+    "QuantityOnHand": 36
+  },
+  {
+    "Id": "e7fb6b4a-630d-4b98-a175-d663a655fb51",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-020"
+    },
+    "QuantityOnHand": 3
+  },
+  {
+    "Id": "01aae927-7b75-4ccf-9b7f-c2034c7cef94",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-021"
+    },
+    "QuantityOnHand": 6
+  },
+  {
+    "Id": "4f29e507-f514-4623-b1d9-c0519134d7a2",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-022"
+    },
+    "QuantityOnHand": 9
+  },
+  {
+    "Id": "6cead74e-1121-43c2-bec2-7eef603a56a3",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-023"
+    },
+    "QuantityOnHand": 12
+  },
+  {
+    "Id": "318262ba-7f0a-4e34-bfd1-fa52fa84fef1",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-024"
+    },
+    "QuantityOnHand": 15
+  },
+  {
+    "Id": "d7491124-4a18-45ec-a001-97134ff87b43",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-025"
+    },
+    "QuantityOnHand": 18
+  },
+  {
+    "Id": "8d162727-1c2e-4b20-9268-4e209ee23573",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-026"
+    },
+    "QuantityOnHand": 21
+  },
+  {
+    "Id": "e8fe341d-48f2-4cee-96cf-0aac63d93b07",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-027"
+    },
+    "QuantityOnHand": 24
+  },
+  {
+    "Id": "79d28bfd-efa5-4bcf-911b-15ee6528ec3d",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-028"
+    },
+    "QuantityOnHand": 27
+  },
+  {
+    "Id": "74405a95-c371-49b7-b334-194dbf4909bf",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-029"
+    },
+    "QuantityOnHand": 30
+  },
+  {
+    "Id": "6aee950d-4e21-4401-876c-4a786b6e731a",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "ProductSku": {
+      "Value": "SKU-030"
+    },
+    "QuantityOnHand": 33
+  },
+  {
+    "Id": "8b3353a0-f2d3-44be-93d0-e12b5c9a8cda",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-001"
+    },
+    "QuantityOnHand": 25
+  },
+  {
+    "Id": "5687c8f5-fe11-47f5-93e7-e76da01822e9",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-002"
+    },
+    "QuantityOnHand": 28
+  },
+  {
+    "Id": "0601a794-b2e3-4ebd-8ce8-7121b5fa39bc",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-003"
+    },
+    "QuantityOnHand": 31
+  },
+  {
+    "Id": "041664fe-ac83-477e-8cc7-f4f77002fb6e",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-004"
+    },
+    "QuantityOnHand": 34
+  },
+  {
+    "Id": "f3f89e2c-3fc8-48d4-b8eb-17c8991661e3",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-005"
+    },
+    "QuantityOnHand": 1
+  },
+  {
+    "Id": "df3a781d-e50b-4e49-b712-125495d75a34",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-006"
+    },
+    "QuantityOnHand": 4
+  },
+  {
+    "Id": "9ace00ec-daa5-4833-a8f3-f1116ebf1955",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-007"
+    },
+    "QuantityOnHand": 7
+  },
+  {
+    "Id": "6b316f23-65e9-4de0-a3b7-fd2c30e3d7c3",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-008"
+    },
+    "QuantityOnHand": 10
+  },
+  {
+    "Id": "77ef8e8a-96f5-4800-84ce-548cac0689b0",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-009"
+    },
+    "QuantityOnHand": 13
+  },
+  {
+    "Id": "73d252f9-7893-46a6-9918-fedf76236513",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-010"
+    },
+    "QuantityOnHand": 16
+  },
+  {
+    "Id": "12ddf808-5407-4665-82b0-ea8f81c02d34",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-011"
+    },
+    "QuantityOnHand": 19
+  },
+  {
+    "Id": "c34b06aa-1804-44f0-9978-8135b6576bfd",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-012"
+    },
+    "QuantityOnHand": 22
+  },
+  {
+    "Id": "9d7bfb9c-2567-4c99-af83-2c5fd6273b14",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-013"
+    },
+    "QuantityOnHand": 25
+  },
+  {
+    "Id": "c363884e-f1a0-4a3f-a94c-d8589a5527e8",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-014"
+    },
+    "QuantityOnHand": 28
+  },
+  {
+    "Id": "7d5359c9-e132-4c2e-b7ab-679ace06b647",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-015"
+    },
+    "QuantityOnHand": 31
+  },
+  {
+    "Id": "792fcd71-eac0-4dd2-be75-db5e489a66d9",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-016"
+    },
+    "QuantityOnHand": 34
+  },
+  {
+    "Id": "ed9ee4cb-ca24-4a77-a939-eb3ab9ca4f83",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-017"
+    },
+    "QuantityOnHand": 1
+  },
+  {
+    "Id": "84dc593e-13a8-4c49-bb24-1401fd1864cf",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-018"
+    },
+    "QuantityOnHand": 4
+  },
+  {
+    "Id": "a81eedda-882e-47cb-936f-c6c5d4959437",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-019"
+    },
+    "QuantityOnHand": 7
+  },
+  {
+    "Id": "69864dc3-d25c-4162-851e-a3c8470ba7af",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-020"
+    },
+    "QuantityOnHand": 10
+  },
+  {
+    "Id": "85fb6f71-b865-45f5-8cf7-cd59b4583b5b",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-021"
+    },
+    "QuantityOnHand": 13
+  },
+  {
+    "Id": "a34f4bb7-1132-4e24-85e0-3637d0bc8f1e",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-022"
+    },
+    "QuantityOnHand": 16
+  },
+  {
+    "Id": "89345d9d-7a62-420e-ba4f-5470b1eef422",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-023"
+    },
+    "QuantityOnHand": 19
+  },
+  {
+    "Id": "8a217402-ca8a-48c3-82e0-ee862a376341",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-024"
+    },
+    "QuantityOnHand": 22
+  },
+  {
+    "Id": "b7c78cf4-fb78-4546-a701-c8b6acb58418",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-025"
+    },
+    "QuantityOnHand": 25
+  },
+  {
+    "Id": "e3e3341f-d7bd-4b56-9924-88e4ba5d9864",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-026"
+    },
+    "QuantityOnHand": 28
+  },
+  {
+    "Id": "a0943fd9-7777-4dd1-ae88-0342e8870340",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-027"
+    },
+    "QuantityOnHand": 31
+  },
+  {
+    "Id": "6e7e8dec-d5aa-48fd-9d89-1e3e0d3244bc",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-028"
+    },
+    "QuantityOnHand": 34
+  },
+  {
+    "Id": "b29b6664-f833-4aae-a250-c9193558e569",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-029"
+    },
+    "QuantityOnHand": 1
+  },
+  {
+    "Id": "f2175d40-0d06-4099-b740-5fabf8b266f2",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "ProductSku": {
+      "Value": "SKU-030"
+    },
+    "QuantityOnHand": 4
+  },
+  {
+    "Id": "da429277-bcec-4fad-bd87-c27919f35bad",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-001"
+    },
+    "QuantityOnHand": 32
+  },
+  {
+    "Id": "22a0eaf9-c2ad-43db-b872-a8205aa318eb",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-002"
+    },
+    "QuantityOnHand": 35
+  },
+  {
+    "Id": "24fb6af5-09ad-495a-9b21-762448e327f4",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-003"
+    },
+    "QuantityOnHand": 2
+  },
+  {
+    "Id": "4d4812ee-1299-4d04-93e1-a826e22a6f5c",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-004"
+    },
+    "QuantityOnHand": 5
+  },
+  {
+    "Id": "235f7e64-aa54-457c-ac59-b33546e29711",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-005"
+    },
+    "QuantityOnHand": 8
+  },
+  {
+    "Id": "c1f7784a-9e18-4d7a-9f20-d75ceae7eb20",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-006"
+    },
+    "QuantityOnHand": 11
+  },
+  {
+    "Id": "6a03c312-c1dd-46da-93c7-773d198dfde4",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-007"
+    },
+    "QuantityOnHand": 14
+  },
+  {
+    "Id": "5cc9171a-7590-42c3-90c6-31bfe86ae64e",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-008"
+    },
+    "QuantityOnHand": 17
+  },
+  {
+    "Id": "46a2b401-7aaf-4109-bed1-7badaa9ca010",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-009"
+    },
+    "QuantityOnHand": 20
+  },
+  {
+    "Id": "8f6145ab-2ea1-47f3-88be-fbd880acb39f",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-010"
+    },
+    "QuantityOnHand": 23
+  },
+  {
+    "Id": "16d165f6-4f49-47ba-945e-b8226f32d73a",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-011"
+    },
+    "QuantityOnHand": 26
+  },
+  {
+    "Id": "4ba1dacf-5601-477d-986f-e7cd2fa67599",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-012"
+    },
+    "QuantityOnHand": 29
+  },
+  {
+    "Id": "ef303e0c-dc25-422c-95d0-ca0815637e2b",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-013"
+    },
+    "QuantityOnHand": 32
+  },
+  {
+    "Id": "8e6e193f-69dc-4668-b00b-e540943e9355",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-014"
+    },
+    "QuantityOnHand": 35
+  },
+  {
+    "Id": "cf5964d2-53fa-4638-a926-c609d4bf5566",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-015"
+    },
+    "QuantityOnHand": 2
+  },
+  {
+    "Id": "d3f62b0a-c625-4c75-91b4-7e69b76631b5",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-016"
+    },
+    "QuantityOnHand": 5
+  },
+  {
+    "Id": "06f2bd17-a184-4e4f-8dfe-d8130b54e81f",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-017"
+    },
+    "QuantityOnHand": 8
+  },
+  {
+    "Id": "ff7bc207-2001-4ab1-9cd5-11fdbc9a6fef",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-018"
+    },
+    "QuantityOnHand": 11
+  },
+  {
+    "Id": "c92340b3-a296-46b2-97a3-470d1c7fd90d",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-019"
+    },
+    "QuantityOnHand": 14
+  },
+  {
+    "Id": "68fcfdcc-8a24-47e1-a0b8-a152bff748b7",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-020"
+    },
+    "QuantityOnHand": 17
+  },
+  {
+    "Id": "f002a388-35b3-4404-ba0f-c12595da7701",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-021"
+    },
+    "QuantityOnHand": 20
+  },
+  {
+    "Id": "5e039936-5023-4ac4-89cb-52a8a8161e46",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-022"
+    },
+    "QuantityOnHand": 23
+  },
+  {
+    "Id": "48fe8ca8-09ba-44a9-9b3b-48b8143b94ce",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-023"
+    },
+    "QuantityOnHand": 26
+  },
+  {
+    "Id": "614f5e54-6cda-4083-8c1c-3ca506ea698f",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-024"
+    },
+    "QuantityOnHand": 29
+  },
+  {
+    "Id": "692fff7a-f644-45f3-823a-99e695d8bb55",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-025"
+    },
+    "QuantityOnHand": 32
+  },
+  {
+    "Id": "b7293871-8db6-40c9-8243-6fcbd81f74a3",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-026"
+    },
+    "QuantityOnHand": 35
+  },
+  {
+    "Id": "ecacd271-66e4-48f3-85a6-dc79c4cf6f64",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-027"
+    },
+    "QuantityOnHand": 2
+  },
+  {
+    "Id": "e2b16275-4d06-4bca-af2c-cb2e1c809bcd",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-028"
+    },
+    "QuantityOnHand": 5
+  },
+  {
+    "Id": "3b788fa3-c1dc-4489-afe0-bee67202283e",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-029"
+    },
+    "QuantityOnHand": 8
+  },
+  {
+    "Id": "d221ef92-b412-45e7-990f-ba5329188d5b",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "ProductSku": {
+      "Value": "SKU-030"
+    },
+    "QuantityOnHand": 11
+  }
+]

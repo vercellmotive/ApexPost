@@ -13,7 +13,13 @@ namespace ApexPost.Domain.ValueObjects
             init => field = value >= 0 ? Math.Round(value, 2, MidpointRounding.AwayFromZero) : throw new ArgumentOutOfRangeException(nameof(Amount), "Amount cannot be negative.");
         }
 
-        public string Currency { get; init; } = "AUD";
+        public string Currency
+        {
+            get;
+            init => field = value is { Length: 3 } && value.All(char.IsAsciiLetter)
+                ? value.ToUpperInvariant()
+                : throw new ArgumentException("Currency must be a three-letter code.", nameof(Currency));
+        } = "AUD";
 
         public Money(decimal amount, string currency = "AUD")
         {
@@ -22,14 +28,32 @@ namespace ApexPost.Domain.ValueObjects
         }
 
         public static Money Zero => new(0m);
-        public static Money operator +(Money left, Money right) => new(left.Amount + right.Amount, left.Currency);
-        public static Money operator -(Money left, Money right) => new(left.Amount - right.Amount, left.Currency);
+        public static Money operator +(Money left, Money right)
+        {
+            EnsureSameCurrency(left, right);
+            return new(left.Amount + right.Amount, left.Currency);
+        }
+
+        public static Money operator -(Money left, Money right)
+        {
+            EnsureSameCurrency(left, right);
+            return new(left.Amount - right.Amount, left.Currency);
+        }
+
         public static Money operator *(Money money, decimal multiplier) => new(money.Amount * multiplier, money.Currency);
 
-        public static bool operator >(Money left, Money right) => (left.Amount > right.Amount);
-        public static bool operator <(Money left, Money right) => (left.Amount < right.Amount);
-        public static bool operator >=(Money left, Money right) => (left.Amount >= right.Amount);
-        public static bool operator <=(Money left, Money right) => (left.Amount <= right.Amount);
+        public static bool operator >(Money left, Money right) { EnsureSameCurrency(left, right); return left.Amount > right.Amount; }
+        public static bool operator <(Money left, Money right) { EnsureSameCurrency(left, right); return left.Amount < right.Amount; }
+        public static bool operator >=(Money left, Money right) { EnsureSameCurrency(left, right); return left.Amount >= right.Amount; }
+        public static bool operator <=(Money left, Money right) { EnsureSameCurrency(left, right); return left.Amount <= right.Amount; }
+
+        private static void EnsureSameCurrency(Money left, Money right)
+        {
+            if (!string.Equals(left.Currency, right.Currency, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Money values with different currencies cannot be combined or compared.");
+            }
+        }
     }
 
     public static class MoneyExtensions
@@ -37,10 +61,15 @@ namespace ApexPost.Domain.ValueObjects
         public static Money CalculateTax(this Money money, TaxCategory category) => category switch
         {
             TaxCategory.Exempt => Money.Zero,
-            TaxCategory.StandardGst => money * 0.10m,
-            TaxCategory.Reduced => money * 0.05m,
+            TaxCategory.StandardGst => (money * 0.10m).RoundedToCurrencyPrecision,
+            TaxCategory.Reduced => (money * 0.05m).RoundedToCurrencyPrecision,
             _ => throw new ArgumentOutOfRangeException(nameof(category), "Invalid tax category.")
         };
+
+        extension(Money money)
+        {
+            public Money RoundedToCurrencyPrecision => new(money.Amount, money.Currency);
+        }
     }
 
     public readonly record struct Weight

@@ -1,0 +1,25 @@
+@model IReadOnlyList<(string Branch, int MoneyOrders, int IdentityVerifications)>
+@{
+    ViewData["Title"] = "Financial audit";
+}
+
+<h2>Money orders and identity verification audit</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Branch</th>
+            <th>Money orders</th>
+            <th>Identity verifications</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var row in Model)
+        {
+            <tr>
+                <td>@row.Branch</td>
+                <td>@row.MoneyOrders</td>
+                <td>@row.IdentityVerifications</td>
+            </tr>
+        }
+    </tbody>
+</table>

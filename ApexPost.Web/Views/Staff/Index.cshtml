@@ -1,0 +1,39 @@
+@model IReadOnlyList<ApexPost.Domain.Entities.Staff>
+@{
+    ViewData["Title"] = "Staff";
+}
+
+<h2>Staff management</h2>
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success" role="status">@success</div>
+}
+<p><a class="btn btn-primary" asp-action="Create">Add staff member</a></p>
+<table class="table table-striped">
+    <thead>
+        <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Branch</th><th>Status</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var person in Model)
+        {
+            <tr>
+                <td>@person.Id</td>
+                <td>@person.Name</td>
+                <td>@person.Email</td>
+                <td>@person.Role</td>
+                <td>@person.HomeBranchCode.Value</td>
+                <td>@(person.IsActive ? "Active" : "Inactive")</td>
+                <td>
+                    <a asp-action="Edit" asp-route-id="@person.Id">Edit</a>
+                    @if (person.IsActive)
+                    {
+                        <form asp-action="Deactivate" asp-route-id="@person.Id" method="post" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-link">Deactivate</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

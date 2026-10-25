@@ -1,0 +1,22 @@
+[
+  { "Id": "STF001", "Name": "Alice Turner", "Email": "alice@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B001" }, "IsActive": true },
+  { "Id": "STF002", "Name": "Ben Price", "Email": "ben@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B001" }, "IsActive": true },
+  { "Id": "STF003", "Name": "Cara Patel", "Email": "cara@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B001" }, "IsActive": true },
+  { "Id": "STF004", "Name": "Dom Hsu", "Email": "dom@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B002" }, "IsActive": true },
+  { "Id": "STF005", "Name": "Ella Stone", "Email": "ella@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B002" }, "IsActive": true },
+  { "Id": "STF006", "Name": "Frank Lin", "Email": "frank@apexpost.com", "Role": 2, "HomeBranchCode": { "Value": "B002" }, "IsActive": true },
+  { "Id": "STF007", "Name": "Grace Maio", "Email": "grace@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B003" }, "IsActive": true },
+  { "Id": "STF008", "Name": "Hugo Ross", "Email": "hugo@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B003" }, "IsActive": true },
+  { "Id": "STF009", "Name": "Iris Chen", "Email": "iris@apexpost.com", "Role": 2, "HomeBranchCode": { "Value": "B003" }, "IsActive": true },
+  { "Id": "STF010", "Name": "Jake Davis", "Email": "jake@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B004" }, "IsActive": true },
+  { "Id": "STF011", "Name": "Kara Moss", "Email": "kara@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B004" }, "IsActive": true },
+  { "Id": "STF012", "Name": "Leo Moss", "Email": "leo@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B004" }, "IsActive": true },
+  { "Id": "STF013", "Name": "Mia North", "Email": "mia@apexpost.com", "Role": 2, "HomeBranchCode": { "Value": "B005" }, "IsActive": true },
+  { "Id": "STF014", "Name": "Noah Bell", "Email": "noah@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B005" }, "IsActive": true },
+  { "Id": "STF015", "Name": "Olive Ford", "Email": "olive@apexpost.com", "Role": 3, "HomeBranchCode": { "Value": "B001" }, "IsActive": true },
+  { "Id": "STF016", "Name": "Parker Quinn", "Email": "parker@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B002" }, "IsActive": true },
+  { "Id": "STF017", "Name": "Quinn West", "Email": "quinn@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B003" }, "IsActive": true },
+  { "Id": "STF018", "Name": "Rae Holt", "Email": "rae@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B005" }, "IsActive": true },
+  { "Id": "STF019", "Name": "Sam Reed", "Email": "sam@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B004" }, "IsActive": true },
+  { "Id": "STF020", "Name": "Tara Cain", "Email": "tara@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B005" }, "IsActive": true }
+]

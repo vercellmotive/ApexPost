@@ -1,4 +1,5 @@
 ﻿using ApexPost.Domain.Entities;
+using ApexPost.Domain.Common;
 using ApexPost.Domain.Enums;
 using ApexPost.Domain.ValueObjects;
 using System;
@@ -10,11 +11,20 @@ namespace ApexPost.Application.Pricing;
 public interface IPricingStrategy
 {
     Money CalculateShippingPrice(ShippingDetails details);
+    Money CalculateShippingPrice(ShippingDetails details, decimal zoneMultiplier);
     void ValidateWeightLimits(ShippingDetails details);
 }
 
 public class TieredShippingPricingStrategy : IPricingStrategy
 {
+    private readonly Func<ShippingDetails, decimal, Money> _pricingRule;
+
+    public TieredShippingPricingStrategy(Func<ShippingDetails, decimal, Money>? pricingRule = null)
+    {
+        _pricingRule = pricingRule
+            ?? ((details, zoneMultiplier) => CalculateDefaultPrice(details, zoneMultiplier));
+    }
+
     public void ValidateWeightLimits(ShippingDetails details)
     {
         var maxWeight = details.ServiceLevel switch
@@ -22,16 +32,57 @@ public class TieredShippingPricingStrategy : IPricingStrategy
             ServiceLevel.Standard => Weight.FromKilograms(20.0m),
             ServiceLevel.Express => Weight.FromKilograms(10.0m),
             ServiceLevel.Registered => Weight.FromKilograms(2.0m),
-            _ => throw new ArgumentOutOfRangeException(nameof(details.ServiceLevel))
+            _ => throw new DomainValidationException("Unsupported shipping service level.")
         };
 
-        if (details.Weight > maxWeight) throw new ArgumentException($"Parcel weight ({details.Weight.Kilograms} kg) exceeds limit of {maxWeight.Kilograms} kg for {details.ServiceLevel}.");
+        if (details.IsParcel && details.Weight > maxWeight) throw new DomainValidationException($"Parcel weight ({details.Weight.Kilograms} kg) exceeds limit of {maxWeight.Kilograms} kg for {details.ServiceLevel}.");
+        if (details.Dimensions.LengthCm <= 0 || details.Dimensions.WidthCm <= 0 || details.Dimensions.HeightCm <= 0)
+        {
+            throw new DomainValidationException("Shipping dimensions must be greater than zero.");
+        }
     }
 
 
     public Money CalculateShippingPrice(ShippingDetails details)
     {
+        var zoneMultiplier = details.DestinationZone switch
+        {
+            "Zone 1" or "Zone 2" => 1.0m,
+            "Zone 3" or "Zone 4" => 1.25m,
+            "Zone 5" or "Zone 6" => 1.5m,
+            "Zone 7" or "Zone 8" => 1.75m,
+            "Zone 9" or "Zone 10" => 2.0m,
+            _ => throw new DomainValidationException("The destination zone is not supported.")
+        };
+
+        return CalculateShippingPrice(details, zoneMultiplier);
+    }
+
+    public Money CalculateShippingPrice(ShippingDetails details, decimal zoneMultiplier)
+    {
         ValidateWeightLimits(details);
+        if (zoneMultiplier <= 0)
+        {
+            throw new DomainValidationException("The configured shipping zone multiplier must be positive.");
+        }
+
+        return _pricingRule(details, zoneMultiplier);
+    }
+
+    public static Money CalculateDefaultPrice(
+        ShippingDetails details,
+        decimal zoneMultiplier,
+        decimal parcelWeightSurchargePerKilogram = 1.50m)
+    {
+        if (zoneMultiplier <= 0)
+        {
+            throw new DomainValidationException("The configured shipping zone multiplier must be positive.");
+        }
+
+        if (parcelWeightSurchargePerKilogram < 0)
+        {
+            throw new DomainValidationException("The parcel weight surcharge cannot be negative.");
+        }
 
         decimal baseRate = (details.IsParcel, details.ServiceLevel) switch
         {
@@ -41,18 +92,12 @@ public class TieredShippingPricingStrategy : IPricingStrategy
             (true, ServiceLevel.Standard) => 10.00m,
             (true, ServiceLevel.Express) => 18.00m,
             (true, ServiceLevel.Registered) => 24.00m,
-            _ => 10.00m
+            _ => throw new DomainValidationException("Unsupported shipping service level.")
         };
 
-        decimal zoneMultiplier = details.DestinationZone switch
-        {
-            "Zone 1" or "Zone 2" => 1.0m,
-            "Zone 3" or "Zone 4" => 1.25m,
-            "Zone 5" or "Zone 6" => 1.5m,
-            _ => 2.0m
-        };
-
-        decimal weightSurcharge = details.IsParcel ? details.Weight.Kilograms * 1.50m : 0m;
+        var weightSurcharge = details.IsParcel
+            ? details.Weight.Kilograms * parcelWeightSurchargePerKilogram
+            : 0m;
         return new Money((baseRate * zoneMultiplier) + weightSurcharge);
     }
 

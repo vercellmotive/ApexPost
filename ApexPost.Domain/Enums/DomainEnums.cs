@@ -48,4 +48,12 @@ namespace ApexPost.Domain.Enums
         DriversLicense,
         NationalIdentityCard
     }
+
+    public enum StockAdjustmentReason
+    {
+        Replenishment,
+        Damage,
+        CountCorrection,
+        CustomerReturn
+    }
 }

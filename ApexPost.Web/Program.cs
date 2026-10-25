@@ -1,29 +1,208 @@
+using System.Security.Claims;
+using ApexPost.Application.Interfaces;
+using ApexPost.Application.Pricing;
+using ApexPost.Application.Services;
+using ApexPost.Domain.Entities;
+using ApexPost.Infrastructure.Services;
+using ApexPost.Web.Attributes;
+using ApexPost.Web.Authorization;
+using ApexPost.Web.Filters;
+using ApexPost.Web.Middleware;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
+using System.Net;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.AddService<PerformanceActionFilter>();
+    options.Filters.AddService<AuditActionFilter>();
+});
+builder.Services.AddScoped<ValidationActionFilter>();
+builder.Services.AddScoped<PerformanceActionFilter>();
+builder.Services.AddScoped<AuditActionFilter>();
+
+builder.Services.AddAntiforgery();
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/Account/Login";
+        options.AccessDeniedPath = "/Account/Login";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("BranchManagerOnly", policy => policy.RequireClaim("Role", "BranchManager"));
+    options.AddPolicy("AuditorOnly", policy => policy.RequireClaim("Role", "Auditor"));
+    options.AddPolicy("AdministratorOnly", policy => policy.RequireClaim("Role", "Administrator"));
+    options.AddPolicy("SameBranchOnly", policy => policy.AddRequirements(new SameBranchRequirement()));
+});
+builder.Services.AddSingleton<IAuthorizationHandler, SameBranchAuthorizationHandler>();
+
+builder.Services.AddHealthChecks();
+builder.Services.AddMemoryCache();
+builder.Services.AddResponseCompression();
+builder.Services.Configure<CookiePolicyOptions>(options =>
+{
+    options.HttpOnly = Microsoft.AspNetCore.CookiePolicy.HttpOnlyPolicy.Always;
+    options.Secure = CookieSecurePolicy.Always;
+    options.MinimumSameSitePolicy = SameSiteMode.Strict;
+});
+builder.Services.AddCors(options =>
+{
+    var partnerOrigin = builder.Configuration["Cors:PartnerTrackingWidgetOrigin"]
+        ?? "https://tracking-widget.apexpost.example";
+    options.AddPolicy("PartnerWidget", policy =>
+    {
+        policy.WithOrigins(partnerOrigin)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 3,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+    options.AddPolicy("partner", context =>
+    {
+        var apiKeyValidator = context.RequestServices.GetRequiredService<PartnerApiKeyValidator>();
+        var suppliedKey = context.Request.Headers["X-Api-Key"].FirstOrDefault()
+            ?? context.Request.Headers["ApiKey"].FirstOrDefault();
+        var partnerId = apiKeyValidator.FindPartnerId(suppliedKey);
+        var partition = partnerId is not null
+            ? $"partner:{partnerId}"
+            : $"invalid:{context.Connection.RemoteIpAddress}";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partition,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        await context.HttpContext.Response.WriteAsync("Request rate limit exceeded.", cancellationToken);
+    };
+});
+
+builder.Services.AddSingleton<IRepository<Branch>>(sp => new JsonFileRepository<Branch>(sp.GetRequiredService<IWebHostEnvironment>()));
+builder.Services.AddSingleton<IRepository<Staff>>(sp => new JsonFileRepository<Staff>(sp.GetRequiredService<IWebHostEnvironment>()));
+builder.Services.AddSingleton<IRepository<Product>>(sp => new JsonFileRepository<Product>(sp.GetRequiredService<IWebHostEnvironment>()));
+builder.Services.AddSingleton<IRepository<Transaction>>(sp => new JsonFileRepository<Transaction>(sp.GetRequiredService<IWebHostEnvironment>()));
+builder.Services.AddSingleton<IRepository<BranchStock>>(sp => new JsonFileRepository<BranchStock>(sp.GetRequiredService<IWebHostEnvironment>()));
+builder.Services.AddSingleton<IRepository<ShippingZone>>(sp => new JsonFileRepository<ShippingZone>(sp.GetRequiredService<IWebHostEnvironment>()));
+
+builder.Services.AddSingleton<IAuditStore, JsonAuditStore>();
+builder.Services.AddSingleton<PartnerApiKeyValidator>();
+builder.Services.AddSingleton<INotificationService, SimulatedNotificationService>();
+builder.Services.AddSingleton<IIdentityVerificationService, SimulatedIdentityVerificationService>();
+builder.Services.AddSingleton(new TransactionRules(
+    new ApexPost.Domain.ValueObjects.Money(
+        builder.Configuration.GetValue<decimal>("Transactions:HighValueMoneyOrderThreshold", 1000m)),
+    new ApexPost.Domain.ValueObjects.Money(
+        builder.Configuration.GetValue<decimal>("Transactions:MaximumMoneyOrderAmount", 20000m))));
+builder.Services.AddSingleton<IDomainEventDispatcher, DomainEventDispatcher>();
+builder.Services.AddSingleton<ICourierRateService, SimulatedCourierRateService>();
+builder.Services.AddSingleton<ICourierTrackingService>(_ => new SimulatedCourierTrackingService(
+    TimeSpan.FromMilliseconds(builder.Configuration.GetValue<int>("CourierTracking:TimeoutMs", 1500)),
+    TimeSpan.FromMilliseconds(builder.Configuration.GetValue<int>("CourierTracking:SimulatedDelayMs", 50))));
+
+builder.Services.AddSingleton<ProductCatalogueService>();
+builder.Services.AddSingleton<ICatalogueService>(sp => sp.GetRequiredService<ProductCatalogueService>());
+
+builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<ReportingService>();
+builder.Services.AddScoped<TransactionService>();
+builder.Services.AddScoped<InventoryService>();
+builder.Services.AddSingleton<StaffManagementService>();
+var parcelWeightSurcharge = builder.Configuration.GetValue<decimal>(
+    "ShippingPricing:ParcelWeightSurchargePerKilogram",
+    1.50m);
+if (parcelWeightSurcharge < 0)
+{
+    throw new InvalidOperationException("ShippingPricing:ParcelWeightSurchargePerKilogram cannot be negative.");
+}
+
+builder.Services.AddSingleton<IPricingStrategy>(_ =>
+    new TieredShippingPricingStrategy((details, zoneMultiplier) =>
+        TieredShippingPricingStrategy.CalculateDefaultPrice(
+            details,
+            zoneMultiplier,
+            parcelWeightSurcharge)));
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    RequireHeaderSymmetry = false,
+    ForwardLimit = 1
+};
+foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+{
+    if (!IPAddress.TryParse(proxy, out var proxyAddress))
+    {
+        throw new InvalidOperationException($"ForwardedHeaders:KnownProxies contains invalid IP address '{proxy}'.");
+    }
+
+    forwardedHeadersOptions.KnownProxies.Add(proxyAddress);
+}
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
+app.UseMiddleware<RequestCorrelationMiddleware>();
+app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseMiddleware<RequestLoggingMiddleware>();
+app.UseMiddleware<RequestTimingMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseMiddleware<MaintenanceModeMiddleware>();
+app.UseRequestLocalization(new RequestLocalizationOptions()
+    .SetDefaultCulture("en-AU")
+    .AddSupportedCultures("en-AU")
+    .AddSupportedUICultures("en-AU"));
+app.UseResponseCompression();
+app.UseStatusCodePages();
+app.UseCookiePolicy();
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseRouting();
-
+app.UseCors();
+app.UseRateLimiter();
+app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
+app.UseMiddleware<IpRestrictionMiddleware>();
+app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
 
-app.MapStaticAssets();
+app.MapHealthChecks("/health");
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets();
-
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
+
+public partial class Program { }

@@ -1,0 +1,1810 @@
+[
+  {
+    "Id": "7f514a22-ed46-4803-8408-6361c19194f1",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "CounterId": "C01",
+    "ClerkStaffId": "STF002",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "32b25643-4835-4fb3-b029-3b7d33b8a358",
+        "Description": "Bubble Wrap Roll",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 8.5,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-001"
+        }
+      },
+      {
+        "Id": "ed750b0a-65a3-49b7-82b2-03aad232cd3e",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 1",
+          "ServiceLevel": 0
+        }
+      },
+      {
+        "Id": "02748627-f0a0-4cba-8b35-236095f13ae6",
+        "Description": "Money order",
+        "ItemType": 2,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 1510,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "MoneyOrder": {
+          "Amount": {
+            "Amount": 1500,
+            "Currency": "AUD"
+          },
+          "Sender": "Demo Sender",
+          "Recipient": "Demo Recipient",
+          "Fee": {
+            "Amount": 10,
+            "Currency": "AUD"
+          }
+        }
+      },
+      {
+        "Id": "1dc54f0a-7b8a-4e32-b407-bcb0a578e0ae",
+        "Description": "Identity verification",
+        "ItemType": 3,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 0,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "IdVerification": {
+          "DocType": 0,
+          "MaskedDocNumber": "******1234",
+          "IsVerified": true
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-25T15:51:24.446Z"
+  },
+  {
+    "Id": "4ebb1763-dbfe-4876-a651-a2979c2ebf79",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "CounterId": "C12",
+    "ClerkStaffId": "STF005",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "d3e17a19-2730-4d77-89a3-7fb726912bab",
+        "Description": "Shipping Box Small",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 5,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-002"
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-24T14:51:24.446Z"
+  },
+  {
+    "Id": "339f44c1-06cc-4388-8585-9225e6fd7fff",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "CounterId": "C21",
+    "ClerkStaffId": "STF007",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "4f8141b0-cf19-41fe-a73a-b3d16867acb9",
+        "Description": "Shipping Box Large",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 12.5,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-003"
+        }
+      },
+      {
+        "Id": "6ded3228-fbb3-4895-9759-eb89cc557b7c",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 3",
+          "ServiceLevel": 2
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-23T13:51:24.446Z"
+  },
+  {
+    "Id": "88ab59d1-6d6e-415f-9f03-0e77e7cc1de7",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "CounterId": "C32",
+    "ClerkStaffId": "STF010",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "c98c7d9b-7817-49ea-9a18-c4ac79e8a888",
+        "Description": "Packing Tape",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 4.25,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-004"
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-22T12:51:24.446Z"
+  },
+  {
+    "Id": "c52160d4-6c6c-432e-aef4-f6a6a2d7edf4",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "CounterId": "C41",
+    "ClerkStaffId": "STF014",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "a84333df-b66a-4726-a160-2a8c1580ee54",
+        "Description": "A4 Copy Paper",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 7.2,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-005"
+        }
+      },
+      {
+        "Id": "818c6154-c4e9-47d0-aaae-04133698836c",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 5",
+          "ServiceLevel": 1
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-21T11:51:24.446Z"
+  },
+  {
+    "Id": "286826d1-2b8f-40f3-89a1-66bda2c7d4d0",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "CounterId": "C02",
+    "ClerkStaffId": "STF002",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "4cbf3bab-3ef8-4edf-b776-96f97b58b18f",
+        "Description": "Pens Pack",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 3.75,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-006"
+        }
+      },
+      {
+        "Id": "bf4cbed6-921d-4087-99ef-2e5a233f1cf5",
+        "Description": "Money order",
+        "ItemType": 2,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 260,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "MoneyOrder": {
+          "Amount": {
+            "Amount": 250,
+            "Currency": "AUD"
+          },
+          "Sender": "Demo Sender",
+          "Recipient": "Demo Recipient",
+          "Fee": {
+            "Amount": 10,
+            "Currency": "AUD"
+          }
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-20T10:51:24.446Z"
+  },
+  {
+    "Id": "7376db61-56e0-4812-b1f8-486d21367cea",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "CounterId": "C11",
+    "ClerkStaffId": "STF005",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "7d8eff25-a2d6-4c8b-92da-b5e9ebfcd5ca",
+        "Description": "Stapler",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 15,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-007"
+        }
+      },
+      {
+        "Id": "2197b4e9-4d35-4d5b-bfcd-ca322232b5ad",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 7",
+          "ServiceLevel": 0
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-19T09:51:24.446Z"
+  },
+  {
+    "Id": "389fc4f6-1727-4f47-b935-387eb42d1936",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "CounterId": "C21",
+    "ClerkStaffId": "STF007",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "5f3cd282-fa07-416b-ad48-f31ad4f2c4a0",
+        "Description": "Desk Calendar",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 9.9,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-008"
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-25T08:51:24.446Z"
+  },
+  {
+    "Id": "d11c7947-3c19-45c2-9e2b-0dd298b5dbf6",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "CounterId": "C31",
+    "ClerkStaffId": "STF010",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "7babef14-1bb1-4091-99a8-7a9795b4fb20",
+        "Description": "Document Folder",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 2.1,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-009"
+        }
+      },
+      {
+        "Id": "5dc478cd-e903-447e-ba03-e6b319e181fa",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 9",
+          "ServiceLevel": 2
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-24T15:51:24.446Z"
+  },
+  {
+    "Id": "981256dd-a98b-44f0-b208-27412eb8b3a4",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "CounterId": "C41",
+    "ClerkStaffId": "STF014",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "f4a94697-ee30-4859-ad3f-2b55490176fe",
+        "Description": "Postage Labels",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 2.8,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-010"
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-23T14:51:24.446Z"
+  },
+  {
+    "Id": "f89f21bd-a489-497b-abed-ac84b81788b6",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "CounterId": "C01",
+    "ClerkStaffId": "STF002",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "481c13c9-ec60-4c4d-a275-afe1dcac1fba",
+        "Description": "Envelopes",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 6.4,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-011"
+        }
+      },
+      {
+        "Id": "f7d747a8-833b-47ef-9a06-d79ce8f4b193",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 1",
+          "ServiceLevel": 1
+        }
+      },
+      {
+        "Id": "5d3463f7-0025-4754-8b22-6e95b02fe0b5",
+        "Description": "Money order",
+        "ItemType": 2,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 1510,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "MoneyOrder": {
+          "Amount": {
+            "Amount": 1500,
+            "Currency": "AUD"
+          },
+          "Sender": "Demo Sender",
+          "Recipient": "Demo Recipient",
+          "Fee": {
+            "Amount": 10,
+            "Currency": "AUD"
+          }
+        }
+      },
+      {
+        "Id": "5cac9b71-c190-4b5b-acd8-549ec42cfd65",
+        "Description": "Identity verification",
+        "ItemType": 3,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 0,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "IdVerification": {
+          "DocType": 0,
+          "MaskedDocNumber": "******1234",
+          "IsVerified": true
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-22T13:51:24.446Z"
+  },
+  {
+    "Id": "48023256-a880-432b-a5ef-294fa1d6cb3a",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "CounterId": "C12",
+    "ClerkStaffId": "STF005",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "5e00b2e8-cd73-42b2-ba3a-74938602fc17",
+        "Description": "Courier Satchel",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 11,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-012"
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-21T12:51:24.446Z"
+  },
+  {
+    "Id": "6d30d988-7680-4eb2-94d6-d6037aefd50f",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "CounterId": "C21",
+    "ClerkStaffId": "STF007",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "a5ae4673-3cdf-48bb-8474-9c3e2b8dc077",
+        "Description": "Notepad",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 4.5,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-013"
+        }
+      },
+      {
+        "Id": "05a19a70-9afe-484a-8327-e0ccbc07b158",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 3",
+          "ServiceLevel": 0
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-20T11:51:24.446Z"
+  },
+  {
+    "Id": "c8cf9586-3ce5-4f57-bbaa-f3781a3297e8",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "CounterId": "C32",
+    "ClerkStaffId": "STF010",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "ec697979-a8d5-487c-9807-b57b11a96be5",
+        "Description": "Letter Tray",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 24,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-014"
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-19T10:51:24.446Z"
+  },
+  {
+    "Id": "8f1183d8-6e49-4c94-a76f-72c31329e429",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "CounterId": "C41",
+    "ClerkStaffId": "STF014",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "19e98abd-0f8a-42c8-a458-c4eb85439386",
+        "Description": "Plastic Sleeve",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 1.2,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-015"
+        }
+      },
+      {
+        "Id": "4cc0e290-ebdb-4470-97f2-2bf1cfbb181c",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 5",
+          "ServiceLevel": 2
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-25T09:51:24.446Z"
+  },
+  {
+    "Id": "e2105d5c-21ac-4754-92a7-4d4974cdc251",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "CounterId": "C02",
+    "ClerkStaffId": "STF002",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "7ba4767e-da81-48b2-af9a-45a13b729b59",
+        "Description": "Bubble Mailer Medium",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 2.9,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-016"
+        }
+      },
+      {
+        "Id": "8b7fa8fa-6317-4834-a7e8-942d6d12c355",
+        "Description": "Money order",
+        "ItemType": 2,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 260,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "MoneyOrder": {
+          "Amount": {
+            "Amount": 250,
+            "Currency": "AUD"
+          },
+          "Sender": "Demo Sender",
+          "Recipient": "Demo Recipient",
+          "Fee": {
+            "Amount": 10,
+            "Currency": "AUD"
+          }
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-24T08:51:24.446Z"
+  },
+  {
+    "Id": "a3857801-7483-4f47-b6b4-e32d9c8a23d1",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "CounterId": "C11",
+    "ClerkStaffId": "STF005",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "c4b2ba42-bb09-4cfc-9240-041906abcede",
+        "Description": "Bubble Mailer Large",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 4.1,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-017"
+        }
+      },
+      {
+        "Id": "9c2dda3c-8de6-4588-b707-7b2b262b29ce",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 7",
+          "ServiceLevel": 1
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-23T15:51:24.446Z"
+  },
+  {
+    "Id": "a854855c-a6c9-431e-bfb6-0b31ec4ec5dc",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "CounterId": "C21",
+    "ClerkStaffId": "STF007",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "b1a81aa0-1c0b-4da9-a8ab-a4bf9b37388b",
+        "Description": "Cardboard Tube",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 6.8,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-018"
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-22T14:51:24.446Z"
+  },
+  {
+    "Id": "d1393fb6-2f02-4278-b8e2-636379f1d06f",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "CounterId": "C31",
+    "ClerkStaffId": "STF010",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "092d23a3-8148-40e8-a70c-44785100a434",
+        "Description": "Padded Envelope",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 3.2,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-019"
+        }
+      },
+      {
+        "Id": "1a556d74-e529-4e27-98e7-cd5ea3641840",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 9",
+          "ServiceLevel": 0
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-21T13:51:24.446Z"
+  },
+  {
+    "Id": "de726f3d-3323-4c76-afc7-2d0fe8273f6e",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "CounterId": "C41",
+    "ClerkStaffId": "STF014",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "e1b93b44-912f-4835-a8e6-97309acbbfff",
+        "Description": "Parcel String",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 2.4,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-020"
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-20T12:51:24.446Z"
+  },
+  {
+    "Id": "406d6188-a155-4ff8-8378-88ae094640a8",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "CounterId": "C01",
+    "ClerkStaffId": "STF002",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "d186e6e1-2672-4bcf-87e2-251b8c16d9c7",
+        "Description": "Permanent Marker",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 2.6,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-021"
+        }
+      },
+      {
+        "Id": "cebb441b-0519-4989-9b25-a71ef21ba3a2",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 1",
+          "ServiceLevel": 2
+        }
+      },
+      {
+        "Id": "c84ff7a9-2a60-431b-afe0-238fba93c308",
+        "Description": "Money order",
+        "ItemType": 2,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 1510,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "MoneyOrder": {
+          "Amount": {
+            "Amount": 1500,
+            "Currency": "AUD"
+          },
+          "Sender": "Demo Sender",
+          "Recipient": "Demo Recipient",
+          "Fee": {
+            "Amount": 10,
+            "Currency": "AUD"
+          }
+        }
+      },
+      {
+        "Id": "134cf29e-0e58-48dc-acb1-b5dea32554e7",
+        "Description": "Identity verification",
+        "ItemType": 3,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 0,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "IdVerification": {
+          "DocType": 0,
+          "MaskedDocNumber": "******1234",
+          "IsVerified": true
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-19T11:51:24.446Z"
+  },
+  {
+    "Id": "f009df54-bd56-430c-a42f-3c239586e400",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "CounterId": "C12",
+    "ClerkStaffId": "STF005",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "d0acebc2-487b-45fe-9b9e-df29abee3388",
+        "Description": "Highlighter Set",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 5.5,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-022"
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-25T10:51:24.446Z"
+  },
+  {
+    "Id": "7604179b-f5a6-4a7e-a739-447cec751905",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "CounterId": "C21",
+    "ClerkStaffId": "STF007",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "5e2922c0-f853-49c6-9e12-32cd20d28155",
+        "Description": "Ballpoint Pens Blue",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 2.2,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-023"
+        }
+      },
+      {
+        "Id": "54dccbd2-4b99-4510-b135-d09d666478f3",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 3",
+          "ServiceLevel": 1
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-24T09:51:24.446Z"
+  },
+  {
+    "Id": "d2a6246e-9dc9-45ca-a9dd-39b9c669fadd",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "CounterId": "C32",
+    "ClerkStaffId": "STF010",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "02c97c5c-1222-4749-b8a6-d3a2cdcb11ae",
+        "Description": "Notebook A5",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 3.8,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-024"
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-23T08:51:24.446Z"
+  },
+  {
+    "Id": "39c365a9-b2d5-407a-9b94-ee7941009b2a",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "CounterId": "C41",
+    "ClerkStaffId": "STF014",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "11bc2f3d-fe65-45d1-97a9-6547c8f75ae9",
+        "Description": "Correction Tape",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 3.1,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-025"
+        }
+      },
+      {
+        "Id": "26d39b7d-7b67-4d72-a609-8ac358993e55",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 5",
+          "ServiceLevel": 0
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-22T15:51:24.446Z"
+  },
+  {
+    "Id": "159e3f48-d353-4bf4-a8ce-d35771be036c",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "CounterId": "C02",
+    "ClerkStaffId": "STF002",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "37e157c4-513f-4a34-af75-51bc6b4b98cb",
+        "Description": "Desk Organiser",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 18.5,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-026"
+        }
+      },
+      {
+        "Id": "4dd30dcf-3e41-488f-8178-0389491896e2",
+        "Description": "Money order",
+        "ItemType": 2,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 260,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "MoneyOrder": {
+          "Amount": {
+            "Amount": 250,
+            "Currency": "AUD"
+          },
+          "Sender": "Demo Sender",
+          "Recipient": "Demo Recipient",
+          "Fee": {
+            "Amount": 10,
+            "Currency": "AUD"
+          }
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-21T14:51:24.446Z"
+  },
+  {
+    "Id": "ccbf9b64-26e4-4918-a85a-e9e8197e7201",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "CounterId": "C11",
+    "ClerkStaffId": "STF005",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "fc204d64-6f14-448d-a1a7-1ed707c48e2a",
+        "Description": "Scissors",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 7.25,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-027"
+        }
+      },
+      {
+        "Id": "ce27a377-1274-4942-9bc6-85f78b127f27",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 7",
+          "ServiceLevel": 2
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-20T13:51:24.446Z"
+  },
+  {
+    "Id": "4bacf402-2480-486b-917e-d928b6dd99b6",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "CounterId": "C21",
+    "ClerkStaffId": "STF007",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "f60a6194-bcdb-4ac9-b13c-bea14f0d8acc",
+        "Description": "Clipboard",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 6.4,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-028"
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-19T12:51:24.446Z"
+  },
+  {
+    "Id": "13a52f47-2cd6-43b9-b973-f4bb1d52136b",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "CounterId": "C31",
+    "ClerkStaffId": "STF010",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "dcd042b7-81c2-4445-91a8-e2e9d2d5bc85",
+        "Description": "Staple Remover",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 3.6,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-029"
+        }
+      },
+      {
+        "Id": "2b4c7e01-84cd-4031-b712-612b49b4faba",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 9",
+          "ServiceLevel": 1
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-25T11:51:24.446Z"
+  },
+  {
+    "Id": "f3248a5e-a269-4b9d-bc40-d5bed5809192",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "CounterId": "C41",
+    "ClerkStaffId": "STF014",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "ab35337a-6ed6-4ba4-9f12-ee4426dfc3e6",
+        "Description": "Address Book",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 8.9,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-030"
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-24T10:51:24.446Z"
+  },
+  {
+    "Id": "ba8b3a43-f8f3-4fff-af34-b794835093c3",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "CounterId": "C01",
+    "ClerkStaffId": "STF002",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "6e887ec9-257f-4d58-bb4c-70665c3bf91b",
+        "Description": "Bubble Wrap Roll",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 8.5,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-001"
+        }
+      },
+      {
+        "Id": "3bd4b122-8e0f-4b73-b9fc-82bbdce56912",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 1",
+          "ServiceLevel": 0
+        }
+      },
+      {
+        "Id": "961cc79e-7b16-4d89-97c3-c13a4e2d6358",
+        "Description": "Money order",
+        "ItemType": 2,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 1510,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "MoneyOrder": {
+          "Amount": {
+            "Amount": 1500,
+            "Currency": "AUD"
+          },
+          "Sender": "Demo Sender",
+          "Recipient": "Demo Recipient",
+          "Fee": {
+            "Amount": 10,
+            "Currency": "AUD"
+          }
+        }
+      },
+      {
+        "Id": "e4524bd1-c1ac-4d6b-bb3a-e9eea28b8148",
+        "Description": "Identity verification",
+        "ItemType": 3,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 0,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "IdVerification": {
+          "DocType": 0,
+          "MaskedDocNumber": "******1234",
+          "IsVerified": true
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-23T09:51:24.446Z"
+  },
+  {
+    "Id": "6fe7df25-409e-418b-980a-23bdb37df3bb",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "CounterId": "C12",
+    "ClerkStaffId": "STF005",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "60a36562-3923-4abb-ac1f-11880981d872",
+        "Description": "Shipping Box Small",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 5,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-002"
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-22T08:51:24.446Z"
+  },
+  {
+    "Id": "bb4948a0-1fed-4af1-ae1e-369dc3443bec",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "CounterId": "C21",
+    "ClerkStaffId": "STF007",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "c90d7c73-bbc4-4553-bbb0-0319e9c258fa",
+        "Description": "Shipping Box Large",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 12.5,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-003"
+        }
+      },
+      {
+        "Id": "46105b23-11f3-4def-8799-c3a46ed766ec",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 3",
+          "ServiceLevel": 2
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-21T15:51:24.446Z"
+  },
+  {
+    "Id": "b5cd78db-5e9f-4ee5-a710-ba6e5085940d",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "CounterId": "C32",
+    "ClerkStaffId": "STF010",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "a7ec61ca-2163-4b12-8d1d-6fca064bf84e",
+        "Description": "Packing Tape",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 4.25,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-004"
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-20T14:51:24.446Z"
+  },
+  {
+    "Id": "e816b003-cf07-4d66-bfc3-be3a5b839350",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "CounterId": "C41",
+    "ClerkStaffId": "STF014",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "ea680ffe-b0ea-4bb7-9136-b2b9a7fd18e3",
+        "Description": "A4 Copy Paper",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 7.2,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-005"
+        }
+      },
+      {
+        "Id": "811e5025-358f-49f7-8c96-6c5eae00ded6",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 5",
+          "ServiceLevel": 1
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-19T13:51:24.446Z"
+  },
+  {
+    "Id": "560d7285-cc0d-42de-9986-afdae347deab",
+    "BranchCode": {
+      "Value": "B001"
+    },
+    "CounterId": "C02",
+    "ClerkStaffId": "STF002",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "710d0453-1383-49df-a24b-33853a1200ea",
+        "Description": "Pens Pack",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 3.75,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-006"
+        }
+      },
+      {
+        "Id": "c5987617-3805-4870-9044-eb489344289c",
+        "Description": "Money order",
+        "ItemType": 2,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 260,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "MoneyOrder": {
+          "Amount": {
+            "Amount": 250,
+            "Currency": "AUD"
+          },
+          "Sender": "Demo Sender",
+          "Recipient": "Demo Recipient",
+          "Fee": {
+            "Amount": 10,
+            "Currency": "AUD"
+          }
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-25T12:51:24.446Z"
+  },
+  {
+    "Id": "f05a6bfc-99c5-4ff1-aa30-808e4a97804d",
+    "BranchCode": {
+      "Value": "B002"
+    },
+    "CounterId": "C11",
+    "ClerkStaffId": "STF005",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "6402d657-429d-40d2-8831-a579332e85b3",
+        "Description": "Stapler",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 15,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-007"
+        }
+      },
+      {
+        "Id": "73d40401-528f-4910-8f92-5ae645d19032",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 7",
+          "ServiceLevel": 0
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-24T11:51:24.446Z"
+  },
+  {
+    "Id": "cd8a1eb1-8f84-4f1f-9f50-818e9dc5096e",
+    "BranchCode": {
+      "Value": "B003"
+    },
+    "CounterId": "C21",
+    "ClerkStaffId": "STF007",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "af87dc09-1039-4d96-a124-443132bc31db",
+        "Description": "Desk Calendar",
+        "ItemType": 0,
+        "Quantity": 2,
+        "UnitPrice": {
+          "Amount": 9.9,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-008"
+        }
+      }
+    ],
+    "PaymentMethod": "Card",
+    "CreatedAt": "2026-10-23T10:51:24.446Z"
+  },
+  {
+    "Id": "0a978c15-ba86-46b5-a498-f1268fa2a953",
+    "BranchCode": {
+      "Value": "B004"
+    },
+    "CounterId": "C31",
+    "ClerkStaffId": "STF010",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "1bc9f697-46b2-46b0-8789-30512ff20e72",
+        "Description": "Document Folder",
+        "ItemType": 0,
+        "Quantity": 3,
+        "UnitPrice": {
+          "Amount": 2.1,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-009"
+        }
+      },
+      {
+        "Id": "80f54f57-f7b2-4b13-9ed7-dd5d4ce4881b",
+        "Description": "Standard parcel shipping",
+        "ItemType": 1,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 13,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 0,
+        "Shipping": {
+          "IsParcel": true,
+          "Weight": {
+            "Kilograms": 2
+          },
+          "Dimensions": {
+            "LengthCm": 30,
+            "WidthCm": 20,
+            "HeightCm": 10
+          },
+          "DestinationZone": "Zone 9",
+          "ServiceLevel": 2
+        }
+      }
+    ],
+    "PaymentMethod": "EFTPOS",
+    "CreatedAt": "2026-10-22T09:51:24.446Z"
+  },
+  {
+    "Id": "98554e7b-4b8f-46fa-8ac6-f911ffe206c8",
+    "BranchCode": {
+      "Value": "B005"
+    },
+    "CounterId": "C41",
+    "ClerkStaffId": "STF014",
+    "Status": 1,
+    "LineItems": [
+      {
+        "Id": "2f32f715-1ab2-4f4a-a333-87e8e314c84b",
+        "Description": "Postage Labels",
+        "ItemType": 0,
+        "Quantity": 1,
+        "UnitPrice": {
+          "Amount": 2.8,
+          "Currency": "AUD"
+        },
+        "TaxCategory": 1,
+        "ProductSku": {
+          "Value": "SKU-010"
+        }
+      }
+    ],
+    "PaymentMethod": "Cash",
+    "CreatedAt": "2026-10-21T08:51:24.446Z"
+  }
+]

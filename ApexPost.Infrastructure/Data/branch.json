@@ -1,0 +1,7 @@
+[
+  { "Id": { "Value": "B001" }, "Name": "City North", "Region": "NSW", "TimeZoneId": "Australia/Sydney", "OpenTime": "09:00:00", "CloseTime": "17:00:00", "IsActive": true, "CounterTerminals": ["C01", "C02"] },
+  { "Id": { "Value": "B002" }, "Name": "Harbour East", "Region": "NSW", "TimeZoneId": "Australia/Sydney", "OpenTime": "08:30:00", "CloseTime": "16:30:00", "IsActive": true, "CounterTerminals": ["C11", "C12"] },
+  { "Id": { "Value": "B003" }, "Name": "Riverside", "Region": "QLD", "TimeZoneId": "Australia/Brisbane", "OpenTime": "09:30:00", "CloseTime": "18:00:00", "IsActive": true, "CounterTerminals": ["C21"] },
+  { "Id": { "Value": "B004" }, "Name": "Sunset South", "Region": "VIC", "TimeZoneId": "Australia/Melbourne", "OpenTime": "08:00:00", "CloseTime": "16:00:00", "IsActive": true, "CounterTerminals": ["C31", "C32"] },
+  { "Id": { "Value": "B005" }, "Name": "Desert West", "Region": "WA", "TimeZoneId": "Australia/Perth", "OpenTime": "09:00:00", "CloseTime": "17:30:00", "IsActive": true, "CounterTerminals": ["C41"] }
+]

@@ -1,8 +1,22 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@model ApexPost.Application.Services.DashboardSnapshot
+@{
+    ViewData["Title"] = "ApexPost Dashboard";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="container mt-4">
+    <h2>Branch dashboard</h2>
+    <div class="row">
+        <div class="col-md-3"><div class="card p-3"><h4>@Model.Branches.Count</h4><p>Branches</p></div></div>
+        <div class="col-md-3"><div class="card p-3"><h4>@Model.Products.Count</h4><p>Products</p></div></div>
+        <div class="col-md-3"><div class="card p-3"><h4>@Model.Transactions.Count</h4><p>Transactions</p></div></div>
+        <div class="col-md-3"><div class="card p-3"><h4>@Model.Alerts.Count</h4><p>Alerts</p></div></div>
+    </div>
+
+    <h3 class="mt-4">Latest alerts</h3>
+    <ul>
+        @foreach (var alert in Model.Alerts)
+        {
+            <li>@alert</li>
+        }
+    </ul>
 </div>
