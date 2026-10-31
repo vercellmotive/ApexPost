@@ -1,0 +1,30 @@
+W1 low-stock report by branch
+ SQL Server Execution Times:
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 2 ms, elapsed time = 2 ms.
+Table 'BranchStock'. Scan count 1, logical reads 2, physical reads 0, page server reads 0, read-ahead reads 0, page server read-ahead reads 0, lob logical reads 0, lob physical reads 0, lob page server reads 0, lob read-ahead reads 0, lob page server read-ahead reads 0.
+ SQL Server Execution Times:
+   CPU time = 0 ms,  elapsed time = 0 ms.
+W2 daily sales by branch and date
+ SQL Server Execution Times:
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 4 ms, elapsed time = 4 ms.
+Table 'TransactionLines'. Scan count 71, logical reads 439, physical reads 0, page server reads 0, read-ahead reads 0, page server read-ahead reads 0, lob logical reads 0, lob physical reads 0, lob page server reads 0, lob read-ahead reads 0, lob page server read-ahead reads 0.
+Table 'CounterTransactions'. Scan count 1, logical reads 3, physical reads 0, page server reads 0, read-ahead reads 0, page server read-ahead reads 0, lob logical reads 0, lob physical reads 0, lob page server reads 0, lob read-ahead reads 0, lob page server read-ahead reads 0.
+ SQL Server Execution Times:
+   CPU time = 1 ms,  elapsed time = 1 ms.
+W3 shipment search by zone and service level
+ SQL Server Execution Times:
+   CPU time = 1 ms,  elapsed time = 0 ms.
+   CPU time = 3 ms, elapsed time = 3 ms.
+Table 'Shipments'. Scan count 2, logical reads 24, physical reads 0, page server reads 0, read-ahead reads 0, page server read-ahead reads 0, lob logical reads 0, lob physical reads 0, lob page server reads 0, lob read-ahead reads 0, lob page server read-ahead reads 0.
+Table 'ShippingRates'. Scan count 1, logical reads 2, physical reads 0, page server reads 0, read-ahead reads 0, page server read-ahead reads 0, lob logical reads 0, lob physical reads 0, lob page server reads 0, lob read-ahead reads 0, lob page server read-ahead reads 0.
+ SQL Server Execution Times:
+   CPU time = 1 ms,  elapsed time = 0 ms.
+W4 high-value money-order search for auditors
+ SQL Server Execution Times:
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 1 ms, elapsed time = 1 ms.
+Table 'MoneyOrders'. Scan count 1, logical reads 10, physical reads 0, page server reads 0, read-ahead reads 0, page server read-ahead reads 0, lob logical reads 0, lob physical reads 0, lob page server reads 0, lob read-ahead reads 0, lob page server read-ahead reads 0.
+ SQL Server Execution Times:
+   CPU time = 0 ms,  elapsed time = 0 ms.
