@@ -10,10 +10,12 @@ using ApexPost.Domain.ValueObjects;
 using ApexPost.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ApexPost.Test;
 
@@ -394,6 +396,136 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
         Assert.Contains(await factory.ReadAuditAsync(), entry => entry.Action == "Create" && entry.StatusCode == 302);
     }
 
+    [SqlServerFact]
+    public async Task Mvc_SaleThatLosesEveryRowVersionRace_Returns409AndChangesNothing()
+    {
+        var sku = new Sku("SKU-007");
+        var rival = new RivalWriter(database.ConnectionString, "[BranchStock] SET", "UPDATE dbo.BranchStock SET ModifiedAtUtc = SYSUTCDATETIME() WHERE BranchCode = 'B001' AND Sku = 'SKU-007'");
+        using var factory = new SqlServerWebFactory(database.ConnectionString, rival);
+        await OpenAllBranchesAsync();
+        var quantityBefore = await StockQuantityAsync(sku);
+        var salesBefore = await SalesCountAsync();
+        var (client, token) = await SignInManagerAsync(factory, "127.0.0.61");
+
+        var sale = await client.PostAsync("/Counter/Create", SaleForm(sku, token));
+
+        Assert.Equal(HttpStatusCode.Conflict, sale.StatusCode);
+        Assert.Equal("application/problem+json", sale.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(5, rival.Writes);
+        Assert.Equal(quantityBefore, await StockQuantityAsync(sku));
+        Assert.Equal(salesBefore, await SalesCountAsync());
+    }
+
+    [SqlServerFact]
+    public async Task Mvc_Void_RestocksThroughTheProcedureAndWritesHistory()
+    {
+        var sku = new Sku("SKU-008");
+        using var factory = new SqlServerWebFactory(database.ConnectionString);
+        await OpenAllBranchesAsync();
+        var (client, token) = await SignInManagerAsync(factory, "127.0.0.40");
+        var quantityBefore = await StockQuantityAsync(sku);
+        Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/Counter/Create", SaleForm(sku, token))).StatusCode);
+        var saleId = await LatestSaleIdAsync(sku);
+        var historyBefore = await ReturnHistoryCountAsync(sku);
+
+        var reversal = await client.PostAsync("/Counter/Void", VoidForm(saleId, token));
+
+        Assert.Equal(HttpStatusCode.Redirect, reversal.StatusCode);
+        Assert.Equal(quantityBefore, await StockQuantityAsync(sku));
+        Assert.Equal(historyBefore + 1, await ReturnHistoryCountAsync(sku));
+        await using var verify = database.CreateContext();
+        var saved = await verify.CounterTransactions.AsNoTracking().SingleAsync(row => row.Id == saleId);
+        Assert.Equal(TransactionStatus.Voided, saved.Status);
+        Assert.True(saved.InventoryRestocked);
+    }
+
+    [SqlServerFact]
+    public async Task Mvc_VoidThatLosesItsRowVersionRace_RollsBackTheProcedureToo()
+    {
+        var sku = new Sku("SKU-009");
+        var rival = new RivalWriter(database.ConnectionString, "[CounterTransactions] SET", "UPDATE dbo.CounterTransactions SET ModifiedAtUtc = SYSUTCDATETIME() WHERE Status = 'Paid'");
+        using var factory = new SqlServerWebFactory(database.ConnectionString, rival);
+        await OpenAllBranchesAsync();
+        var (client, token) = await SignInManagerAsync(factory, "127.0.0.30");
+        Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/Counter/Create", SaleForm(sku, token))).StatusCode);
+        var saleId = await LatestSaleIdAsync(sku);
+        var quantityAfterSale = await StockQuantityAsync(sku);
+        var historyBefore = await ReturnHistoryCountAsync(sku);
+
+        var reversal = await client.PostAsync("/Counter/Void", VoidForm(saleId, token));
+
+        Assert.Equal(HttpStatusCode.Conflict, reversal.StatusCode);
+        Assert.Equal(1, rival.Writes);
+        Assert.Equal(quantityAfterSale, await StockQuantityAsync(sku));
+        Assert.Equal(historyBefore, await ReturnHistoryCountAsync(sku));
+        await using var verify = database.CreateContext();
+        Assert.Equal(TransactionStatus.Paid, (await verify.CounterTransactions.AsNoTracking().SingleAsync(row => row.Id == saleId)).Status);
+    }
+
+    private async Task OpenAllBranchesAsync()
+    {
+        await using var db = database.CreateContext();
+        await db.Branches.ExecuteUpdateAsync(setters => setters
+            .SetProperty(branch => branch.TimeZoneId, "UTC")
+            .SetProperty(branch => branch.OpenTime, TimeSpan.Zero)
+            .SetProperty(branch => branch.CloseTime, new TimeSpan(23, 59, 59)));
+    }
+
+    private async Task<int> StockQuantityAsync(Sku sku)
+    {
+        await using var db = database.CreateContext();
+        return await db.BranchStock.AsNoTracking()
+            .Where(stock => stock.BranchCode == B001 && stock.ProductSku == sku)
+            .Select(stock => stock.QuantityOnHand)
+            .SingleAsync();
+    }
+
+    private async Task<int> SalesCountAsync()
+    {
+        await using var db = database.CreateContext();
+        return await db.CounterTransactions.CountAsync();
+    }
+
+    private async Task<int> ReturnHistoryCountAsync(Sku sku)
+    {
+        await using var db = database.CreateContext();
+        return await db.StockAdjustments.CountAsync(row => row.BranchCode == B001 && row.Sku == sku && row.Reason == nameof(StockAdjustmentReason.CustomerReturn));
+    }
+
+    private async Task<Guid> LatestSaleIdAsync(Sku sku)
+    {
+        await using var db = database.CreateContext();
+        return await db.TransactionLines.AsNoTracking()
+            .Where(line => line.Sku == sku && line.Transaction!.BranchCode == B001)
+            .OrderByDescending(line => line.Transaction!.OccurredAtUtc)
+            .Select(line => line.TransactionId)
+            .FirstAsync();
+    }
+
+    private static async Task<(HttpClient Client, string Token)> SignInManagerAsync(SqlServerWebFactory factory, string address)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", address);
+        await LoginAsync(client, "alice@apexpost.com", "Apex-Alice-2026!");
+        return (client, await TokenAsync(client, "/Counter"));
+    }
+
+    private static FormUrlEncodedContent SaleForm(Sku sku, string token) => new(new Dictionary<string, string>
+    {
+        ["CounterId"] = "C01",
+        ["RetailItems[0].ProductSku"] = sku.Value,
+        ["RetailItems[0].Quantity"] = "1",
+        ["PaymentMethod"] = "Card",
+        ["__RequestVerificationToken"] = token
+    });
+
+    private static FormUrlEncodedContent VoidForm(Guid transactionId, string token) => new(new Dictionary<string, string>
+    {
+        ["transactionId"] = transactionId.ToString(),
+        ["reason"] = "Customer changed their mind",
+        ["__RequestVerificationToken"] = token
+    });
+
     private static async Task LoginAsync(HttpClient client, string email, string password)
     {
         var token = await TokenAsync(client, "/Account/Login");
@@ -409,7 +541,7 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
     private static async Task<string> TokenAsync(HttpClient client, string path) =>
         Regex.Match(await (await client.GetAsync(path)).Content.ReadAsStringAsync(), "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
 
-    private sealed class SqlServerWebFactory(string connectionString) : WebApplicationFactory<Program>
+    private sealed class SqlServerWebFactory(string connectionString, IInterceptor? interceptor = null) : WebApplicationFactory<Program>
     {
         public Task<IReadOnlyList<AuditEntry>> ReadAuditAsync() =>
             ((IAuditStore)Services.GetService(typeof(IAuditStore))!).GetAllAsync();
@@ -420,8 +552,51 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:ApexPostDb"] = connectionString,
-                ["Database:SeedOnStartup"] = "false"
+                ["Database:SeedOnStartup"] = "false",
+                ["Security:AllowedIps:0"] = "127.0.0.1",
+                ["Security:AllowedIps:1"] = "::1",
+                ["Security:AllowedIps:2"] = "127.0.0.30",
+                ["Security:AllowedIps:3"] = "127.0.0.40",
+                ["Security:AllowedIps:4"] = "127.0.0.61"
             }));
+            if (interceptor is not null)
+            {
+                builder.ConfigureTestServices(services =>
+                    services.ConfigureDbContext<ApexPostDbContext>(options => options.AddInterceptors(interceptor)));
+            }
+        }
+    }
+
+    // Stands in for another clerk: commits a change to the row just before EF Core's guarded UPDATE reaches it.
+    private sealed class RivalWriter(string connectionString, string targetUpdate, string rivalSql) : DbCommandInterceptor
+    {
+        private int _writes;
+
+        public int Writes => Volatile.Read(ref _writes);
+
+        private async Task WriteIfTargetedAsync(DbCommand command, CancellationToken cancellationToken)
+        {
+            if (!command.CommandText.Contains(targetUpdate, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            Interlocked.Increment(ref _writes);
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync(cancellationToken);
+            await RunAsync(connection, rivalSql);
+        }
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            await WriteIfTargetedAsync(command, cancellationToken);
+            return result;
+        }
+
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            await WriteIfTargetedAsync(command, cancellationToken);
+            return result;
         }
     }
 

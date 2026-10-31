@@ -244,7 +244,7 @@ public sealed class InMemoryPersistence(InMemoryDatabase database) :
 
     public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default) => work(ct);
 
-    public void ResetTracking()
+    public void DiscardPendingChanges()
     {
         _trackedStock.Clear();
         _trackedTransactions.Clear();

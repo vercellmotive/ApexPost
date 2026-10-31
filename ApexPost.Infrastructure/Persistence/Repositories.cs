@@ -134,7 +134,7 @@ public sealed class UnitOfWork(ApexPostDbContext db) : IUnitOfWork
         }
     }
 
-    public void ResetTracking() => db.ChangeTracker.Clear();
+    public void DiscardPendingChanges() => db.ChangeTracker.Clear();
 
     // Retries must repeat the whole unit, so the transaction runs inside the execution strategy.
     public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default)

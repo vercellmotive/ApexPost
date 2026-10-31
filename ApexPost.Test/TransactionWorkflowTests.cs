@@ -94,7 +94,7 @@ public sealed class TransactionWorkflowTests
         var (database, _, service) = Arrange(stock: 1);
         var stockRepository = new InMemoryPersistence(database);
         var first = new TransactionService(
-            stockRepository, stockRepository, stockRepository, stockRepository, stockRepository,
+            stockRepository, stockRepository, stockRepository, stockRepository, stockRepository, stockRepository,
             new StubCourierRateService(), new StubCatalogueService(TestProduct()), new StubIdentityVerificationService(),
             new StubEventDispatcher(), new TransactionRules(new Money(1000m), new Money(20000m)));
         await ((IStockRepository)stockRepository).GetAsync(new BranchCode(Branch), new Sku(Sku1));
@@ -158,7 +158,7 @@ public sealed class TransactionWorkflowTests
         var (database, _, service) = Arrange(stock: 5);
         var conflicting = new AlwaysConflictingPersistence(database);
         service = new TransactionService(
-            conflicting.Inner, conflicting.Inner, conflicting.Inner, conflicting.Inner, conflicting,
+            conflicting.Inner, conflicting.Inner, conflicting.Inner, conflicting.Inner, conflicting.Inner, conflicting,
             new StubCourierRateService(), new StubCatalogueService(TestProduct()), new StubIdentityVerificationService(),
             new StubEventDispatcher(), new TransactionRules(new Money(1000m), new Money(20000m)));
 
@@ -334,7 +334,7 @@ public sealed class TransactionWorkflowTests
 
         var persistence = new InMemoryPersistence(database);
         var service = new TransactionService(
-            persistence, persistence, persistence, persistence, persistence,
+            persistence, persistence, persistence, persistence, persistence, persistence,
             new StubCourierRateService(), new StubCatalogueService(TestProduct()), new StubIdentityVerificationService(),
             new StubEventDispatcher(), new TransactionRules(new Money(1000m), new Money(20000m)));
         return (database, persistence, service);
@@ -370,7 +370,7 @@ public sealed class TransactionWorkflowTests
 
         public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default) => work(ct);
 
-        public void ResetTracking() => Inner.ResetTracking();
+        public void DiscardPendingChanges() => Inner.DiscardPendingChanges();
     }
 
     private sealed class StubCatalogueService(Product product) : ICatalogueService

@@ -57,7 +57,7 @@ public interface IUnitOfWork
     Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default);
 
     // Forgets everything loaded or staged, so a retried use case reads fresh data.
-    void ResetTracking();
+    void DiscardPendingChanges();
 }
 
 public sealed class ConcurrencyConflictException(string message, Exception? innerException = null)

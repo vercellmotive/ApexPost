@@ -276,6 +276,7 @@ public sealed class TransactionService
     private readonly IBranchRepository _branches;
     private readonly IStaffRepository _staff;
     private readonly IStockRepository _stocks;
+    private readonly IStockAdjustmentCommand _adjustStock;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICourierRateService _courierRates;
     private readonly ICatalogueService _catalogue;
@@ -290,6 +291,7 @@ public sealed class TransactionService
         IBranchRepository branches,
         IStaffRepository staff,
         IStockRepository stocks,
+        IStockAdjustmentCommand adjustStock,
         IUnitOfWork unitOfWork,
         ICourierRateService courierRates,
         ICatalogueService catalogue,
@@ -302,6 +304,7 @@ public sealed class TransactionService
         _branches = branches;
         _staff = staff;
         _stocks = stocks;
+        _adjustStock = adjustStock;
         _unitOfWork = unitOfWork;
         _courierRates = courierRates;
         _catalogue = catalogue;
@@ -374,7 +377,7 @@ public sealed class TransactionService
             }
             catch (ConcurrencyConflictException) when (attempt < MaximumSaleAttempts)
             {
-                _unitOfWork.ResetTracking();
+                _unitOfWork.DiscardPendingChanges();
                 await Task.Delay(Random.Shared.Next(10, 50 * attempt), ct);
             }
         }
@@ -514,7 +517,8 @@ public sealed class TransactionService
     public Task RefundAsync(Guid transactionId, string managerId, string reason, CancellationToken ct = default) =>
         ReverseTransactionAsync(transactionId, managerId, reason, refund: true, ct);
 
-    // The status change and the restock commit together, and rowversion stops a concurrent reversal.
+    // Restocking runs usp_AdjustStock, so every reversal leaves stock history. The procedure and the status change
+    // commit together, and rowversion stops a concurrent reversal, which also undoes the restock.
     private async Task ReverseTransactionAsync(
         Guid transactionId,
         string managerId,
@@ -522,35 +526,42 @@ public sealed class TransactionService
         bool refund,
         CancellationToken ct)
     {
-        var transaction = await _transactions.GetByIdAsync(transactionId, ct)
-            ?? throw new KeyNotFoundException("Transaction not found.");
-        var manager = await _staff.GetByIdAsync(managerId, ct)
-            ?? throw new UnauthorizedDomainActionException("The signed-in staff member is not available.");
         if (string.IsNullOrWhiteSpace(reason))
         {
             throw new DomainValidationException("A reason is required for a transaction reversal.");
         }
 
-        if (refund)
+        Transaction? transaction = null;
+        await _unitOfWork.ExecuteInTransactionAsync(async token =>
         {
-            transaction.Refund(manager, reason);
-        }
-        else
-        {
-            transaction.Void(manager, reason);
-        }
+            // The execution strategy can repeat this whole unit, so each run starts from fresh data.
+            _unitOfWork.DiscardPendingChanges();
+            transaction = await _transactions.GetByIdAsync(transactionId, token)
+                ?? throw new KeyNotFoundException("Transaction not found.");
+            var manager = await _staff.GetByIdAsync(managerId, token)
+                ?? throw new UnauthorizedDomainActionException("The signed-in staff member is not available.");
 
-        foreach (var (sku, quantity) in transaction.RetailQuantities())
-        {
-            var stock = await _stocks.GetAsync(transaction.BranchCode, sku, ct)
-                ?? throw new KeyNotFoundException($"Stock for reversed product {sku.Value} was not found.");
-            stock.AddStock(quantity);
-        }
+            if (refund)
+            {
+                transaction.Refund(manager, reason);
+            }
+            else
+            {
+                transaction.Void(manager, reason);
+            }
 
-        transaction.MarkReversalInventoryRestocked();
-        _transactions.Update(transaction);
-        await _unitOfWork.SaveChangesAsync(ct);
-        await DispatchDomainEventsAsync(transaction, ct);
+            // BranchStock first and in SKU order, the same lock order as sales and stock adjustments.
+            foreach (var (sku, quantity) in transaction.RetailQuantities().OrderBy(item => item.Sku.Value, StringComparer.Ordinal))
+            {
+                await _adjustStock.AdjustAsync(transaction.BranchCode, sku, quantity, StockAdjustmentReason.CustomerReturn, managerId, token);
+            }
+
+            transaction.MarkReversalInventoryRestocked();
+            _transactions.Update(transaction);
+            await _unitOfWork.SaveChangesAsync(token);
+        }, ct);
+
+        await DispatchDomainEventsAsync(transaction!, ct);
     }
 
     private async Task DispatchDomainEventsAsync(Transaction transaction, CancellationToken ct)

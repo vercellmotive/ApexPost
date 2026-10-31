@@ -221,7 +221,7 @@ public sealed class ErrorMappingAndOverPostingTests : IClassFixture<ApexPostWebA
 
             public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default) => work(ct);
 
-            public void ResetTracking() => persistence.ResetTracking();
+            public void DiscardPendingChanges() => persistence.DiscardPendingChanges();
         }
     }
 }
