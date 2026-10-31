@@ -166,7 +166,10 @@ public static class PersistenceMapper
                     LengthCm = shipping.Dimensions.LengthCm,
                     WidthCm = shipping.Dimensions.WidthCm,
                     HeightCm = shipping.Dimensions.HeightCm
-                }
+                },
+                Destination = shipping.Destination is { } address
+                    ? new ShipmentAddress { Street = address.Street, City = address.City, State = address.State, PostalCode = address.PostalCode, Country = address.Country }
+                    : null
             };
         }
 
@@ -215,7 +218,10 @@ public static class PersistenceMapper
                 shipment.Weight,
                 new Dimensions(shipment.Dimensions.LengthCm, shipment.Dimensions.WidthCm, shipment.Dimensions.HeightCm),
                 rate.ZoneId,
-                rate.ServiceLevel);
+                rate.ServiceLevel,
+                shipment.Destination is { Street: not null } address
+                    ? new Address(address.Street, address.City ?? string.Empty, address.State ?? string.Empty, address.PostalCode ?? string.Empty, address.Country ?? string.Empty)
+                    : null);
         }
 
         return new TransactionLineItem(

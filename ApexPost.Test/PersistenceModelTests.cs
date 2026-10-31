@@ -29,7 +29,7 @@ public sealed class PersistenceModelTests
 
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(
-            ["InitialCreate", "AddWorkloadIndexes", "AddStoredProcedures", "AddRemainingAuditColumns", "ReplaceLowStockIndexWithFiltered"],
+            ["InitialCreate", "AddWorkloadIndexes", "AddStoredProcedures", "AddRemainingAuditColumns", "ReplaceLowStockIndexWithFiltered", "AddShipmentDestinationAddress"],
             db.Database.GetMigrations().Select(id => id[(id.IndexOf('_') + 1)..]));
     }
 
@@ -242,7 +242,7 @@ public sealed class PersistenceModelTests
         };
         var verification = IdVerificationDetails.FromDocumentNumber(DocumentType.Passport, "A123456789", true);
         transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "Tape", LineItemType.RetailProduct, 2, new Money(10m), TaxCategory.StandardGst, new Sku("SKU-001")));
-        transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "Shipping", LineItemType.ParcelShipping, 1, new Money(5m), TaxCategory.Exempt, Shipping: new ShippingDetails(true, Weight.FromKilograms(2m), new Dimensions(3, 4, 5), "Zone 3", ServiceLevel.Express)));
+        transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "Shipping", LineItemType.ParcelShipping, 1, new Money(5m), TaxCategory.Exempt, Shipping: new ShippingDetails(true, Weight.FromKilograms(2m), new Dimensions(3, 4, 5), "Zone 3", ServiceLevel.Express, new Address("1 Test St", "Sydney", "NSW", "2000", "Australia"))));
         transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "Money order", LineItemType.MoneyOrder, 1, new Money(1510m), TaxCategory.Exempt, MoneyOrder: new MoneyOrderDetails(new Money(1500m), "A", "B", new Money(10m))));
         transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "ID", LineItemType.IdentityVerification, 1, Money.Zero, TaxCategory.Exempt, IdVerification: verification));
         transaction.Complete("Card", new Money(1000m));
@@ -259,6 +259,7 @@ public sealed class PersistenceModelTests
         Assert.Equal(new DateOnly(2026, 10, 1), restored.BusinessDate);
         Assert.Equal("Zone 3", restored.LineItems[1].Shipping!.DestinationZone);
         Assert.Equal(ServiceLevel.Express, restored.LineItems[1].Shipping!.ServiceLevel);
+        Assert.Equal("Sydney", restored.LineItems[1].Shipping!.Destination!.Value.City);
         Assert.Equal("******6789", record.Lines[3].IdentityVerification!.MaskedDocumentNumber);
         Assert.Equal(verification, restored.LineItems[3].IdVerification);
         Assert.Equal(transaction.GrandTotal, Assert.Single(record.Payments).Amount);

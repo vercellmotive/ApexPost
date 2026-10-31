@@ -1704,6 +1704,41 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                                 .HasForeignKey("ShipmentRecordId");
                         });
 
+                    b.OwnsOne("ApexPost.Infrastructure.Persistence.ShipmentAddress", "Destination", b1 =>
+                        {
+                            b1.Property<Guid>("ShipmentRecordId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("City")
+                                .HasColumnType("nvarchar(60)")
+                                .HasColumnName("DestinationCity");
+
+                            b1.Property<string>("Country")
+                                .HasColumnType("nvarchar(60)")
+                                .HasColumnName("DestinationCountry");
+
+                            b1.Property<string>("PostalCode")
+                                .HasColumnType("varchar(12)")
+                                .HasColumnName("DestinationPostalCode");
+
+                            b1.Property<string>("State")
+                                .HasColumnType("nvarchar(30)")
+                                .HasColumnName("DestinationState");
+
+                            b1.Property<string>("Street")
+                                .HasColumnType("nvarchar(120)")
+                                .HasColumnName("DestinationStreet");
+
+                            b1.HasKey("ShipmentRecordId");
+
+                            b1.ToTable("Shipments");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ShipmentRecordId");
+                        });
+
+                    b.Navigation("Destination");
+
                     b.Navigation("Dimensions")
                         .IsRequired();
 

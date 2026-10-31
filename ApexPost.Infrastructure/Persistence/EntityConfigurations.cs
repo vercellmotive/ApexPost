@@ -369,6 +369,14 @@ internal sealed class ShipmentConfiguration : IEntityTypeConfiguration<ShipmentR
             dimensions.Property(size => size.WidthCm).HasColumnName("WidthCm").HasPrecision(9, 2);
             dimensions.Property(size => size.HeightCm).HasColumnName("HeightCm").HasPrecision(9, 2);
         });
+        builder.OwnsOne(shipment => shipment.Destination, address =>
+        {
+            address.Property(item => item.Street).HasColumnName("DestinationStreet").HasColumnType("nvarchar(120)");
+            address.Property(item => item.City).HasColumnName("DestinationCity").HasColumnType("nvarchar(60)");
+            address.Property(item => item.State).HasColumnName("DestinationState").HasColumnType("nvarchar(30)");
+            address.Property(item => item.PostalCode).HasColumnName("DestinationPostalCode").HasColumnType("varchar(12)");
+            address.Property(item => item.Country).HasColumnName("DestinationCountry").HasColumnType("nvarchar(60)");
+        });
         builder.HasIndex(shipment => shipment.ShippingRateId, IndexNames.ShipmentByRate)
             .IncludeProperties(shipment => shipment.TransactionLineId);
         builder.HasOne(shipment => shipment.Line).WithOne(line => line.Shipment).HasForeignKey<ShipmentRecord>(shipment => shipment.TransactionLineId).OnDelete(DeleteBehavior.Cascade);

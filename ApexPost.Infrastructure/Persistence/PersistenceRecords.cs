@@ -130,6 +130,16 @@ public sealed class ParcelDimensions
     public decimal HeightCm { get; set; }
 }
 
+// Address is a value object too. It is optional, because older shipments and letters may have none.
+public sealed class ShipmentAddress
+{
+    public string? Street { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? PostalCode { get; set; }
+    public string? Country { get; set; }
+}
+
 [Index(nameof(ShippingRateId), Name = IndexNames.ShipmentByRate)]
 public sealed class ShipmentRecord
 {
@@ -140,6 +150,7 @@ public sealed class ShipmentRecord
     public ShippingRateRecord? Rate { get; set; }
     public Weight Weight { get; set; }
     public ParcelDimensions Dimensions { get; set; } = new();
+    public ShipmentAddress? Destination { get; set; }
 }
 
 [Index(nameof(Amount), Name = IndexNames.HighValueMoneyOrder)]

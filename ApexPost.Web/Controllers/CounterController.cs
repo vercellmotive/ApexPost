@@ -41,8 +41,9 @@ public class CounterController : Controller, IRepopulatesForm
             return Forbid();
         }
 
-        await PopulateCheckoutViewAsync(branchCode, ct);
-        return View(new TransactionFormViewModel());
+        var model = new TransactionFormViewModel();
+        await PopulateCheckoutViewAsync(model, branchCode, ct);
+        return View(model);
     }
 
     [HttpGet]
@@ -89,7 +90,8 @@ public class CounterController : Controller, IRepopulatesForm
                 Weight.FromKilograms(shipment.WeightKg),
                 new Dimensions(shipment.LengthCm, shipment.WidthCm, shipment.HeightCm),
                 shipment.DestinationZone,
-                shipment.ServiceLevel))
+                shipment.ServiceLevel,
+                shipment.ToDestination()))
             .ToList();
         var moneyOrders = model.MoneyOrders
             .Where(order => order.Amount is not null
@@ -129,7 +131,7 @@ public class CounterController : Controller, IRepopulatesForm
         catch (DomainValidationException ex)
         {
             ModelState.AddModelError(string.Empty, ex.Message);
-            await PopulateCheckoutViewAsync(branchCode, ct);
+            await PopulateCheckoutViewAsync(model, branchCode, ct);
             return View("Index", model);
         }
         catch (UnauthorizedDomainActionException)
@@ -217,12 +219,12 @@ public class CounterController : Controller, IRepopulatesForm
     }
 
     public Task RepopulateFormAsync(object model, CancellationToken ct) =>
-        User.FindFirstValue("BranchCode") is { } branchCode
-            ? PopulateCheckoutViewAsync(branchCode, ct)
+        model is TransactionFormViewModel form && User.FindFirstValue("BranchCode") is { } branchCode
+            ? PopulateCheckoutViewAsync(form, branchCode, ct)
             : Task.CompletedTask;
 
-    private async Task PopulateCheckoutViewAsync(string branchCode, CancellationToken ct)
+    private async Task PopulateCheckoutViewAsync(TransactionFormViewModel model, string branchCode, CancellationToken ct)
     {
-        ViewBag.Options = await _queries.GetCheckoutOptionsAsync(branchCode, ct);
+        model.Options = await _queries.GetCheckoutOptionsAsync(branchCode, ct);
     }
 }
