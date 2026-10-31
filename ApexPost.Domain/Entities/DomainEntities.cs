@@ -123,13 +123,13 @@ public class Staff : Entity<string>
 
     public void EnsureCanTransact(BranchCode currentBranch)
     {
-        if(!IsActive) throw new UnauthorizedDomainActionException($"Staff {Id} is deactivated.");
+        if (!IsActive) throw new UnauthorizedDomainActionException($"Staff {Id} is deactivated.");
         if (Role is not (StaffRole.CounterClerk or StaffRole.BranchManager))
         {
             throw new UnauthorizedDomainActionException($"Staff role {Role} cannot process counter transactions.");
         }
 
-        if(HomeBranchCode != currentBranch) throw new UnauthorizedDomainActionException($"Staff member {Id} belongs to branch {HomeBranchCode.Value}, not {currentBranch.Value}");
+        if (HomeBranchCode != currentBranch) throw new UnauthorizedDomainActionException($"Staff member {Id} belongs to branch {HomeBranchCode.Value}, not {currentBranch.Value}");
     }
 
     public void EnsureManages(BranchCode branch)
@@ -207,7 +207,7 @@ public sealed record IdVerificationDetails
 }
 
 public record TransactionLineItem(
-    Guid Id, 
+    Guid Id,
     [property: NotBlank] string Description,
     LineItemType ItemType,
     int Quantity,

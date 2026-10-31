@@ -36,7 +36,7 @@ namespace ApexPost.Domain.Enums
 
     public enum LineItemType
     {
-        RetailProduct, 
+        RetailProduct,
         ParcelShipping,
         MoneyOrder,
         IdentityVerification
