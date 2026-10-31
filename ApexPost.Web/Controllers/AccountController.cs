@@ -1,6 +1,5 @@
 using System.Security.Claims;
-using ApexPost.Application.Interfaces;
-using ApexPost.Domain.Entities;
+using ApexPost.Application.Services;
 using ApexPost.Web.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -13,22 +12,20 @@ namespace ApexPost.Web.Controllers;
 [AllowAnonymous]
 public class AccountController : Controller
 {
-    private readonly IRepository<Staff> _staffRepository;
-    private readonly IConfiguration _configuration;
+    private readonly StaffAuthenticationService _authentication;
 
-    public AccountController(IRepository<Staff> staffRepository, IConfiguration configuration)
+    public AccountController(StaffAuthenticationService authentication)
     {
-        _staffRepository = staffRepository;
-        _configuration = configuration;
+        _authentication = authentication;
     }
 
-    [HttpGet("/Account/Login")]
+    [HttpGet]
     public IActionResult Login(string? returnUrl = null)
     {
         return View(new LoginViewModel { ReturnUrl = returnUrl });
     }
 
-    [HttpPost("/Account/Login")]
+    [HttpPost]
     [ValidateAntiForgeryToken]
     [EnableRateLimiting("login")]
     public async Task<IActionResult> Login(LoginViewModel model, CancellationToken ct)
@@ -38,11 +35,8 @@ public class AccountController : Controller
             return View(model);
         }
 
-        var staffs = await _staffRepository.GetAllAsync(ct);
-        var staff = staffs.FirstOrDefault(x => x.Email.Equals(model.Email, StringComparison.OrdinalIgnoreCase));
-        var demoPassword = _configuration["Authentication:DemoPassword"];
-        if (staff is null || !staff.IsActive || string.IsNullOrEmpty(demoPassword)
-            || !string.Equals(model.Password, demoPassword, StringComparison.Ordinal))
+        var staff = await _authentication.AuthenticateAsync(model.Email, model.Password, ct);
+        if (staff is null)
         {
             ModelState.AddModelError(string.Empty, "Invalid username or password.");
             return View(model);
@@ -71,7 +65,7 @@ public class AccountController : Controller
         return Redirect(returnUrl ?? Url.Action(nameof(HomeController.Index), "Home") ?? "/");
     }
 
-    [HttpPost("/Account/Logout")]
+    [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {

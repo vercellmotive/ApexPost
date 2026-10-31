@@ -1,12 +1,14 @@
-using ApexPost.Application.Interfaces;
 using ApexPost.Application.Services;
 using ApexPost.Domain.Common;
 using ApexPost.Domain.Entities;
+using ApexPost.Web.Attributes;
+using ApexPost.Web.Filters;
 using ApexPost.Domain.Enums;
 using ApexPost.Domain.ValueObjects;
 using ApexPost.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 using System.Security.Claims;
 
 namespace ApexPost.Web.Controllers;
@@ -15,26 +17,17 @@ namespace ApexPost.Web.Controllers;
 public class CounterController : Controller
 {
     private readonly TransactionService _transactionService;
-    private readonly IRepository<Branch> _branches;
-    private readonly IRepository<BranchStock> _stocks;
-    private readonly IRepository<Product> _products;
     private readonly IAuthorizationService _authorizationService;
 
     public CounterController(
         TransactionService transactionService,
-        IRepository<Branch> branches,
-        IRepository<BranchStock> stocks,
-        IRepository<Product> products,
         IAuthorizationService authorizationService)
     {
         _transactionService = transactionService;
-        _branches = branches;
-        _stocks = stocks;
-        _products = products;
         _authorizationService = authorizationService;
     }
 
-    [HttpGet("/Counter")]
+    [HttpGet]
     public async Task<IActionResult> Index(CancellationToken ct)
     {
         var branchCode = User.FindFirstValue("BranchCode");
@@ -47,8 +40,21 @@ public class CounterController : Controller
         return View(new TransactionFormViewModel());
     }
 
-    [HttpPost("/Counter/Create")]
+    [HttpGet]
+    public async Task<IActionResult> Transactions(CancellationToken ct)
+    {
+        var branchCode = User.FindFirstValue("BranchCode");
+        if (branchCode is null)
+        {
+            return Forbid();
+        }
+
+        return View(await _transactionService.GetBranchTransactionsAsync(branchCode, ct));
+    }
+
+    [HttpPost]
     [ValidateAntiForgeryToken]
+    [AuditedAction("Sale")]
     public async Task<IActionResult> Create(TransactionFormViewModel model, CancellationToken ct)
     {
         if (!ModelState.IsValid)
@@ -85,7 +91,13 @@ public class CounterController : Controller
         try
         {
             var transactionId = Guid.NewGuid();
-            HttpContext.Items["Audit:TransactionId"] = transactionId;
+            HttpContext.AddAuditDetail("transactionId", transactionId.ToString("D"));
+            HttpContext.AddAuditDetail("counterId", model.CounterId);
+            HttpContext.AddAuditDetail("retailLines", retailItems.Count.ToString(CultureInfo.InvariantCulture));
+            HttpContext.AddAuditDetail("includesShipping", model.IncludeShipping.ToString());
+            HttpContext.AddAuditDetail("moneyOrderAmount", (model.MoneyOrderAmount ?? 0m).ToString("0.00", CultureInfo.InvariantCulture));
+            HttpContext.AddAuditDetail("identityVerification", model.IncludeIdentityVerification.ToString());
+            HttpContext.AddAuditDetail("paymentMethod", model.PaymentMethod);
             var shipping = model.IncludeShipping
                 ? new ShippingDetails(
                     model.IsParcel,
@@ -129,8 +141,9 @@ public class CounterController : Controller
         }
     }
 
-    [HttpPost("/Counter/Void")]
+    [HttpPost]
     [ValidateAntiForgeryToken]
+    [AuditedAction("Void")]
     public async Task<IActionResult> Void(Guid transactionId, string reason, CancellationToken ct)
     {
         if (!(await _authorizationService.AuthorizeAsync(User, "BranchManagerOnly")).Succeeded)
@@ -148,7 +161,7 @@ public class CounterController : Controller
         {
             await _transactionService.VoidAsync(transactionId, managerId, reason, ct);
             TempData["Success"] = "Transaction voided.";
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Transactions));
         }
         catch (UnauthorizedDomainActionException)
         {
@@ -164,8 +177,9 @@ public class CounterController : Controller
         }
     }
 
-    [HttpPost("/Counter/Refund")]
+    [HttpPost]
     [ValidateAntiForgeryToken]
+    [AuditedAction("Refund")]
     public async Task<IActionResult> Refund(Guid transactionId, string reason, CancellationToken ct)
     {
         if (!(await _authorizationService.AuthorizeAsync(User, "BranchManagerOnly")).Succeeded)
@@ -183,7 +197,7 @@ public class CounterController : Controller
         {
             await _transactionService.RefundAsync(transactionId, managerId, reason, ct);
             TempData["Success"] = "Transaction refunded.";
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Transactions));
         }
         catch (UnauthorizedDomainActionException)
         {
@@ -201,10 +215,9 @@ public class CounterController : Controller
 
     private async Task PopulateCheckoutViewAsync(string branchCode, CancellationToken ct)
     {
-        ViewBag.Branches = (await _branches.GetAllAsync(ct))
-            .Where(branch => branch.Id.Value == branchCode)
-            .ToList();
-        ViewBag.Stocks = await _stocks.GetAllAsync(ct);
-        ViewBag.Products = await _products.GetAllAsync(ct);
+        var options = await _transactionService.GetCheckoutOptionsAsync(branchCode, ct);
+        ViewBag.Branches = new[] { options.Branch };
+        ViewBag.Stocks = options.Stock;
+        ViewBag.Products = options.Products;
     }
 }

@@ -17,15 +17,15 @@ public sealed class SameBranchAuthorizationHandler : AuthorizationHandler<SameBr
         var assignedBranch = context.User.FindFirstValue("BranchCode");
         var requestedBranch = context.Resource switch
         {
-            AuthorizationFilterContext mvcContext =>
-                mvcContext.RouteData.Values["branchCode"]?.ToString(),
-            HttpContext httpContext =>
-                httpContext.Request.RouteValues["branchCode"]?.ToString(),
+            AuthorizationFilterContext mvcContext => GetRequestedBranch(mvcContext.HttpContext),
+            HttpContext httpContext => GetRequestedBranch(httpContext),
             _ => null
         };
 
+        // Auditors have a cross-branch remit; every other role may only read its assigned branch.
         if (!string.IsNullOrWhiteSpace(assignedBranch)
             && (string.IsNullOrWhiteSpace(requestedBranch)
+                || context.User.HasClaim("Role", "Auditor")
                 || string.Equals(assignedBranch, requestedBranch, StringComparison.Ordinal)))
         {
             context.Succeed(requirement);
@@ -33,4 +33,8 @@ public sealed class SameBranchAuthorizationHandler : AuthorizationHandler<SameBr
 
         return Task.CompletedTask;
     }
+
+    private static string? GetRequestedBranch(HttpContext context) =>
+        context.Request.RouteValues["branchCode"]?.ToString()
+        ?? context.Request.Query["branchCode"].FirstOrDefault();
 }

@@ -28,8 +28,29 @@ namespace ApexPost.Domain.Common
 
     public interface IDomainEvent
     {
-        Guid EventId => Guid.NewGuid();
-        DateTimeOffset OccurredOnUtc => DateTimeOffset.UtcNow;
+        Guid EventId { get; }
+        DateTimeOffset OccurredOnUtc { get; }
+    }
+
+    public abstract record DomainEvent : IDomainEvent
+    {
+        public Guid EventId { get; } = Guid.NewGuid();
+        public DateTimeOffset OccurredOnUtc { get; } = DateTimeOffset.UtcNow;
+    }
+
+    public sealed record LowStockRule
+    {
+        public static LowStockRule Default { get; } = new(5);
+
+        public int Threshold { get; }
+
+        public LowStockRule(int threshold)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(threshold);
+            Threshold = threshold;
+        }
+
+        public bool IsLow(int quantityOnHand) => quantityOnHand <= Threshold;
     }
 
     public class DomainValidationException : Exception

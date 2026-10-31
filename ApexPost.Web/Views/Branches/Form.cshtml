@@ -1,0 +1,42 @@
+@model ApexPost.Web.Models.BranchFormViewModel
+@{
+    ViewData["Title"] = Model.IsExisting ? "Edit branch" : "Add branch";
+}
+
+<h2>@ViewData["Title"]</h2>
+<form asp-action="@(Model.IsExisting ? "Edit" : "Create")" asp-route-id="@(Model.IsExisting ? Model.Code : null)" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <div class="mb-3">
+        <label asp-for="Code" class="form-label">Branch code</label>
+        <input asp-for="Code" class="form-control" readonly="@Model.IsExisting" />
+    </div>
+    <div class="mb-3">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label asp-for="Region" class="form-label"></label>
+        <input asp-for="Region" class="form-control" />
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <label asp-for="OpenTime" class="form-label">Opens</label>
+            <input asp-for="OpenTime" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="CloseTime" class="form-label">Closes</label>
+            <input asp-for="CloseTime" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="TimeZoneId" class="form-label">Time zone</label>
+            <input asp-for="TimeZoneId" class="form-control" />
+        </div>
+    </div>
+    <div class="mb-3">
+        <label asp-for="CounterTerminals" class="form-label"></label>
+        <input asp-for="CounterTerminals" class="form-control" />
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+</form>

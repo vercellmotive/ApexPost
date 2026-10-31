@@ -27,18 +27,22 @@ public class TieredShippingPricingStrategy : IPricingStrategy
 
     public void ValidateWeightLimits(ShippingDetails details)
     {
-        var maxWeight = details.ServiceLevel switch
+        var maxWeight = (details.IsParcel, details.ServiceLevel) switch
         {
-            ServiceLevel.Standard => Weight.FromKilograms(20.0m),
-            ServiceLevel.Express => Weight.FromKilograms(10.0m),
-            ServiceLevel.Registered => Weight.FromKilograms(2.0m),
+            (true, ServiceLevel.Standard) => Weight.FromKilograms(20.0m),
+            (true, ServiceLevel.Express) => Weight.FromKilograms(10.0m),
+            (true, ServiceLevel.Registered) => Weight.FromKilograms(2.0m),
+            (false, ServiceLevel.Standard or ServiceLevel.Express or ServiceLevel.Registered) => Weight.FromKilograms(0.5m),
             _ => throw new DomainValidationException("Unsupported shipping service level.")
         };
 
-        if (details.IsParcel && details.Weight > maxWeight) throw new DomainValidationException($"Parcel weight ({details.Weight.Kilograms} kg) exceeds limit of {maxWeight.Kilograms} kg for {details.ServiceLevel}.");
-        if (details.Dimensions.LengthCm <= 0 || details.Dimensions.WidthCm <= 0 || details.Dimensions.HeightCm <= 0)
+        var itemType = details.IsParcel ? "Parcel" : "Letter";
+        if (details.Weight.Kilograms <= 0) throw new DomainValidationException($"{itemType} weight must be greater than zero.");
+        if (details.Weight > maxWeight) throw new DomainValidationException($"{itemType} weight ({details.Weight.Kilograms} kg) exceeds limit of {maxWeight.Kilograms} kg for {details.ServiceLevel}.");
+        if (details.IsParcel
+            && (details.Dimensions.LengthCm <= 0 || details.Dimensions.WidthCm <= 0 || details.Dimensions.HeightCm <= 0))
         {
-            throw new DomainValidationException("Shipping dimensions must be greater than zero.");
+            throw new DomainValidationException("Parcel dimensions must be greater than zero.");
         }
     }
 

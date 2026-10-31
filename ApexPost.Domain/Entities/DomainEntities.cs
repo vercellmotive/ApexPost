@@ -98,6 +98,7 @@ public class Staff : Entity<string>
     public required StaffRole Role { get; init; }
     public required BranchCode HomeBranchCode { get; init; }
     public bool IsActive { get; set; } = true;
+    public string? PasswordHash { get; init; }
 
     public void EnsureCanTransact(BranchCode currentBranch)
     {
@@ -109,6 +110,18 @@ public class Staff : Entity<string>
 
         if(HomeBranchCode != currentBranch) throw new UnauthorizedDomainActionException($"Staff member {Id} belongs to branch {HomeBranchCode.Value}, not {currentBranch.Value}");
     }
+}
+
+public static class ProductCategories
+{
+    public const string Packaging = "Packaging";
+    public const string Stationery = "Stationery";
+    public const string OfficeSupplies = "Office Supplies";
+
+    public static IReadOnlyList<string> All { get; } = [Packaging, Stationery, OfficeSupplies];
+
+    public static bool IsSupported(string category) =>
+        All.Contains(category, StringComparer.OrdinalIgnoreCase);
 }
 
 public class Product : Entity<Sku>
@@ -151,9 +164,9 @@ public sealed record IdVerificationDetails
     public static IdVerificationDetails FromDocumentNumber(DocumentType documentType, string documentNumber, bool isVerified)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(documentNumber);
-        if (documentNumber.Length < 4)
+        if (documentNumber.Length <= 4)
         {
-            throw new ArgumentException("The document number must contain at least four characters.", nameof(documentNumber));
+            throw new ArgumentException("The document number must be longer than the four characters that are retained.", nameof(documentNumber));
         }
 
         var lastFour = documentNumber[^4..];
@@ -180,12 +193,19 @@ public record TransactionLineItem(
 
 public class Transaction : AggregateRoot<Guid>
 {
+    private List<TransactionLineItem> _lineItems = [];
+
     public required BranchCode BranchCode { get; init; }
     public required string CounterId { get; init; }
     public required string ClerkStaffId { get; init; }
     [System.Text.Json.Serialization.JsonInclude]
     public TransactionStatus Status { get; private set; } = TransactionStatus.Open;
-    public List<TransactionLineItem> LineItems { get; init; } = [];
+    [System.Text.Json.Serialization.JsonInclude]
+    public IReadOnlyList<TransactionLineItem> LineItems
+    {
+        get => _lineItems.AsReadOnly();
+        private set => _lineItems = [.. value];
+    }
     [System.Text.Json.Serialization.JsonInclude]
     public string PaymentMethod { get; private set; } = "Pending";
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
@@ -229,7 +249,7 @@ public class Transaction : AggregateRoot<Guid>
             throw new DomainValidationException($"Line item details do not match item type {item.ItemType}.");
         }
 
-        LineItems.Add(item);
+        _lineItems.Add(item);
     }
 
     public void Complete(string paymentMethod, Money highValueThreshold)
@@ -295,5 +315,17 @@ public class Transaction : AggregateRoot<Guid>
         {
             throw new UnauthorizedDomainActionException("An active Branch Manager assigned to this branch is required.");
         }
+    }
+}
+
+public static class TransactionExtensions
+{
+    extension(Transaction transaction)
+    {
+        public Money RetailTotal => transaction.TotalFor(item => item.ItemType == LineItemType.RetailProduct);
+        public Money ServicesTotal => transaction.TotalFor(item => item.ItemType != LineItemType.RetailProduct);
+
+        private Money TotalFor(Func<TransactionLineItem, bool> selector) =>
+            transaction.LineItems.Where(selector).Aggregate(Money.Zero, (total, item) => total + item.GrandTotal);
     }
 }

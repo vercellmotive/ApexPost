@@ -17,13 +17,13 @@ public class TransactionFormViewModel
     [Range(typeof(decimal), "0.01", "20000")]
     public decimal ShippingWeightKg { get; set; } = 1;
 
-    [Range(typeof(decimal), "0.1", "300")]
+    [Range(typeof(decimal), "0", "300")]
     public decimal LengthCm { get; set; } = 30;
 
-    [Range(typeof(decimal), "0.1", "300")]
+    [Range(typeof(decimal), "0", "300")]
     public decimal WidthCm { get; set; } = 20;
 
-    [Range(typeof(decimal), "0.1", "300")]
+    [Range(typeof(decimal), "0", "300")]
     public decimal HeightCm { get; set; } = 10;
 
     [RegularExpression("^Zone (?:[1-9]|10)$")]

@@ -32,6 +32,11 @@
             }
         </select>
     </div>
+    <div class="mb-3">
+        <label asp-for="Password" class="form-label">@(isEdit ? "New password (leave blank to keep the current one)" : "Password (at least 12 characters)")</label>
+        <input asp-for="Password" class="form-control" autocomplete="new-password" />
+        <span asp-validation-for="Password" class="text-danger"></span>
+    </div>
     <button type="submit" class="btn btn-primary">Save</button>
     <a asp-action="Index" class="btn btn-secondary">Cancel</a>
 </form>

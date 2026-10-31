@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ApexPost.Application.Interfaces;
+using ApexPost.Web.Attributes;
 using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace ApexPost.Web.Filters;
@@ -7,14 +8,23 @@ namespace ApexPost.Web.Filters;
 public sealed class AuditActionFilter : IAsyncActionFilter
 {
     private readonly IAuditStore _auditStore;
+    private readonly ILogger<AuditActionFilter> _logger;
 
-    public AuditActionFilter(IAuditStore auditStore)
+    public AuditActionFilter(IAuditStore auditStore, ILogger<AuditActionFilter> logger)
     {
         _auditStore = auditStore;
+        _logger = logger;
     }
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        var audited = context.ActionDescriptor.EndpointMetadata.OfType<AuditedActionAttribute>().FirstOrDefault();
+        if (audited is null)
+        {
+            await next();
+            return;
+        }
+
         var start = DateTimeOffset.UtcNow;
         ActionExecutedContext? executed = null;
         try
@@ -45,9 +55,10 @@ public sealed class AuditActionFilter : IAsyncActionFilter
                 }
             }
 
-            if (httpContext.Items["Audit:TransactionId"] is Guid transactionId)
+            routeValues["businessAction"] = audited.BusinessAction;
+            foreach (var detail in httpContext.GetAuditDetails())
             {
-                routeValues["transactionId"] = transactionId.ToString("D");
+                routeValues[detail.Key] = detail.Value;
             }
 
             var statusCode = GetStatusCode(executed, httpContext.Response.StatusCode);
@@ -65,7 +76,20 @@ public sealed class AuditActionFilter : IAsyncActionFilter
                 (long)(DateTimeOffset.UtcNow - start).TotalMilliseconds,
                 DateTimeOffset.UtcNow);
 
-            await _auditStore.AppendAsync(entry, CancellationToken.None);
+            try
+            {
+                await _auditStore.AppendAsync(entry, CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                // The business action has already happened, so a failed audit write must not turn it into a 500.
+                _logger.LogError(
+                    exception,
+                    "Audit write failed for {BusinessAction} by {StaffId} with correlation {CorrelationId}.",
+                    audited.BusinessAction,
+                    entry.StaffId,
+                    entry.CorrelationId);
+            }
         }
     }
 
@@ -112,6 +136,16 @@ public sealed class AuditActionFilter : IAsyncActionFilter
             && statusResult.StatusCode is int explicitStatusCode)
         {
             return explicitStatusCode;
+        }
+
+        if (executed?.Result is Microsoft.AspNetCore.Mvc.ForbidResult)
+        {
+            return StatusCodes.Status403Forbidden;
+        }
+
+        if (executed?.Result is Microsoft.AspNetCore.Mvc.ChallengeResult)
+        {
+            return StatusCodes.Status401Unauthorized;
         }
 
         return executed?.Result is Microsoft.AspNetCore.Mvc.RedirectResult

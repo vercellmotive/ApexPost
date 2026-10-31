@@ -21,11 +21,12 @@ public sealed class PartnerApiKeyValidator
             return null;
         }
 
-        var providedBytes = Encoding.UTF8.GetBytes(providedKey);
+        // Hashing gives both sides a fixed length, so the comparison does not reveal the key length.
+        var providedBytes = SHA256.HashData(Encoding.UTF8.GetBytes(providedKey));
         string? matchedPartnerId = null;
         foreach (var credential in GetCredentials())
         {
-            var expectedBytes = Encoding.UTF8.GetBytes(credential.ApiKey);
+            var expectedBytes = SHA256.HashData(Encoding.UTF8.GetBytes(credential.ApiKey));
             if (CryptographicOperations.FixedTimeEquals(expectedBytes, providedBytes))
             {
                 matchedPartnerId = credential.PartnerId;

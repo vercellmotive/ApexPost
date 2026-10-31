@@ -1,0 +1,38 @@
+@model IReadOnlyList<ApexPost.Domain.Entities.Branch>
+@{
+    ViewData["Title"] = "Branches";
+}
+
+<h2>Branch management</h2>
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success" role="status">@success</div>
+}
+<p><a class="btn btn-primary" asp-action="Create">Add branch</a></p>
+<table class="table table-striped align-middle">
+    <thead>
+        <tr><th>Code</th><th>Name</th><th>Region</th><th>Hours</th><th>Time zone</th><th>Terminals</th><th>Status</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var branch in Model)
+        {
+            <tr>
+                <td>@branch.Id.Value</td>
+                <td>@branch.Name</td>
+                <td>@branch.Region</td>
+                <td>@branch.OpenTime.ToString(@"hh\:mm")–@branch.CloseTime.ToString(@"hh\:mm")</td>
+                <td>@branch.TimeZoneId</td>
+                <td>@string.Join(", ", branch.CounterTerminals)</td>
+                <td>@(branch.IsActive ? "Active" : "Closed")</td>
+                <td>
+                    <a asp-action="Edit" asp-route-id="@branch.Id.Value">Edit</a>
+                    <form asp-action="SetStatus" asp-route-id="@branch.Id.Value" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="isActive" value="@((!branch.IsActive).ToString().ToLowerInvariant())" />
+                        <button type="submit" class="btn btn-link">@(branch.IsActive ? "Close" : "Reopen")</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

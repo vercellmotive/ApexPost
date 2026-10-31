@@ -45,6 +45,29 @@
             <select asp-for="ServiceLevel" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Enums.ServiceLevel>()" class="form-select"></select>
         </div>
     </div>
+    <div class="row g-3 mt-1">
+        <div class="col-md-4">
+            <label asp-for="RecipientName" class="form-label">Recipient</label>
+            <input asp-for="RecipientName" class="form-control" />
+        </div>
+        <div class="col-md-8">
+            <label asp-for="Street" class="form-label"></label>
+            <input asp-for="Street" class="form-control" />
+        </div>
+        <div class="col-md-5">
+            <label asp-for="City" class="form-label"></label>
+            <input asp-for="City" class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <label asp-for="State" class="form-label"></label>
+            <input asp-for="State" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="PostalCode" class="form-label">Postcode</label>
+            <input asp-for="PostalCode" class="form-control" />
+        </div>
+    </div>
+    <p class="form-text">Dimensions are required for parcels and ignored for letters (letters are limited to 0.5 kg).</p>
     <button type="submit" class="btn btn-primary mt-3">Calculate and preview</button>
 </form>
 
@@ -53,6 +76,12 @@
     <section class="border rounded p-4 mt-4" aria-label="Shipping label">
         <h3>ApexPost Logistics</h3>
         <p>@(Model.IsParcel ? "Parcel" : "Letter") · @Model.ServiceLevel · @Model.DestinationZone</p>
+        <address>
+            <strong>@Model.RecipientName</strong><br />
+            @Model.DestinationAddress.Street<br />
+            @Model.DestinationAddress.City @Model.DestinationAddress.State @Model.DestinationAddress.PostalCode<br />
+            @Model.DestinationAddress.Country
+        </address>
         <p>Weight: @Model.WeightKg kg</p>
         <p class="fw-bold">Price: @price.ToString("C")</p>
     </section>

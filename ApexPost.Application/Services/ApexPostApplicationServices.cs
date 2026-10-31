@@ -35,18 +35,29 @@ public sealed record StaffRecordInput(
     string Name,
     string Email,
     StaffRole Role,
-    string HomeBranchCode);
+    string HomeBranchCode,
+    string? Password = null);
+
+public sealed record CheckoutOptions(
+    Branch Branch,
+    IReadOnlyList<Product> Products,
+    IReadOnlyList<BranchStock> Stock);
 
 public sealed class StaffManagementService
 {
-    private readonly IRepository<Staff> _staff;
-    private readonly IRepository<Branch> _branches;
+    private readonly IRepository<Staff, string> _staff;
+    private readonly IRepository<Branch, BranchCode> _branches;
+    private readonly IPasswordHasher _passwordHasher;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
 
-    public StaffManagementService(IRepository<Staff> staff, IRepository<Branch> branches)
+    public StaffManagementService(
+        IRepository<Staff, string> staff,
+        IRepository<Branch, BranchCode> branches,
+        IPasswordHasher passwordHasher)
     {
         _staff = staff;
         _branches = branches;
+        _passwordHasher = passwordHasher;
     }
 
     public async Task<IReadOnlyList<Staff>> GetAllAsync(CancellationToken ct = default) =>
@@ -82,7 +93,8 @@ public sealed class StaffManagementService
                 Name = normalized.Name,
                 Email = normalized.Email,
                 Role = normalized.Role,
-                HomeBranchCode = new BranchCode(normalized.HomeBranchCode)
+                HomeBranchCode = new BranchCode(normalized.HomeBranchCode),
+                PasswordHash = HashPassword(input.Password)
             };
             await _staff.SaveAsync(created, ct);
             return created;
@@ -115,7 +127,8 @@ public sealed class StaffManagementService
                 Email = normalized.Email,
                 Role = normalized.Role,
                 HomeBranchCode = new BranchCode(normalized.HomeBranchCode),
-                IsActive = existing.IsActive
+                IsActive = existing.IsActive,
+                PasswordHash = HashPassword(input.Password) ?? existing.PasswordHash
             };
             await _staff.SaveAsync(updated, ct);
             return updated;
@@ -140,6 +153,21 @@ public sealed class StaffManagementService
         {
             _writeGate.Release();
         }
+    }
+
+    private string? HashPassword(string? password)
+    {
+        if (string.IsNullOrEmpty(password))
+        {
+            return null;
+        }
+
+        if (password.Length < 12)
+        {
+            throw new DomainValidationException("Passwords must be at least 12 characters long.");
+        }
+
+        return _passwordHasher.Hash(password);
     }
 
     private async Task EnsureBranchExistsAsync(string branchCode, CancellationToken ct)
@@ -181,20 +209,59 @@ public sealed class StaffManagementService
     }
 }
 
+public sealed class StaffAuthenticationService
+{
+    private readonly IRepository<Staff, string> _staff;
+    private readonly IPasswordHasher _passwordHasher;
+
+    public StaffAuthenticationService(IRepository<Staff, string> staff, IPasswordHasher passwordHasher)
+    {
+        _staff = staff;
+        _passwordHasher = passwordHasher;
+    }
+
+    public async Task<Staff?> AuthenticateAsync(string email, string password, CancellationToken ct = default)
+    {
+        var staff = (await _staff.GetAllAsync(ct))
+            .FirstOrDefault(person => person.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        // Verify even for an unknown email so response time does not reveal which accounts exist.
+        var passwordMatches = _passwordHasher.Verify(password, staff?.PasswordHash);
+        return passwordMatches && staff is { IsActive: true } ? staff : null;
+    }
+}
+
 public sealed class InventoryService
 {
-    private readonly IRepository<Staff> _staff;
-    private readonly IRepository<BranchStock> _stocks;
+    private readonly IRepository<Staff, string> _staff;
+    private readonly IRepository<BranchStock, Guid> _stocks;
     private readonly IDomainEventDispatcher _eventDispatcher;
+    private readonly LowStockRule _lowStockRule;
 
     public InventoryService(
-        IRepository<Staff> staff,
-        IRepository<BranchStock> stocks,
-        IDomainEventDispatcher eventDispatcher)
+        IRepository<Staff, string> staff,
+        IRepository<BranchStock, Guid> stocks,
+        IDomainEventDispatcher eventDispatcher,
+        LowStockRule? lowStockRule = null)
     {
         _staff = staff;
         _stocks = stocks;
         _eventDispatcher = eventDispatcher;
+        _lowStockRule = lowStockRule ?? LowStockRule.Default;
+    }
+
+    public async Task<IReadOnlyList<(Product Product, int QuantityOnHand)>> GetBranchCatalogueAsync(
+        ICatalogueService catalogue,
+        string branchCode,
+        CancellationToken ct = default)
+    {
+        var products = await catalogue.GetProductsAsync(ct);
+        var stock = (await _stocks.GetAllAsync(ct))
+            .Where(item => item.BranchCode.Value == branchCode)
+            .ToDictionary(item => item.ProductSku, item => item.QuantityOnHand);
+        return products
+            .Select(product => (product, stock.GetValueOrDefault(product.Id)))
+            .ToList();
     }
 
     public async Task<BranchStock> AdjustStockAsync(
@@ -230,7 +297,7 @@ public sealed class InventoryService
         var updated = await _stocks.UpdateAsync(stock.Id, item => item.ApplyAdjustment(quantityDelta), ct)
             ?? throw new KeyNotFoundException($"Stock record for {sku.Value} is no longer available.");
 
-        if (updated.QuantityOnHand <= 5)
+        if (_lowStockRule.IsLow(updated.QuantityOnHand))
         {
             await _eventDispatcher.DispatchAsync(
                 new StockLowEvent(branchCode, sku, updated.QuantityOnHand),
@@ -243,21 +310,27 @@ public sealed class InventoryService
 
 public sealed class DashboardService
 {
-    private readonly IRepository<Branch> _branches;
-    private readonly IRepository<Product> _products;
-    private readonly IRepository<Transaction> _transactions;
-    private readonly IRepository<BranchStock> _stocks;
+    private readonly IRepository<Branch, BranchCode> _branches;
+    private readonly IRepository<Product, Sku> _products;
+    private readonly IRepository<Transaction, Guid> _transactions;
+    private readonly IRepository<BranchStock, Guid> _stocks;
+    private readonly INotificationService _notifications;
+    private readonly LowStockRule _lowStockRule;
 
     public DashboardService(
-        IRepository<Branch> branches,
-        IRepository<Product> products,
-        IRepository<Transaction> transactions,
-        IRepository<BranchStock> stocks)
+        IRepository<Branch, BranchCode> branches,
+        IRepository<Product, Sku> products,
+        IRepository<Transaction, Guid> transactions,
+        IRepository<BranchStock, Guid> stocks,
+        INotificationService notifications,
+        LowStockRule? lowStockRule = null)
     {
         _branches = branches;
         _products = products;
         _transactions = transactions;
         _stocks = stocks;
+        _notifications = notifications;
+        _lowStockRule = lowStockRule ?? LowStockRule.Default;
     }
 
     public async Task<DashboardSnapshot> BuildAsync(string? branchCode = null, CancellationToken ct = default)
@@ -281,7 +354,9 @@ public sealed class DashboardService
             stock = stock.Where(item => item.BranchCode.Value == branchCode).ToList();
         }
 
-        var alerts = new List<string>();
+        var recentNotifications = await Task.WhenAll(
+            branches.Select(branch => _notifications.GetRecentAlertsAsync(branch.Id, ct)));
+        var alerts = recentNotifications.SelectMany(items => items).Reverse().ToList();
         foreach (var branch in branches)
         {
             if (!branch.IsActive)
@@ -291,7 +366,7 @@ public sealed class DashboardService
 
             foreach (var item in stock.Where(x => x.BranchCode == branch.Id))
             {
-                if (item.QuantityOnHand <= 5)
+                if (_lowStockRule.IsLow(item.QuantityOnHand))
                 {
                     alerts.Add($"Low stock: {item.ProductSku.Value} in {branch.Id.Value}.");
                 }
@@ -304,14 +379,14 @@ public sealed class DashboardService
 
 public sealed class ReportingService
 {
-    private readonly IRepository<Transaction> _transactions;
-    private readonly IRepository<BranchStock> _stocks;
-    private readonly IRepository<Branch> _branches;
+    private readonly IRepository<Transaction, Guid> _transactions;
+    private readonly IRepository<BranchStock, Guid> _stocks;
+    private readonly IRepository<Branch, BranchCode> _branches;
 
     public ReportingService(
-        IRepository<Transaction> transactions,
-        IRepository<BranchStock> stocks,
-        IRepository<Branch> branches)
+        IRepository<Transaction, Guid> transactions,
+        IRepository<BranchStock, Guid> stocks,
+        IRepository<Branch, BranchCode> branches)
     {
         _transactions = transactions;
         _stocks = stocks;
@@ -320,54 +395,57 @@ public sealed class ReportingService
 
     public async Task<IReadOnlyList<(string Branch, Money Sales, Money Services)>> GetDailyBranchSalesAsync(
         string? branchCode = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        DateOnly? date = null)
     {
-        var transactionsTask = _transactions.GetAllAsync(ct);
+        var transactionsTask = _transactions.FindAsync(new PaidTransactionsSpecification(branchCode), ct);
         var branchesTask = _branches.GetAllAsync(ct);
         await Task.WhenAll(transactionsTask, branchesTask);
         var transactions = await transactionsTask;
-        var branchTimeZones = (await branchesTask).ToDictionary(
+        var branchTimeZones = await GetBranchTimeZonesAsync(branchesTask, transactions);
+        var now = DateTimeOffset.UtcNow;
+
+        return transactions
+            .Where(transaction =>
+            {
+                var timeZone = branchTimeZones[transaction.BranchCode.Value];
+                var reportDate = date ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, timeZone).Date);
+                return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(transaction.CreatedAt, timeZone).Date) == reportDate;
+            })
+            .GroupBy(transaction => transaction.BranchCode.Value)
+            .OrderBy(group => group.Key)
+            .Select(group => (
+                group.Key,
+                group.Aggregate(Money.Zero, (total, transaction) => total + transaction.RetailTotal),
+                group.Aggregate(Money.Zero, (total, transaction) => total + transaction.ServicesTotal)))
+            .ToList();
+    }
+
+    public async Task<DateOnly?> GetLatestSalesDateAsync(string? branchCode = null, CancellationToken ct = default)
+    {
+        var transactionsTask = _transactions.FindAsync(new PaidTransactionsSpecification(branchCode), ct);
+        var branchesTask = _branches.GetAllAsync(ct);
+        await Task.WhenAll(transactionsTask, branchesTask);
+        var transactions = await transactionsTask;
+        var branchTimeZones = await GetBranchTimeZonesAsync(branchesTask, transactions);
+        return transactions
+            .Select(transaction => (DateOnly?)DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTime(transaction.CreatedAt, branchTimeZones[transaction.BranchCode.Value]).Date))
+            .Max();
+    }
+
+    private static async Task<Dictionary<string, TimeZoneInfo>> GetBranchTimeZonesAsync(
+        Task<IReadOnlyList<Branch>> branchesTask,
+        IReadOnlyList<Transaction> transactions)
+    {
+        var timeZones = (await branchesTask).ToDictionary(
             branch => branch.Id.Value,
             branch => TimeZoneInfo.FindSystemTimeZoneById(branch.TimeZoneId),
             StringComparer.Ordinal);
-        var now = DateTimeOffset.UtcNow;
-        var todayByBranch = branchTimeZones.ToDictionary(
-            entry => entry.Key,
-            entry => TimeZoneInfo.ConvertTime(now, entry.Value).Date,
-            StringComparer.Ordinal);
-        var paidTransactions = transactions
-            .Where(transaction => transaction.Status == TransactionStatus.Paid
-                && (branchCode is null || transaction.BranchCode.Value == branchCode))
-            .ToList();
-        foreach (var transaction in paidTransactions)
-        {
-            if (!branchTimeZones.ContainsKey(transaction.BranchCode.Value))
-            {
-                throw new KeyNotFoundException($"Branch {transaction.BranchCode.Value} has no timezone configuration.");
-            }
-        }
-
-        var groups = transactions
-            .Where(transaction => transaction.Status == TransactionStatus.Paid
-                && (branchCode is null || transaction.BranchCode.Value == branchCode)
-                && TimeZoneInfo.ConvertTime(transaction.CreatedAt, branchTimeZones[transaction.BranchCode.Value]).Date
-                    == todayByBranch[transaction.BranchCode.Value])
-            .GroupBy(x => x.BranchCode.Value)
-            .Select(g =>
-            {
-                var sales = g.Aggregate(Money.Zero, (running, x) => running + x.LineItems
-                    .Where(i => i.ItemType == LineItemType.RetailProduct)
-                    .Aggregate(Money.Zero, (acc, item) => acc + item.GrandTotal));
-
-                var services = g.Aggregate(Money.Zero, (running, x) => running + x.LineItems
-                    .Where(i => i.ItemType != LineItemType.RetailProduct)
-                    .Aggregate(Money.Zero, (acc, item) => acc + item.GrandTotal));
-
-                return (g.Key, sales, services);
-            })
-            .ToList();
-
-        return groups;
+        var unknownBranch = transactions.FirstOrDefault(transaction => !timeZones.ContainsKey(transaction.BranchCode.Value));
+        return unknownBranch is null
+            ? timeZones
+            : throw new KeyNotFoundException($"Branch {unknownBranch.BranchCode.Value} has no timezone configuration.");
     }
 
     public async Task<IReadOnlyList<(string Branch, string Sku, int Quantity)>> GetLowStockReportAsync(
@@ -389,10 +467,8 @@ public sealed class ReportingService
         string? branchCode = null,
         CancellationToken ct = default)
     {
-        var transactions = await _transactions.GetAllAsync(ct);
+        var transactions = await _transactions.FindAsync(new PaidTransactionsSpecification(branchCode), ct);
         return transactions
-            .Where(transaction => branchCode is null || transaction.BranchCode.Value == branchCode)
-            .Where(transaction => transaction.Status == TransactionStatus.Paid)
             .SelectMany(transaction => transaction.LineItems)
             .Where(line => line.Shipping is not null)
             .GroupBy(line => (line.Shipping!.DestinationZone, line.Shipping.ServiceLevel))
@@ -423,27 +499,29 @@ public sealed class ReportingService
 
 public sealed class TransactionService
 {
-    private readonly IRepository<Transaction> _transactions;
-    private readonly IRepository<Branch> _branches;
-    private readonly IRepository<Staff> _staff;
-    private readonly IRepository<BranchStock> _stocks;
+    private readonly IRepository<Transaction, Guid> _transactions;
+    private readonly IRepository<Branch, BranchCode> _branches;
+    private readonly IRepository<Staff, string> _staff;
+    private readonly IRepository<BranchStock, Guid> _stocks;
     private readonly ICourierRateService _courierRates;
     private readonly ICatalogueService _catalogue;
     private readonly IIdentityVerificationService _identityVerification;
     private readonly IDomainEventDispatcher _eventDispatcher;
     private readonly TransactionRules _rules;
+    private readonly LowStockRule _lowStockRule;
     public Money HighValueMoneyOrderThreshold => _rules.HighValueMoneyOrderThreshold;
 
     public TransactionService(
-        IRepository<Transaction> transactions,
-        IRepository<Branch> branches,
-        IRepository<Staff> staff,
-        IRepository<BranchStock> stocks,
+        IRepository<Transaction, Guid> transactions,
+        IRepository<Branch, BranchCode> branches,
+        IRepository<Staff, string> staff,
+        IRepository<BranchStock, Guid> stocks,
         ICourierRateService courierRates,
         ICatalogueService catalogue,
         IIdentityVerificationService identityVerification,
         IDomainEventDispatcher eventDispatcher,
-        TransactionRules rules)
+        TransactionRules rules,
+        LowStockRule? lowStockRule = null)
     {
         _transactions = transactions;
         _branches = branches;
@@ -454,7 +532,23 @@ public sealed class TransactionService
         _identityVerification = identityVerification;
         _eventDispatcher = eventDispatcher;
         _rules = rules;
+        _lowStockRule = lowStockRule ?? LowStockRule.Default;
     }
+
+    public async Task<CheckoutOptions> GetCheckoutOptionsAsync(string branchCode, CancellationToken ct = default)
+    {
+        var branch = await _branches.GetByIdAsync(new BranchCode(branchCode), ct)
+            ?? throw new KeyNotFoundException("Branch not found.");
+        var products = await _catalogue.GetProductsAsync(ct);
+        var stock = (await _stocks.GetAllAsync(ct)).Where(item => item.BranchCode == branch.Id).ToList();
+        return new CheckoutOptions(branch, products, stock);
+    }
+
+    public async Task<IReadOnlyList<Transaction>> GetBranchTransactionsAsync(string branchCode, CancellationToken ct = default) =>
+        (await _transactions.GetAllAsync(ct))
+            .Where(transaction => transaction.BranchCode.Value == branchCode)
+            .OrderByDescending(transaction => transaction.CreatedAt)
+            .ToList();
 
     public async Task<Transaction> CheckoutAsync(
         string branchCode,
@@ -611,7 +705,7 @@ public sealed class TransactionService
             {
                 var product = await _catalogue.GetProductBySkuAsync(requestedItem.Sku, ct)
                     ?? throw new KeyNotFoundException($"Product {requestedItem.Sku.Value} was not found.");
-                if (product.Category.ToUpperInvariant() is not ("PACKAGING" or "STATIONERY" or "OFFICE SUPPLIES"))
+                if (!ProductCategories.IsSupported(product.Category))
                 {
                     throw new DomainValidationException($"Product {product.Id.Value} has an unsupported category.");
                 }
@@ -636,7 +730,7 @@ public sealed class TransactionService
                     product.UnitPrice,
                     product.TaxCategory,
                     requestedItem.Sku));
-                if (branchStock.QuantityOnHand <= 5)
+                if (_lowStockRule.IsLow(branchStock.QuantityOnHand))
                 {
                     transaction.AddDomainEvent(new StockLowEvent(transaction.BranchCode, requestedItem.Sku, branchStock.QuantityOnHand));
                 }
@@ -748,16 +842,21 @@ public sealed class TransactionService
         var wasResuming = transaction.Status == targetStatus && !transaction.InventoryRestocked;
         if (transaction.Status == TransactionStatus.Paid)
         {
-            if (refund)
-            {
-                transaction.Refund(manager, reason);
-            }
-            else
-            {
-                transaction.Void(manager, reason);
-            }
-
-            await _transactions.SaveAsync(transaction, ct);
+            // Apply the state change under the repository lock so a concurrent void and refund cannot both win.
+            transaction = await _transactions.UpdateAsync(
+                transactionId,
+                current =>
+                {
+                    if (refund)
+                    {
+                        current.Refund(manager, reason);
+                    }
+                    else
+                    {
+                        current.Void(manager, reason);
+                    }
+                },
+                ct) ?? throw new KeyNotFoundException("Transaction not found.");
         }
         else if (!wasResuming)
         {

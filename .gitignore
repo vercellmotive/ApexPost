@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# ApexPost runtime data and macOS metadata
+**/App_Data/
+.DS_Store

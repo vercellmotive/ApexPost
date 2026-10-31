@@ -8,6 +8,10 @@
 {
     <div class="alert alert-success" role="status">@success</div>
 }
+@if (User.HasClaim("Role", "Administrator"))
+{
+    <p><a class="btn btn-primary" asp-controller="Products" asp-action="Index">Manage products</a></p>
+}
 <table class="table table-striped">
     <thead>
         <tr><th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th>Stock at your branch</th>@if (User.IsInRole("BranchManager")) { <th>Adjust stock</th> }</tr>

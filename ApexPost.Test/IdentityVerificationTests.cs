@@ -20,10 +20,10 @@ public sealed class IdentityVerificationTests
     [Fact]
     public async Task ShortDocumentFormatIsRecordedAsUnverified()
     {
-        var result = await _verification.VerifyAsync(DocumentType.DriversLicense, "AB12");
+        var result = await _verification.VerifyAsync(DocumentType.DriversLicense, "AB123");
 
         Assert.False(result.IsVerified);
-        Assert.Equal("******AB12", result.MaskedDocNumber);
+        Assert.Equal("******B123", result.MaskedDocNumber);
     }
 
     [Fact]
