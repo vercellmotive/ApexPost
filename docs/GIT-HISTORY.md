@@ -1,6 +1,6 @@
 # Git history
 
-Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #10. It can't list the commit that updates it, so GitHub is the full record.
+Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #12. It can't list the commit that updates it, so GitHub is the full record.
 
 ## Pull requests
 
@@ -16,6 +16,8 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | [#8](https://github.com/vercellmotive/ApexPost/pull/8) | Explain the W2 estimate mismatch | MERGED |
 | [#9](https://github.com/vercellmotive/ApexPost/pull/9) | Close three small gaps from the wider checks | MERGED |
 | [#10](https://github.com/vercellmotive/ApexPost/pull/10) | Close the gaps from grading against the brief | MERGED |
+| [#11](https://github.com/vercellmotive/ApexPost/pull/11) | Return Problem Details from action errors | MERGED |
+| [#12](https://github.com/vercellmotive/ApexPost/pull/12) | Make the README setup work from a clean unzip | MERGED |
 
 ## Commits on `master` (merges left out)
 
@@ -49,3 +51,10 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | `030dc08` | 2026-10-31 | fix: make HAVING do real work in the reporting queries |
 | `35d2e5a` | 2026-10-31 | test: restore the Week 2 rules file and name tests by behaviour |
 | `dbfe414` | 2026-10-31 | docs: tidy ADRs, record deviations and update counts |
+| `bdf981c` | 2026-10-31 | fix: return Problem Details from void, refund, stock and admin errors |
+| `bafa304` | 2026-10-31 | docs: record the error boundary decision and update counts |
+| `c439882` | 2026-10-31 | docs: make the README setup work from a clean unzip |
+
+## Early commit messages
+
+The first commits have weak messages, such as `3065b8e` ("Final submittion commit."), which holds 84 files. They stay as they are: rewriting them would change every later commit hash on `master`, and break the links from the pull requests above. Work since then uses a feature branch, a pull request and a message that says what changed.

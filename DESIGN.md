@@ -4,7 +4,7 @@
 
 SQL Server, reached through EF Core 10, is now the system of record, behind interfaces in the Application layer. ADRs that Week 3 replaced say so at the top.
 
-**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 184 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
+**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 194 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
 
 ### Layers and dependencies
 
@@ -201,7 +201,7 @@ The columns, types and keys above were generated from the migrated database. Dec
 
 `AuditEntries` has no foreign keys on purpose: an audit row must outlive whatever it describes, and it also records anonymous and denied attempts.
 
-`Dimensions` and the optional destination `Address` on `Shipments` are owned types, stored as columns on that table. Keys and constraints are defined in `EntityConfigurations.cs` and are visible in `sql/schema/ApexPostDb-idempotent.sql`. Every table has `CreatedAtUtc`, `CreatedBy` and `ModifiedAtUtc` as shadow properties, and `BranchStock` and `CounterTransactions` have a `RowVersion`.
+`Dimensions` and the optional destination `Address` on `Shipments` are owned types, stored as columns on that table. All the address columns are nullable, so a shipment with none of them loads no `Address`, which is what an optional destination means. EF Core warns about this pattern (event 20606), so that one warning is turned off, and `Shipment_WithNoDestination_LoadsNoAddress_AndOneWithADestinationKeepsIt` proves both cases on SQL Server. Keys and constraints are defined in `EntityConfigurations.cs` and are visible in `sql/schema/ApexPostDb-idempotent.sql`. Every table has `CreatedAtUtc`, `CreatedBy` and `ModifiedAtUtc` as shadow properties, and `BranchStock` and `CounterTransactions` have a `RowVersion`.
 
 | Rule | Where it is enforced |
 |---|---|
@@ -229,16 +229,16 @@ The columns, types and keys above were generated from the migrated database. Dec
 
 ### Stored procedures and least privilege
 
-`usp_DailyBranchSales`, `usp_LowStockReport` and `usp_AdjustStock` are in `sql/procedures` and deployed by the `AddStoredProcedures` migration. A later migration can replace a body, as `StampCreatedByInAdjustStock` does. The body an older migration needs stays in `sql/procedures/history`, because that migration runs before later columns exist. EF Core calls them only through parameterized `SqlQuery`. Tested with a restricted login and the test `LeastPrivilegeRole_CanRunTheAppButCannotDeleteOrChangeSchema`, the application login needs the `apexpost_app` role from `sql/security/least_privilege_role.sql`: `SELECT`, `INSERT` and `UPDATE` on `dbo`, `EXECUTE` on the three procedures, no `DELETE`, and no schema changes. It can only add to `AuditEntries`. Migrations run under a separate deployment login.
+`usp_DailyBranchSales`, `usp_LowStockReport` and `usp_AdjustStock` are in `sql/procedures` and deployed by the `AddStoredProcedures` migration. A later migration can replace a body, as `StampCreatedByInAdjustStock` does. The body an older migration needs stays in `sql/procedures/history`, because that migration runs before later columns exist. EF Core calls them only through parameterized `SqlQuery`. Tested with a restricted login and the test `LeastPrivilegeRole_CanRunTheAppButCannotDeleteOrChangeSchema`, the application login needs the `apexpost_app` role from `sql/security/least_privilege_role.sql`: `SELECT`, `INSERT` and `UPDATE` on `dbo`, `EXECUTE` on the three procedures, no `DELETE`, and no schema changes. It can only add to `AuditEntries`. Migrations run under a separate deployment login. A reporting tool can use `sql/security/reporting_role.sql` instead: `EXECUTE` on the two report procedures and no table access, tested by `ReportingRole_CanRunTheReportProceduresButCannotReadTablesOrChangeStock`.
 
 ### Deviations to review
 
 - **Index style:** `[Index]` can't express `INCLUDE` or filters and can't be placed on Domain classes, so some indexes combine it with Fluent, and `BranchStock` uses Fluent alone (ADR-26).
-- **Security pin:** `System.Security.Cryptography.Pkcs` isn't on the allowed list. It's pinned to fix a vulnerable version that SqlClient brings in. **This needs trainer approval** (ADR-32).
+- **Security pin:** `System.Security.Cryptography.Pkcs` isn't on the allowed list. It's pinned to fix a vulnerable version that SqlClient brings in. **This needs trainer approval** (ADR-32). `Microsoft.NET.Test.Sdk` and `xunit.runner.visualstudio` aren't listed either: `dotnet test` needs them to find and run xUnit tests, so they're included in that request.
 - **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database also exist, and run when `APEXPOST_TEST_SQLSERVER` is set.
 - **Zero-value payments:** `CK_Payments_Amount` is `>= 0`, not `> 0`. An identity check is free, so a basket holding only that check records a payment of 0. Requiring more than zero would reject those sales.
 - **Week 2 test file:** `DomainRulesTests.cs` is identical to the Week 2 commit `3065b8e`, so `dotnet format` reports one whitespace issue in it. Leaving it is what proves the file is unchanged.
-- **Blocking demo tool:** the demo ran in `sqlcmd` sessions on a Mac, where SSMS isn't available. README has the steps to repeat it in SSMS.
+- **Blocking demo tool:** the demo ran in `sqlcmd` sessions on a Mac, where SSMS isn't available. The SSMS run the brief asks for **is still to be done**, and README has the steps. Blocking happens on the server, so the waits should be the same.
 - **Seed loading:** seed files in `ApexPost.Infrastructure/Data` are JSON, read once by `DatabaseSeeder`. They aren't a persistence store.
 - **Not implemented:** the offline synchronization topics in the lab list aren't in this assignment's requirements.
 
@@ -554,7 +554,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 ### ADR-15: Make pricing rules replaceable and JSON state round-trip safe
 
-**Status: Updated in Week 3. `[JsonInclude]` now serves only seed loading; columns hold state in SQL Server.**
+**Status: Updated in Week 3. `[JsonInclude]` now serves seed loading and the Week 2 rule tests (ADR-39); columns hold state in SQL Server.**
 
 **Context:** Private setters protect entities, but JSON would silently reset them to defaults on load.
 
@@ -682,11 +682,11 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Context:** "Stored procedures are faster" is not an accepted reason, and most queries are clear as LINQ.
 
-**Decision:** `usp_AdjustStock` is a procedure because the check, update and history row must be one atomic unit for every caller, including DBAs and batch jobs, and because the application role needs only `EXECUTE` for that rule. `usp_LowStockReport` keeps its optional-parameter plan choice (`OPTION (RECOMPILE)`) next to the query, and `usp_DailyBranchSales` gives the app and anyone working in SSMS one copy of its `CASE` revenue rule. These two are weaker cases than `usp_AdjustStock`: LINQ could serve both, nothing outside this application calls them today, and they stay as procedures for this one-copy benefit, not for speed.
+**Decision:** `usp_AdjustStock` is a procedure because the check, update and history row must be one atomic unit for every caller, including DBAs and batch jobs, and because the application role needs only `EXECUTE` for that rule. `usp_LowStockReport` is a procedure because `OPTION (RECOMPILE)` lets it use the filtered index, which parameterized LINQ can't do without a custom command interceptor: 86 reads against 208 for one branch, and 25 against 1,032 for every branch (`PERFORMANCE.md`). `usp_DailyBranchSales` and `usp_LowStockReport` also give a reporting tool totals without table access: the tested `apexpost_reports` role can run them with no `SELECT` on any table, so it never sees money-order names, staff emails or masked documents. LINQ would need those rights.
 
-**Alternatives:** All LINQ (the atomic history rule would be enforced only in this application); everything as procedures (loses compile-time checks and hides simple queries).
+**Alternatives:** All LINQ (the atomic history rule would be enforced only in this application, the low-stock report would lose the filtered index, and a reporting login would need table access); everything as procedures (loses compile-time checks and hides simple queries).
 
-**Consequences:** Schema changes must update the procedures by hand, and the compiler won't catch mistakes, so the SQL Server tests matter. Procedures are deployed by migration from `/sql`, which keeps them versioned.
+**Consequences:** No reporting tool uses the role yet, so that benefit is available rather than in use, and LINQ could still compute the daily totals for the app itself. `sql/reports/01_daily_branch_sales.sql` is the brief's standalone query and repeats the revenue rule, so it must change with the procedure. The dashboard keeps its LINQ low-stock query to avoid a compile on each load (`PERFORMANCE.md`). Schema changes must update the procedures by hand, and the compiler won't catch mistakes, so the SQL Server tests matter. Procedures are deployed by migration from `/sql`, which keeps them versioned.
 
 ### ADR-28: Bound repositories and the unit of work, and allow projections in query services
 
@@ -776,7 +776,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Alternatives:** Leave the code in services (rules stay scattered and need a service to test).
 
-**Consequences:** The rules have one home and are tested without fakes in `DomainBehaviourTests`. `AddLineItem` stays public because Week 2 tests use it.
+**Consequences:** The rules have one home and are tested without fakes in `DomainBehaviourTests`. `Product.Create`, `Product.EnsureSellable` and `ShippingZone.UsableMultiplier` follow the same idea: their rules moved out of services and are called from production code. `AddLineItem` stays public because Week 2 tests use it.
 
 ### ADR-37: Reversals restock through the procedure in one transaction
 
@@ -797,6 +797,16 @@ Each decision records its context, the decision, the alternatives considered and
 **Alternatives:** Build Problem Details in each controller (repeats the mapping and loses the trace ID); show a friendly page for every error (doesn't meet the brief's mapping).
 
 **Consequences:** One boundary formats these errors, and tests now assert the real responses. The audit filter reads the status from the exception, so audit rows stay correct. A manager who voids a sale twice sees a Problem Details response rather than a friendly message. The explicit `BranchManagerOnly` checks still return a plain 403, which isn't in the brief's mapping.
+
+### ADR-39: Keep what the unchanged Week 2 tests need in the Domain
+
+**Context:** The brief requires the Week 2 business-rule tests to pass unchanged. `DomainRulesTests.cs` round-trips `BranchStock` and `Transaction` through the default `JsonSerializer`, and calls `BranchStock.RestockForReversal`. Production no longer needs either: state lives in columns, and reversals restock through `usp_AdjustStock` (ADR-37).
+
+**Decision:** Keep `[JsonInclude]` on those private setters and keep `RestockForReversal`. Remove what no Week 2 test needs: `BranchStock.ApplyAdjustment` was only used by the test fake, so the rule moved there.
+
+**Alternatives:** Edit the tests (breaks the brief, and they'd no longer prove the rules are unchanged); use a custom JSON resolver in Infrastructure (the tests call the default serializer, so they'd fail).
+
+**Consequences:** The Domain carries one unused method and a serialization attribute from the base class library. It still references no package or project. Both can go once the Week 2 tests are retired.
 
 ## SOLID mapping
 
@@ -828,7 +838,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 ## Validation
 
-`ApexPost.Test` has 184 tests, and all 184 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 164 run and 20 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
+`ApexPost.Test` has 194 tests, and all 194 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 171 run and 23 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
 
 | Layer | Needs a database | What it covers |
 |---|---|---|
