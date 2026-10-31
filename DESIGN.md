@@ -4,7 +4,7 @@
 
 SQL Server, reached through EF Core 10, is now the system of record, behind interfaces in the Application layer. ADRs that Week 3 replaced say so at the top.
 
-**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 175 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
+**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 178 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
 
 ### Layers and dependencies
 
@@ -48,7 +48,156 @@ erDiagram
     ShippingRates ||--o{ Shipments : "ShippingRateId"
     TransactionLines ||--o| MoneyOrders : "TransactionLineId (cascade)"
     TransactionLines ||--o| IdentityVerifications : "TransactionLineId (cascade)"
+
+    AuditEntries {
+        uniqueidentifier Id PK
+        varchar(128) CorrelationId
+        varchar(20) StaffId
+        varchar(30) Role
+        varchar(10) BranchCode
+        varchar(100) Controller
+        varchar(100) Action
+        nvarchar(2000) Parameters
+        int StatusCode
+        bigint DurationMs
+        datetime2 TimestampUtc
+    }
+    BranchStock {
+        uniqueidentifier Id PK
+        varchar(10) BranchCode FK, UK
+        varchar(20) Sku FK, UK
+        int QuantityOnHand
+        timestamp RowVersion
+    }
+    Branches {
+        int Id PK
+        varchar(10) BranchCode UK
+        nvarchar(100) Name
+        nvarchar(50) Region
+        time OpenTime
+        time CloseTime
+        varchar(64) TimeZoneId
+        bit IsActive
+    }
+    CounterTransactions {
+        uniqueidentifier Id PK
+        varchar(10) BranchCode FK
+        varchar(10) CounterCode FK
+        varchar(20) ClerkStaffId FK
+        varchar(20) Status
+        datetime2 OccurredAtUtc
+        date BusinessDate
+        nvarchar(200) VoidReason "null"
+        varchar(20) VoidedByStaffId FK "null"
+        bit InventoryRestocked
+        timestamp RowVersion
+    }
+    Counters {
+        int Id PK
+        varchar(10) BranchCode FK, UK
+        varchar(10) TerminalCode UK
+    }
+    IdentityVerifications {
+        uniqueidentifier Id PK
+        uniqueidentifier TransactionLineId FK, UK
+        varchar(30) DocumentType
+        varchar(10) MaskedDocumentNumber
+        bit IsVerified
+    }
+    MoneyOrders {
+        uniqueidentifier Id PK
+        uniqueidentifier TransactionLineId FK, UK
+        decimal Amount "18-2"
+        decimal Fee "18-2"
+        nvarchar(100) Sender
+        nvarchar(100) Recipient
+    }
+    Payments {
+        uniqueidentifier Id PK
+        uniqueidentifier TransactionId FK
+        varchar(10) Kind
+        varchar(10) Method
+        decimal Amount "18-2"
+        datetime2 PaidAtUtc
+    }
+    ProductCategories {
+        int Id PK
+        nvarchar(50) Name UK
+    }
+    Products {
+        int Id PK
+        varchar(20) Sku UK
+        nvarchar(100) Name
+        int CategoryId FK
+        decimal UnitPrice "18-2"
+        varchar(20) TaxCategory
+    }
+    Roles {
+        int Id PK
+        varchar(30) Name UK
+    }
+    Shipments {
+        uniqueidentifier Id PK
+        uniqueidentifier TransactionLineId FK, UK
+        int ShippingRateId FK
+        decimal WeightKg "9-3"
+        decimal LengthCm "9-2"
+        decimal WidthCm "9-2"
+        decimal HeightCm "9-2"
+        nvarchar(60) DestinationCity "null"
+        nvarchar(60) DestinationCountry "null"
+        varchar(12) DestinationPostalCode "null"
+        nvarchar(30) DestinationState "null"
+        nvarchar(120) DestinationStreet "null"
+    }
+    ShippingRates {
+        int Id PK
+        varchar(20) ZoneId FK, UK
+        bit IsParcel UK
+        varchar(20) ServiceLevel UK
+        decimal BaseRate "18-2"
+        decimal MaxWeightKg "9-3"
+    }
+    ShippingZones {
+        varchar(20) Id PK
+        nvarchar(50) Name UK
+        decimal Multiplier "6-3"
+    }
+    Staff {
+        varchar(20) Id PK
+        nvarchar(100) Name
+        varchar(254) Email UK
+        int RoleId FK
+        varchar(10) HomeBranchCode FK
+        bit IsActive
+        varchar(200) PasswordHash "null"
+    }
+    StockAdjustments {
+        bigint Id PK
+        varchar(10) BranchCode FK
+        varchar(20) Sku FK
+        int Delta
+        int QuantityAfter
+        varchar(30) Reason
+        varchar(20) ChangedBy FK
+        datetime2 ChangedAtUtc
+    }
+    TransactionLines {
+        uniqueidentifier Id PK
+        uniqueidentifier TransactionId FK, UK
+        int LineNumber UK
+        nvarchar(200) Description
+        varchar(30) LineType
+        int Quantity
+        decimal UnitPrice "18-2"
+        varchar(20) TaxCategory
+        decimal TaxAmount "18-2"
+        decimal LineTotal "18-2"
+        varchar(20) Sku FK "null"
+    }
 ```
+
+The columns, types and keys above were generated from the migrated database. Decimal notes read precision-scale, and `null` marks a nullable column. Shadow audit columns are left out to keep it readable.
 
 `AuditEntries` has no foreign keys on purpose: an audit row must outlive whatever it describes, and it also records anonymous and denied attempts.
 
@@ -531,7 +680,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Context:** "Stored procedures are faster" is not an accepted reason, and most queries are clear as LINQ.
 
-**Decision:** `usp_AdjustStock` is a procedure because the check, update and history row must be one atomic unit for every caller, including DBAs and batch jobs, and because the application role needs only `EXECUTE` for that rule. `usp_LowStockReport` is a procedure so its optional-parameter plan choice (`OPTION (RECOMPILE)`) lives with the query and can be tuned without a release. `usp_DailyBranchSales` is a procedure because its `CASE` revenue rule is shared with head-office tooling and SSMS, and must not exist in two versions.
+**Decision:** `usp_AdjustStock` is a procedure because the check, update and history row must be one atomic unit for every caller, including DBAs and batch jobs, and because the application role needs only `EXECUTE` for that rule. `usp_LowStockReport` keeps its optional-parameter plan choice (`OPTION (RECOMPILE)`) next to the query, and `usp_DailyBranchSales` gives the app and anyone working in SSMS one copy of its `CASE` revenue rule. These two are weaker cases than `usp_AdjustStock`: LINQ could serve both, nothing outside this application calls them today, and they stay as procedures for this one-copy benefit, not for speed.
 
 **Alternatives:** All LINQ (the atomic history rule would be enforced only in this application); everything as procedures (loses compile-time checks and hides simple queries).
 
@@ -605,7 +754,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Alternatives:** Requiring a database for all tests (slower, and impossible on a machine without a server); the EF Core InMemory provider (not on the allowed list, and it ignores constraints and rowversion).
 
-**Consequences:** Fast tests caught real bugs before any database existed. All 157 tests have since passed on SQL Server 2022, but anyone running without the variable sees 13 skips. The fakes are extra code that must follow the same rules as EF Core.
+**Consequences:** Fast tests caught real bugs before any database existed. All tests have since passed on SQL Server 2022, but anyone running without the variable sees the SQL Server tests skipped. The Validation section has the current counts. The fakes are extra code that must follow the same rules as EF Core.
 
 ### ADR-35: Replace the low-stock index with a filtered index
 
@@ -655,9 +804,19 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Consequences:** The rules have one home and are tested without fakes in `DomainBehaviourTests`. `AddLineItem` stays public because Week 2 tests use it.
 
+### ADR-37: Reversals restock through the procedure in one transaction
+
+**Context:** A void or refund raised stock with a tracked update, so no `StockAdjustments` row explained the change. `ExecuteInTransactionAsync` was also used only by the seeder.
+
+**Decision:** `TransactionService` now reverses inside `ExecuteInTransactionAsync`: it calls `usp_AdjustStock` with `CustomerReturn` for each product in SKU order, then saves the status change with `SaveChangesAsync`. The unit discards tracked changes at its start, because the execution strategy can repeat it.
+
+**Alternatives:** Keep the tracked update (no stock history); insert history through EF Core (two versions of the rule in the procedure's check, update and history).
+
+**Consequences:** Every reversal leaves history. If the status change loses a `rowversion` race, the restock and history roll back with it, and the clerk gets a 409. A SQL Server test proves this through HTTP. The transaction lasts slightly longer than a single save.
+
 ## Validation
 
-`ApexPost.Test` has 175 tests, and all 175 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 160 run and 15 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
+`ApexPost.Test` has 178 tests, and all 178 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 160 run and 18 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
 
 | Layer | Needs a database | What it covers |
 |---|---|---|

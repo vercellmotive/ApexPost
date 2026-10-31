@@ -24,6 +24,68 @@ All numbers here were measured, and each plan is saved in [`docs/plans`](docs/pl
 | W3 shipment search | 700 | 26 | -96% | 16 → 2 | Hash join with scan → nested loops with seek |
 | W4 high-value money orders | 412 | 10 | -98% | 5 → 1 | Clustered scan → filtered index scan |
 
+## Raw STATISTICS IO and TIME output
+
+The output below comes from one fresh run of `sql/performance/01_workload_queries.sql` on a regenerated database of 200,220 transactions, with the indexes disabled and then rebuilt through `02_toggle_indexes.sql`. Each set was run twice and the second run kept, so the cache was warm. The reads differ slightly from the tables above, which came from an earlier generated data set (W1 103 against 106, W2 4,591 against 4,619). The direction and size of each gain are the same.
+
+Here each line stops after logical reads, and the first CPU line in each workload is compile time. The full lines are in [`docs/statistics`](docs/statistics).
+
+**Before the indexes:**
+
+```text
+W1 low-stock report by branch
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 2 ms, elapsed time = 2 ms.
+Table 'BranchStock'. Scan count 1, logical reads 103
+   CPU time = 1 ms,  elapsed time = 0 ms.
+W2 daily sales by branch and date
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 4 ms, elapsed time = 4 ms.
+Table 'TransactionLines'. Scan count 71, logical reads 439
+Table 'CounterTransactions'. Scan count 1, logical reads 4152
+   CPU time = 34 ms,  elapsed time = 34 ms.
+W3 shipment search by zone and service level
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 3 ms, elapsed time = 3 ms.
+Table 'Workfile'. Scan count 0, logical reads 0
+Table 'Worktable'. Scan count 0, logical reads 0
+Table 'Shipments'. Scan count 1, logical reads 701
+Table 'ShippingRates'. Scan count 1, logical reads 2
+   CPU time = 13 ms,  elapsed time = 13 ms.
+W4 high-value money-order search for auditors
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 1 ms, elapsed time = 1 ms.
+Table 'MoneyOrders'. Scan count 1, logical reads 411
+   CPU time = 4 ms,  elapsed time = 4 ms.
+```
+
+**After the indexes:**
+
+```text
+W1 low-stock report by branch
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 2 ms, elapsed time = 2 ms.
+Table 'BranchStock'. Scan count 1, logical reads 2
+   CPU time = 0 ms,  elapsed time = 0 ms.
+W2 daily sales by branch and date
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 4 ms, elapsed time = 4 ms.
+Table 'TransactionLines'. Scan count 71, logical reads 439
+Table 'CounterTransactions'. Scan count 1, logical reads 3
+   CPU time = 1 ms,  elapsed time = 1 ms.
+W3 shipment search by zone and service level
+   CPU time = 1 ms,  elapsed time = 0 ms.
+   CPU time = 3 ms, elapsed time = 3 ms.
+Table 'Shipments'. Scan count 2, logical reads 24
+Table 'ShippingRates'. Scan count 1, logical reads 2
+   CPU time = 1 ms,  elapsed time = 0 ms.
+W4 high-value money-order search for auditors
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 1 ms, elapsed time = 1 ms.
+Table 'MoneyOrders'. Scan count 1, logical reads 10
+   CPU time = 0 ms,  elapsed time = 0 ms.
+```
+
 ## W1: low-stock report, where the first index was wrong
 
 My first design, `(BranchCode, QuantityOnHand) INCLUDE (Sku)`, reduced reads but was too costly. `QuantityOnHand` is a key column that changes on every sale, so the row has to move in the index. I measured a filtered alternative and replaced the original with it (migration `ReplaceLowStockIndexWithFiltered`, ADR-35).
@@ -194,6 +256,7 @@ Each trial sold exactly the available stock, left no stuck transactions and neve
 ## How the design avoids deadlocks
 
 - **Consistent order:** sales and `usp_AdjustStock` both touch `BranchStock` before anything else.
+- **Reversals too:** voids and refunds restock through `usp_AdjustStock` in SKU order before they update the transaction, inside one `ExecuteInTransactionAsync` (ADR-37).
 - **Short transactions:** optimistic concurrency holds no locks while a clerk works, and the courier rate call finishes before the save begins.
 - **Automatic retry:** `EnableRetryOnFailure` treats deadlock error 1205 as transient and retries it.
 
