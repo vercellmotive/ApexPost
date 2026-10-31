@@ -1,4 +1,4 @@
--- Top 10 products by revenue in each region, for products that have sold at least once.
+-- Top 10 products by revenue in each region, leaving out products that earned nothing.
 WITH RegionRevenue AS
 (
     SELECT
@@ -14,7 +14,7 @@ WITH RegionRevenue AS
     WHERE t.Status = 'Paid'
       AND l.LineType = 'RetailProduct'
     GROUP BY b.Region, p.Sku, p.Name
-    HAVING SUM(l.Quantity) > 0
+    HAVING SUM(l.LineTotal) > 0
 ),
 Ranked AS
 (

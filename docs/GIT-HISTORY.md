@@ -1,6 +1,6 @@
 # Git history
 
-Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #8. It can't list the commit that updates it, so GitHub is the full record.
+Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #9. It can't list the commit that updates it, so GitHub is the full record.
 
 ## Pull requests
 
@@ -14,6 +14,7 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | [#6](https://github.com/vercellmotive/ApexPost/pull/6) | Close the final Week 3 assessment gaps | MERGED |
 | [#7](https://github.com/vercellmotive/ApexPost/pull/7) | Close the gaps from the 91/100 review | MERGED |
 | [#8](https://github.com/vercellmotive/ApexPost/pull/8) | Explain the W2 estimate mismatch | MERGED |
+| [#9](https://github.com/vercellmotive/ApexPost/pull/9) | Close three small gaps from the wider checks | MERGED |
 
 ## Commits on `master` (merges left out)
 
@@ -40,3 +41,6 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | `96f84eb` | 2026-10-31 | fix: restock voids and refunds through the procedure in one transaction |
 | `92af4e2` | 2026-10-31 | docs: add ER columns, raw statistics output and consistent test counts |
 | `ea1106d` | 2026-10-31 | docs: explain the W2 estimate mismatch with measured evidence |
+| `4559425` | 2026-10-31 | style: apply dotnet format whitespace fixes |
+| `03b908c` | 2026-10-31 | test: cover the high-value money order boundary at checkout |
+| `44ddec5` | 2026-10-31 | docs: bring the Git history snapshot up to PR #8 |

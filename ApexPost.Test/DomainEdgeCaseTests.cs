@@ -8,7 +8,7 @@ using ApexPost.Infrastructure.Services;
 
 namespace ApexPost.Test;
 
-public sealed class RemarkFixUnitTests
+public sealed class DomainEdgeCaseTests
 {
     private readonly TieredShippingPricingStrategy _pricing = new();
 

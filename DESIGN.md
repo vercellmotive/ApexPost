@@ -4,7 +4,7 @@
 
 SQL Server, reached through EF Core 10, is now the system of record, behind interfaces in the Application layer. ADRs that Week 3 replaced say so at the top.
 
-**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 180 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
+**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 181 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
 
 ### Layers and dependencies
 
@@ -229,13 +229,15 @@ The columns, types and keys above were generated from the migrated database. Dec
 
 ### Stored procedures and least privilege
 
-`usp_DailyBranchSales`, `usp_LowStockReport` and `usp_AdjustStock` are in `sql/procedures` and deployed by the `AddStoredProcedures` migration. EF Core calls them only through parameterized `SqlQuery`. Tested with a restricted login and the test `LeastPrivilegeRole_CanRunTheAppButCannotDeleteOrChangeSchema`, the application login needs the `apexpost_app` role from `sql/security/least_privilege_role.sql`: `SELECT`, `INSERT` and `UPDATE` on `dbo`, `EXECUTE` on the three procedures, no `DELETE`, and no schema changes. It can only add to `AuditEntries`. Migrations run under a separate deployment login.
+`usp_DailyBranchSales`, `usp_LowStockReport` and `usp_AdjustStock` are in `sql/procedures` and deployed by the `AddStoredProcedures` migration. A later migration can replace a body, as `StampCreatedByInAdjustStock` does. The body an older migration needs stays in `sql/procedures/history`, because that migration runs before later columns exist. EF Core calls them only through parameterized `SqlQuery`. Tested with a restricted login and the test `LeastPrivilegeRole_CanRunTheAppButCannotDeleteOrChangeSchema`, the application login needs the `apexpost_app` role from `sql/security/least_privilege_role.sql`: `SELECT`, `INSERT` and `UPDATE` on `dbo`, `EXECUTE` on the three procedures, no `DELETE`, and no schema changes. It can only add to `AuditEntries`. Migrations run under a separate deployment login.
 
 ### Deviations to review
 
 - **Index style:** `[Index]` can't express `INCLUDE` or filters and can't be placed on Domain classes, so some indexes combine it with Fluent, and `BranchStock` uses Fluent alone (ADR-26).
 - **Security pin:** `System.Security.Cryptography.Pkcs` isn't on the allowed list. It's pinned to fix a vulnerable version that SqlClient brings in. **This needs trainer approval** (ADR-32).
 - **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database also exist, and run when `APEXPOST_TEST_SQLSERVER` is set.
+- **Zero-value payments:** `CK_Payments_Amount` is `>= 0`, not `> 0`. An identity check is free, so a basket holding only that check records a payment of 0. Requiring more than zero would reject those sales.
+- **Week 2 test file:** `DomainRulesTests.cs` is identical to the Week 2 commit `3065b8e`, so `dotnet format` reports one whitespace issue in it. Leaving it is what proves the file is unchanged.
 - **Blocking demo tool:** the demo ran in `sqlcmd` sessions on a Mac, where SSMS isn't available. README has the steps to repeat it in SSMS.
 - **Seed loading:** seed files in `ApexPost.Infrastructure/Data` are JSON, read once by `DatabaseSeeder`. They aren't a persistence store.
 - **Not implemented:** the offline synchronization topics in the lab list aren't in this assignment's requirements.
@@ -518,7 +520,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 ### ADR-12: Restock voided and refunded goods idempotently
 
-**Status: Replaced in Week 3 by ADR-30. The status change and restock now commit together.**
+**Status: Replaced in Week 3 by ADR-30 and ADR-37. The status change and restock now commit together.**
 
 **Context:** Reversals touch several files and may be retried after a partial failure. A concurrent void and refund must not both succeed.
 
@@ -766,6 +768,26 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Consequences:** Bulk updates take about 380 ms, the index is 104 KB, and reads are lower for both report shapes. A threshold above 5 can't use it and falls back to a scan of about 1,032 reads, which is still correct. A permanently higher threshold needs a new migration.
 
+### ADR-36: The Domain builds its own line items
+
+**Context:** `TransactionService` built each line item itself and repeated the manager and counter checks, so those rules lived outside the Domain.
+
+**Decision:** Add `Transaction.AddRetailProduct`, `AddShipping`, `AddMoneyOrder`, `AddIdentityVerification` and `RetailQuantities`, plus `Staff.EnsureManages` and `Branch.EnsureHasCounter`. Services load data, call these methods and commit.
+
+**Alternatives:** Leave the code in services (rules stay scattered and need a service to test).
+
+**Consequences:** The rules have one home and are tested without fakes in `DomainBehaviourTests`. `AddLineItem` stays public because Week 2 tests use it.
+
+### ADR-37: Reversals restock through the procedure in one transaction
+
+**Context:** A void or refund raised stock with a tracked update, so no `StockAdjustments` row explained the change. `ExecuteInTransactionAsync` was also used only by the seeder.
+
+**Decision:** `TransactionService` now reverses inside `ExecuteInTransactionAsync`: it calls `usp_AdjustStock` with `CustomerReturn` for each product in SKU order, then saves the status change with `SaveChangesAsync`. The unit discards tracked changes at its start, because the execution strategy can repeat it.
+
+**Alternatives:** Keep the tracked update (no stock history); insert history through EF Core (two versions of the rule in the procedure's check, update and history).
+
+**Consequences:** Every reversal leaves history. If the status change loses a `rowversion` race, the restock and history roll back with it, and the clerk gets a 409. A SQL Server test proves this through HTTP. The transaction lasts slightly longer than a single save.
+
 ## SOLID mapping
 
 - **Single Responsibility:** repositories stage, the unit of work commits, mappers translate, query services read, and controllers handle HTTP.
@@ -794,35 +816,15 @@ Each decision records its context, the decision, the alternatives considered and
 | Error detail leakage / untraceable failures | Safe Problem Details with correlation trace ID; exception details stay in server logs. |
 | Audit tampering and excess PII | The application role can only add to `AuditEntries`, and entries hold no sensitive form data. Tested on SQL Server. |
 
-### ADR-36: The Domain builds its own line items
-
-**Context:** `TransactionService` built each line item itself and repeated the manager and counter checks, so those rules lived outside the Domain.
-
-**Decision:** Add `Transaction.AddRetailProduct`, `AddShipping`, `AddMoneyOrder`, `AddIdentityVerification` and `RetailQuantities`, plus `Staff.EnsureManages` and `Branch.EnsureHasCounter`. Services load data, call these methods and commit.
-
-**Alternatives:** Leave the code in services (rules stay scattered and need a service to test).
-
-**Consequences:** The rules have one home and are tested without fakes in `DomainBehaviourTests`. `AddLineItem` stays public because Week 2 tests use it.
-
-### ADR-37: Reversals restock through the procedure in one transaction
-
-**Context:** A void or refund raised stock with a tracked update, so no `StockAdjustments` row explained the change. `ExecuteInTransactionAsync` was also used only by the seeder.
-
-**Decision:** `TransactionService` now reverses inside `ExecuteInTransactionAsync`: it calls `usp_AdjustStock` with `CustomerReturn` for each product in SKU order, then saves the status change with `SaveChangesAsync`. The unit discards tracked changes at its start, because the execution strategy can repeat it.
-
-**Alternatives:** Keep the tracked update (no stock history); insert history through EF Core (two versions of the rule in the procedure's check, update and history).
-
-**Consequences:** Every reversal leaves history. If the status change loses a `rowversion` race, the restock and history roll back with it, and the clerk gets a 409. A SQL Server test proves this through HTTP. The transaction lasts slightly longer than a single save.
-
 ## Validation
 
-`ApexPost.Test` has 180 tests, and all 180 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 162 run and 18 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
+`ApexPost.Test` has 181 tests, and all 181 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 162 run and 19 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
 
 | Layer | Needs a database | What it covers |
 |---|---|---|
 | Domain and services | No | Rules, plus services over fake repositories and a spy unit of work (commit once, or never on failure), including bounded retries. |
 | Persistence model | No | Every table, rowversion, indexes, migrations in step, idempotent script, LINQ translation, mappers, seed volume and dependency direction. |
 | MVC | No (fakes) | Pipeline, security, 409/404/400 Problem Details, over-posting and report totals. |
-| SQL Server | **Yes** | Mapping, rollback, rowversion conflicts, unique and check constraints, procedures, N+1 counts, the least-privilege role and end-to-end MVC. |
+| SQL Server | **Yes** | Mapping, rollback, rowversion conflicts, unique and check constraints, procedures, N+1 counts, the least-privilege role and end-to-end MVC, including report totals. |
 
 `Directory.Build.props` sets `TreatWarningsAsErrors`, so the build itself enforces zero warnings.

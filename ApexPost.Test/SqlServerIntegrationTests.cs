@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using ApexPost.Application.Interfaces;
@@ -178,7 +179,8 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
         var after = await new StockAdjustmentCommand(db).AdjustAsync(B001, new Sku("SKU-003"), 2, StockAdjustmentReason.Replenishment, "STF001");
 
         Assert.Equal(before + 2, after);
-        Assert.True(await db.StockAdjustments.AnyAsync(row => row.BranchCode == B001 && row.Sku == new Sku("SKU-003") && row.Delta == 2 && row.QuantityAfter == after));
+        Assert.True(await db.StockAdjustments.AnyAsync(row => row.BranchCode == B001 && row.Sku == new Sku("SKU-003") && row.Delta == 2 && row.QuantityAfter == after
+            && EF.Property<string>(row, AuditColumns.CreatedBy) == "STF001"));
     }
 
     [SqlServerFact]
@@ -414,6 +416,80 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
         Assert.Equal(5, rival.Writes);
         Assert.Equal(quantityBefore, await StockQuantityAsync(sku));
         Assert.Equal(salesBefore, await SalesCountAsync());
+    }
+
+    [SqlServerFact]
+    public async Task Mvc_Reports_ShowTheTotalsHeldInTheTables()
+    {
+        var lowSku = new Sku("SKU-002");
+        using var factory = new SqlServerWebFactory(database.ConnectionString);
+        await OpenAllBranchesAsync();
+        var quantityBefore = await StockQuantityAsync(lowSku);
+        await using var db = database.CreateContext();
+        await db.BranchStock
+            .Where(row => row.BranchCode == B001 && row.ProductSku == lowSku)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.QuantityOnHand, 3));
+
+        try
+        {
+            var (client, token) = await SignInManagerAsync(factory, "127.0.3.2");
+            var sale = await client.PostAsync("/Counter/Create", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["CounterId"] = "C01",
+                ["RetailItems[0].ProductSku"] = "SKU-004",
+                ["RetailItems[0].Quantity"] = "1",
+                ["MoneyOrders[0].Amount"] = "100",
+                ["MoneyOrders[0].Sender"] = "Report Sender",
+                ["MoneyOrders[0].Recipient"] = "Report Recipient",
+                ["PaymentMethod"] = "Card",
+                ["__RequestVerificationToken"] = token
+            }));
+            Assert.Equal(HttpStatusCode.Redirect, sale.StatusCode);
+
+            var date = (await db.CounterTransactions.AsNoTracking()
+                .OrderByDescending(row => row.OccurredAtUtc)
+                .FirstAsync(row => row.BranchCode == B001)).BusinessDate;
+            var lines = await db.TransactionLines.AsNoTracking()
+                .Include(line => line.MoneyOrder)
+                .Where(line => line.Transaction!.BranchCode == B001
+                    && line.Transaction.BusinessDate == date
+                    && line.Transaction.Status == TransactionStatus.Paid)
+                .ToListAsync();
+            var retail = lines.Where(line => line.LineType == LineItemType.RetailProduct).Sum(line => line.LineTotal);
+            var services = lines.Where(line => line.LineType != LineItemType.RetailProduct)
+                .Sum(line => line.MoneyOrder?.Fee.Amount ?? line.LineTotal);
+            Assert.True(retail > 0);
+            Assert.InRange(services, 0.01m, 99.99m);
+
+            var report = WebUtility.HtmlDecode(await (await client.GetAsync($"/Reports?date={date:yyyy-MM-dd}")).Content.ReadAsStringAsync());
+            var culture = CultureInfo.GetCultureInfo("en-AU");
+            Assert.Contains($"<li>B001: retail {retail.ToString("C", culture)}, services {services.ToString("C", culture)}</li>", report);
+
+            var productName = (await db.Products.AsNoTracking().SingleAsync(product => product.Sku == lowSku)).Name;
+            Assert.Contains($"<li>B001 / {lowSku.Value} ({productName}): 3</li>", report);
+
+            var shipping = await db.Shipments.AsNoTracking()
+                .Where(shipment => shipment.Line!.Transaction!.BranchCode == B001 && shipment.Line.Transaction.Status == TransactionStatus.Paid)
+                .GroupBy(shipment => new { shipment.Rate!.ZoneId, shipment.Rate.ServiceLevel })
+                .Select(group => new { group.Key.ZoneId, group.Key.ServiceLevel, Shipments = group.Count() })
+                .ToListAsync();
+            Assert.NotEmpty(shipping);
+            Assert.All(shipping, row => Assert.Contains($"<li>{row.ZoneId} / {row.ServiceLevel}: {row.Shipments}</li>", report));
+
+            var moneyOrders = await db.MoneyOrders.CountAsync(order => order.Line!.Transaction!.BranchCode == B001);
+            var identityChecks = await db.IdentityVerifications.CountAsync(check => check.Line!.Transaction!.BranchCode == B001);
+            var auditor = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") });
+            auditor.DefaultRequestHeaders.Add("X-Forwarded-For", "127.0.3.3");
+            await LoginAsync(auditor, "frank@apexpost.com", "Apex-Frank-2026!");
+            var audit = await (await auditor.GetAsync("/Reports/Audit")).Content.ReadAsStringAsync();
+            Assert.Matches($@"<td>B001</td>\s*<td>{moneyOrders}</td>\s*<td>{identityChecks}</td>", audit);
+        }
+        finally
+        {
+            await db.BranchStock
+                .Where(row => row.BranchCode == B001 && row.ProductSku == lowSku)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.QuantityOnHand, quantityBefore));
+        }
     }
 
     [SqlServerFact]
