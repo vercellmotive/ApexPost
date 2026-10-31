@@ -1,6 +1,7 @@
 using ApexPost.Application.Interfaces;
 using ApexPost.Application.Queries;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +20,14 @@ public static class SqlServerRegistration
                 ?? throw new InvalidOperationException(
                     $"Connection string '{ConnectionStringName}' is not configured. Set it with dotnet user-secrets; see README.md.");
             options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(3));
+
+            // These failures all surface as exceptions, and GlobalExceptionMiddleware logs them at the right level.
+            // Without this, an expected "cannot go negative" or a 409 would also log as an EF Core error.
+            options.ConfigureWarnings(warnings => warnings.Ignore(
+                CoreEventId.QueryIterationFailed,
+                CoreEventId.SaveChangesFailed,
+                CoreEventId.OptimisticConcurrencyException,
+                RelationalEventId.CommandError));
         });
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
