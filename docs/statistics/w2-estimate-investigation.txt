@@ -1,0 +1,12 @@
+Output of sql/performance/05_w2_estimate_investigation.sql on a regenerated database of 200,220 transactions.
+
+One date's rows and the index pages that hold them
+RowsOnDate|IndexPages
+----------|----------
+276|4
+Rows stored per histogram step for BusinessDate
+Run|Steps|MinEqRows|MedianEqRows|MaxEqRows
+---|-----|---------|------------|---------
+Sampled, index present|200|1|458|924
+Sampled, index disabled|197|203|326|549
+FULLSCAN|200|273|274|285
