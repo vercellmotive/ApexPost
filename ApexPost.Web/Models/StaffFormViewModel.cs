@@ -1,10 +1,17 @@
 using System.ComponentModel.DataAnnotations;
+using ApexPost.Application.Queries;
 using ApexPost.Domain.Enums;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace ApexPost.Web.Models;
 
 public sealed class StaffFormViewModel : IValidatableObject
 {
+    [BindNever]
+    [ValidateNever]
+    public IReadOnlyList<BranchRowDto> Branches { get; set; } = [];
+
     public string? Id { get; set; }
 
     [Required]

@@ -28,8 +28,9 @@ public sealed class ServicesController : Controller, IRepopulatesForm
     [HttpGet]
     public async Task<IActionResult> MoneyOrder(CancellationToken ct)
     {
-        await PopulateCountersAsync(ct);
-        return View(new MoneyOrderFormViewModel());
+        var model = new MoneyOrderFormViewModel();
+        await PopulateCountersAsync(model, ct);
+        return View(model);
     }
 
     [HttpPost]
@@ -64,8 +65,9 @@ public sealed class ServicesController : Controller, IRepopulatesForm
     [HttpGet]
     public async Task<IActionResult> IdentityVerification(CancellationToken ct)
     {
-        await PopulateCountersAsync(ct);
-        return View(new IdentityVerificationFormViewModel());
+        var model = new IdentityVerificationFormViewModel();
+        await PopulateCountersAsync(model, ct);
+        return View(model);
     }
 
     [HttpPost]
@@ -102,11 +104,12 @@ public sealed class ServicesController : Controller, IRepopulatesForm
         return RedirectToAction(nameof(IdentityVerification));
     }
 
-    public Task RepopulateFormAsync(object model, CancellationToken ct) => PopulateCountersAsync(ct);
+    public Task RepopulateFormAsync(object model, CancellationToken ct) =>
+        model is ICounterChoices form ? PopulateCountersAsync(form, ct) : Task.CompletedTask;
 
     private async Task<(IActionResult? Result, Transaction? Transaction)> CheckoutOrRedisplayAsync(
         CounterCheckoutRequest request,
-        object model,
+        ICounterChoices model,
         CancellationToken ct)
     {
         var branchCode = User.FindFirstValue("BranchCode");
@@ -125,7 +128,7 @@ public sealed class ServicesController : Controller, IRepopulatesForm
         catch (DomainValidationException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
-            await PopulateCountersAsync(ct);
+            await PopulateCountersAsync(model, ct);
             return (View(model), null);
         }
         catch (UnauthorizedDomainActionException)
@@ -138,9 +141,9 @@ public sealed class ServicesController : Controller, IRepopulatesForm
         }
     }
 
-    private async Task PopulateCountersAsync(CancellationToken ct)
+    private async Task PopulateCountersAsync(ICounterChoices model, CancellationToken ct)
     {
-        ViewBag.Counters = User.FindFirstValue("BranchCode") is { } branchCode
+        model.Counters = User.FindFirstValue("BranchCode") is { } branchCode
             ? (await _queries.GetCheckoutOptionsAsync(branchCode, ct))?.CounterTerminals ?? []
             : [];
     }

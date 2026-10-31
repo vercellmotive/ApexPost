@@ -31,8 +31,9 @@ public sealed class StaffController : Controller, IRepopulatesForm
     [HttpGet]
     public async Task<IActionResult> Create(CancellationToken ct)
     {
-        await PopulateBranchesAsync(ct);
-        return View("Form", new StaffFormViewModel());
+        var model = new StaffFormViewModel();
+        await PopulateBranchesAsync(model, ct);
+        return View("Form", model);
     }
 
     [HttpPost]
@@ -51,7 +52,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
         catch (DomainValidationException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
-            await PopulateBranchesAsync(ct);
+            await PopulateBranchesAsync(model, ct);
             return View("Form", model);
         }
     }
@@ -65,15 +66,16 @@ public sealed class StaffController : Controller, IRepopulatesForm
             return NotFound();
         }
 
-        await PopulateBranchesAsync(ct);
-        return View("Form", new StaffFormViewModel
+        var model = new StaffFormViewModel
         {
             Id = person.Id,
             Name = person.Name,
             Email = person.Email,
             Role = person.Role,
             HomeBranchCode = person.HomeBranchCode
-        });
+        };
+        await PopulateBranchesAsync(model, ct);
+        return View("Form", model);
     }
 
     [HttpPost]
@@ -95,7 +97,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
         catch (DomainValidationException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
-            await PopulateBranchesAsync(ct);
+            await PopulateBranchesAsync(model, ct);
             return View("Form", model);
         }
     }
@@ -119,16 +121,16 @@ public sealed class StaffController : Controller, IRepopulatesForm
 
     public async Task RepopulateFormAsync(object model, CancellationToken ct)
     {
-        await PopulateBranchesAsync(ct);
         if (model is StaffFormViewModel form)
         {
             form.Id = RouteData.Values["id"]?.ToString();
+            await PopulateBranchesAsync(form, ct);
         }
     }
 
-    private async Task PopulateBranchesAsync(CancellationToken ct)
+    private async Task PopulateBranchesAsync(StaffFormViewModel model, CancellationToken ct)
     {
-        ViewBag.Branches = await _queries.GetBranchesAsync(ct);
+        model.Branches = await _queries.GetBranchesAsync(ct);
     }
 
     private static StaffRecordInput ToInput(StaffFormViewModel model) =>
