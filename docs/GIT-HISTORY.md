@@ -1,6 +1,6 @@
 # Git history
 
-Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #9. It can't list the commit that updates it, so GitHub is the full record.
+Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #10. It can't list the commit that updates it, so GitHub is the full record.
 
 ## Pull requests
 
@@ -15,6 +15,7 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | [#7](https://github.com/vercellmotive/ApexPost/pull/7) | Close the gaps from the 91/100 review | MERGED |
 | [#8](https://github.com/vercellmotive/ApexPost/pull/8) | Explain the W2 estimate mismatch | MERGED |
 | [#9](https://github.com/vercellmotive/ApexPost/pull/9) | Close three small gaps from the wider checks | MERGED |
+| [#10](https://github.com/vercellmotive/ApexPost/pull/10) | Close the gaps from grading against the brief | MERGED |
 
 ## Commits on `master` (merges left out)
 
@@ -44,3 +45,7 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | `4559425` | 2026-10-31 | style: apply dotnet format whitespace fixes |
 | `03b908c` | 2026-10-31 | test: cover the high-value money order boundary at checkout |
 | `44ddec5` | 2026-10-31 | docs: bring the Git history snapshot up to PR #8 |
+| `62bd687` | 2026-10-31 | fix: record the real user on stock history and test reports on SQL Server |
+| `030dc08` | 2026-10-31 | fix: make HAVING do real work in the reporting queries |
+| `35d2e5a` | 2026-10-31 | test: restore the Week 2 rules file and name tests by behaviour |
+| `dbfe414` | 2026-10-31 | docs: tidy ADRs, record deviations and update counts |
