@@ -1142,3 +1142,56 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261031074707_AddShipmentDestinationAddress'
+)
+BEGIN
+    ALTER TABLE [Shipments] ADD [DestinationCity] nvarchar(60) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261031074707_AddShipmentDestinationAddress'
+)
+BEGIN
+    ALTER TABLE [Shipments] ADD [DestinationCountry] nvarchar(60) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261031074707_AddShipmentDestinationAddress'
+)
+BEGIN
+    ALTER TABLE [Shipments] ADD [DestinationPostalCode] varchar(12) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261031074707_AddShipmentDestinationAddress'
+)
+BEGIN
+    ALTER TABLE [Shipments] ADD [DestinationState] nvarchar(30) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261031074707_AddShipmentDestinationAddress'
+)
+BEGIN
+    ALTER TABLE [Shipments] ADD [DestinationStreet] nvarchar(120) NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261031074707_AddShipmentDestinationAddress'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261031074707_AddShipmentDestinationAddress', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

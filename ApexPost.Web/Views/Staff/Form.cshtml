@@ -1,7 +1,6 @@
 @model ApexPost.Web.Models.StaffFormViewModel
 @{
     ViewData["Title"] = Model.Id is null ? "Add staff" : "Edit staff";
-    var branches = ViewBag.Branches as IEnumerable<ApexPost.Application.Queries.BranchRowDto> ?? [];
     var isEdit = Model.Id is not null;
 }
 
@@ -26,7 +25,7 @@
     <div class="mb-3">
         <label asp-for="HomeBranchCode" class="form-label">Home branch</label>
         <select asp-for="HomeBranchCode" class="form-select">
-            @foreach (var branch in branches)
+            @foreach (var branch in Model.Branches)
             {
                 <option value="@branch.Code">@branch.Code — @branch.Name</option>
             }

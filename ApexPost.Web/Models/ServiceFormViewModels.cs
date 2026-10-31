@@ -1,10 +1,21 @@
 using System.ComponentModel.DataAnnotations;
 using ApexPost.Domain.Enums;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace ApexPost.Web.Models;
 
-public sealed class MoneyOrderFormViewModel
+public interface ICounterChoices
 {
+    IReadOnlyList<string> Counters { get; set; }
+}
+
+public sealed class MoneyOrderFormViewModel : ICounterChoices
+{
+    [BindNever]
+    [ValidateNever]
+    public IReadOnlyList<string> Counters { get; set; } = [];
+
     [Required]
     public string CounterId { get; set; } = string.Empty;
 
@@ -32,8 +43,12 @@ public sealed class MoneyOrderFormViewModel
     public string PaymentMethod { get; set; } = "Cash";
 }
 
-public sealed class IdentityVerificationFormViewModel
+public sealed class IdentityVerificationFormViewModel : ICounterChoices
 {
+    [BindNever]
+    [ValidateNever]
+    public IReadOnlyList<string> Counters { get; set; } = [];
+
     [Required]
     public string CounterId { get; set; } = string.Empty;
 

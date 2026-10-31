@@ -151,8 +151,11 @@ public class ShippingZone : Entity<string>
     public decimal Multiplier { get; init; }
 }
 
-public record ShippingDetails(bool IsParcel, Weight Weight, Dimensions Dimensions, string DestinationZone, ServiceLevel ServiceLevel);
-public record MoneyOrderDetails(Money Amount, string Sender, string Recipient, Money Fee);
+public record ShippingDetails(bool IsParcel, Weight Weight, Dimensions Dimensions, string DestinationZone, ServiceLevel ServiceLevel, Address? Destination = null);
+public record MoneyOrderDetails(Money Amount, string Sender, string Recipient, Money Fee)
+{
+    public bool RequiresVerification(Money threshold) => Amount > threshold;
+}
 public sealed record IdVerificationDetails
 {
     public DocumentType DocType { get; }
@@ -308,7 +311,7 @@ public class Transaction : AggregateRoot<Guid>
         if (paymentMethod is not ("Cash" or "Card" or "EFTPOS")) throw new DomainValidationException("A supported payment method is required.");
         if (highValueThreshold.Amount < 0) throw new DomainValidationException("The high-value money-order threshold cannot be negative.");
 
-        var highValueOrders = LineItems.Where(i => i.ItemType == LineItemType.MoneyOrder && i.MoneyOrder is not null && i.MoneyOrder.Amount > highValueThreshold).ToList();
+        var highValueOrders = LineItems.Where(i => i.MoneyOrder?.RequiresVerification(highValueThreshold) == true).ToList();
         if (highValueOrders.Count > 0)
         {
             var hasVerifiedId = LineItems.Any(i => i.ItemType == LineItemType.IdentityVerification && i.IdVerification is { IsVerified: true });

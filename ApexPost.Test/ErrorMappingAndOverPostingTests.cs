@@ -214,12 +214,14 @@ public sealed class ErrorMappingAndOverPostingTests : IClassFixture<ApexPostWebA
             builder.ConfigureTestServices(services => services.AddScoped<IUnitOfWork, AlwaysConflictingUnitOfWork>());
         }
 
-        private sealed class AlwaysConflictingUnitOfWork : IUnitOfWork
+        private sealed class AlwaysConflictingUnitOfWork(Fakes.InMemoryPersistence persistence) : IUnitOfWork
         {
             public Task<int> SaveChangesAsync(CancellationToken ct = default) =>
                 throw new ConcurrencyConflictException("This record was changed by someone else at the same time.");
 
             public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default) => work(ct);
+
+            public void ResetTracking() => persistence.ResetTracking();
         }
     }
 }

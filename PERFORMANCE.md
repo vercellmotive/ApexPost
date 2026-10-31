@@ -175,23 +175,27 @@ While blocked, `sys.dm_exec_requests` showed:
 
 ## Concurrency: selling the last units
 
-Sending 20 simultaneous one-unit sales through the running app, against a product with 10 in stock:
+20 simultaneous one-unit sales through the running app, against a product with 10 in stock.
 
-| Round | Successful sales | 409 conflicts | Insufficient stock |
-|---|---|---|---|
-| 20 requests | 4 | 16 | 0 |
-| 10 requests | 6 | 4 | 0 |
-| 10 requests, twice | 0 | 0 | 20 |
+**Before: `rowversion` only.** Requests that lost the race got a 409 even with stock left. In one run, only 4 succeeded and 16 got a 409, and in another 7 succeeded and 13 got a 409. It was safe, but it rejected valid sales.
 
-Exactly 10 units were sold, and stock finished at 0. It never went negative, and every rejected sale saved nothing.
+**After: bounded retry** (up to 5 attempts on fresh data, ADR-30), measured under the restricted `apexpost_app` login:
 
-**Trade-off:** with `rowversion`, requests that lose the race get a 409 even when stock remains, as in the first round. That's safe and the brief allows it, but a busy product would see clerks retrying. A bounded automatic retry would be the next step if this proved common.
+| Trial | Successful sales | Insufficient stock | 409 conflicts | Final stock |
+|---|---|---|---|---|
+| 1 | 10 | 10 | 0 | 0 |
+| 2 | 10 | 10 | 0 | 0 |
+| 3 | 10 | 10 | 0 | 0 |
+| 4 | 10 | 10 | 0 | 0 |
+| 5 | 10 | 10 | 0 | 0 |
+
+Each trial sold exactly the available stock, left no stuck transactions and never went negative. Five trials at this one load level don't prove 409s can't happen, and the retry costs latency under contention, which I didn't measure.
 
 ## How the design avoids deadlocks
 
 - **Consistent order:** sales and `usp_AdjustStock` both touch `BranchStock` before anything else.
 - **Short transactions:** optimistic concurrency holds no locks while a clerk works, and the courier rate call finishes before the save begins.
-- **Automatic retry:** `EnableRetryOnFailure` retries deadlock error 1205.
+- **Automatic retry:** `EnableRetryOnFailure` treats deadlock error 1205 as transient and retries it.
 
 No deadlocks appeared in these runs, but I didn't deliberately try to force one, so this is a design argument, not proof.
 
@@ -215,6 +219,7 @@ The command count stays the same however many rows are shown.
 3. **One index didn't earn its place.** `IX_ShippingRates_Zone_Level` gave no measurable gain on a 60-row table.
 4. **The plan name isn't enough.** The `YEAR()` query was an "Index Seek" and still read more than twice as much.
 5. **Two of my predictions were wrong** (blocking and plan reuse), and both had server features behind them: Read Committed Snapshot and PSP. Running it mattered.
+6. **Safe wasn't enough for concurrency.** `rowversion` alone never oversold but rejected valid sales, and a bounded retry fixed that without giving up safety.
 
 **Limits of this evidence:** one small emulated server, one run of synthetic data with even date and branch spreads, and no sustained load test. Reads are reliable, while timings are only comparisons.
 

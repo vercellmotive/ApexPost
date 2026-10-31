@@ -52,7 +52,7 @@ dotnet ef migrations script --idempotent --project ApexPost.Infrastructure --sta
 dotnet test ApexPost.slnx
 ```
 
-This runs 144 tests with no database and reports 13 as skipped. To run those too, point this at a server you control. The tests create and drop their own disposable database and never touch `ApexPostDb`:
+This runs 148 tests with no database and reports 14 as skipped. To run those too, point this at a server you control. The tests create and drop their own disposable database and never touch `ApexPostDb`:
 
 ```bash
 APEXPOST_TEST_SQLSERVER="Server=localhost;User Id=<user>;Password=<password>;TrustServerCertificate=True" dotnet test ApexPost.slnx
@@ -110,7 +110,7 @@ Branches enforce their real opening hours in their own time zone, so a sale outs
 - A transactions screen where Branch Managers void or refund a paid sale, with a required reason.
 - Branch terminals, branch operating hours, staff roles, and administrator staff add/edit/deactivate with per-staff passwords. Staff uniqueness/branch rules and ID allocation live in an application service with process-local write serialization.
 - A branch-scoped product catalogue and inventory view; `rowversion` and a check constraint stop stock going negative.
-- A counter basket mixing retail lines, several shipments and several money orders with an identity check and payment, plus dedicated money order and identity verification screens. Parcel validation, shipping pricing and the identity threshold rule all apply. A sale commits its stock, transaction, lines and payment together, and two clerks selling the last unit get a 409 conflict rather than negative stock.
+- A counter basket mixing retail lines, several shipments and several money orders with an identity check and payment, plus dedicated money order and identity verification screens. Parcel validation, shipping pricing and the identity threshold rule all apply. A sale commits its stock, transaction, lines and payment together. Sales that collide are retried on fresh data, and stock can never go negative; a conflict that outlasts the retries returns a 409.
 - Identity verification uses a replaceable simulated format-check service; the clerk cannot mark a check successful. The interface retains only a masked document value and result, and the UI explains that no external identity provider is contacted.
 - Branch-manager stock adjustments run through `usp_AdjustStock`, which writes `StockAdjustments` history. They require a quantity change and enumerated reason, enforce branch ownership and non-negative stock, and are included in the append-only audit log.
 - Voids and refunds restock retail items in the same commit as the status change.
@@ -198,11 +198,15 @@ git commit -m "docs: make audit evidence reproducible"
 git push -u origin feature/audit-sample-provenance
 ```
 
+## Least-privilege login
+
+Run the app under a restricted login rather than `sa`. Create the login and its password outside source control, apply migrations with a deployment login, run `sql/security/least_privilege_role.sql`, then add the user to the `apexpost_app` role. The app has been tested this way.
+
 ## Database artifacts
 
 | Path | Contents |
 |---|---|
-| `ApexPost.Infrastructure/Persistence/Migrations` | `InitialCreate`, `AddWorkloadIndexes`, `AddStoredProcedures`, `AddRemainingAuditColumns`, `ReplaceLowStockIndexWithFiltered` |
+| `ApexPost.Infrastructure/Persistence/Migrations` | `InitialCreate`, `AddWorkloadIndexes`, `AddStoredProcedures`, `AddRemainingAuditColumns`, `ReplaceLowStockIndexWithFiltered`, `AddShipmentDestinationAddress` |
 | `sql/schema` | Generated idempotent schema script |
 | `sql/procedures` | Stored procedures, with `CREATE OR ALTER` |
 | `sql/reports` | Reporting queries |

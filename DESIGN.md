@@ -2,9 +2,9 @@
 
 ## Week 3: SQL Server and EF Core
 
-The JSON files are gone. Everything now persists to SQL Server through EF Core 10, behind interfaces in the Application layer. The sections below cover the new design. Older sections describe Week 2 decisions that still apply; ADRs that Week 3 replaced say so.
+SQL Server, reached through EF Core 10, is now the system of record, behind interfaces in the Application layer. ADRs that Week 3 replaced say so at the top.
 
-**Evidence status:** this has now run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 157 tests pass against the real server, and `PERFORMANCE.md` holds measured results. It has not had a sustained load test.
+**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 162 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It has not had a sustained load test.
 
 ### Layers and dependencies
 
@@ -52,7 +52,7 @@ erDiagram
 
 `AuditEntries` has no foreign keys on purpose: an audit row must outlive whatever it describes, and it also records anonymous and denied attempts.
 
-Keys and constraints are defined in `EntityConfigurations.cs` and are visible in `sql/schema/ApexPostDb-idempotent.sql`. Every table has `CreatedAtUtc`, `CreatedBy` and `ModifiedAtUtc` as shadow properties, and `BranchStock` and `CounterTransactions` have a `RowVersion`.
+`Dimensions` and the optional destination `Address` on `Shipments` are owned types, stored as columns on that table. Keys and constraints are defined in `EntityConfigurations.cs` and are visible in `sql/schema/ApexPostDb-idempotent.sql`. Every table has `CreatedAtUtc`, `CreatedBy` and `ModifiedAtUtc` as shadow properties, and `BranchStock` and `CounterTransactions` have a `RowVersion`.
 
 | Rule | Where it is enforced |
 |---|---|
@@ -80,7 +80,7 @@ Keys and constraints are defined in `EntityConfigurations.cs` and are visible in
 
 ### Stored procedures and least privilege
 
-`usp_DailyBranchSales`, `usp_LowStockReport` and `usp_AdjustStock` are in `sql/procedures` and deployed by the `AddStoredProcedures` migration. EF Core calls them only through parameterized `SqlQuery`. The application login needs the `apexpost_app` role from `sql/security/least_privilege_role.sql`: `SELECT`, `INSERT` and `UPDATE` on `dbo`, `EXECUTE` on the three procedures, no `DELETE`, and no schema changes. It can only add to `AuditEntries`. Migrations run under a separate deployment login.
+`usp_DailyBranchSales`, `usp_LowStockReport` and `usp_AdjustStock` are in `sql/procedures` and deployed by the `AddStoredProcedures` migration. EF Core calls them only through parameterized `SqlQuery`. Tested with a restricted login and the test `LeastPrivilegeRole_CanRunTheAppButCannotDeleteOrChangeSchema`, the application login needs the `apexpost_app` role from `sql/security/least_privilege_role.sql`: `SELECT`, `INSERT` and `UPDATE` on `dbo`, `EXECUTE` on the three procedures, no `DELETE`, and no schema changes. It can only add to `AuditEntries`. Migrations run under a separate deployment login.
 
 ### Deviations to review
 
@@ -88,22 +88,26 @@ Keys and constraints are defined in `EntityConfigurations.cs` and are visible in
 - **Security pin:** `System.Security.Cryptography.Pkcs` isn't on the allowed list. It's pinned to fix a vulnerable version that SqlClient brings in. **This needs trainer approval** (ADR-32).
 - **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database also exist, and run when `APEXPOST_TEST_SQLSERVER` is set.
 - **Seed loading:** seed files in `ApexPost.Infrastructure/Data` are JSON, read once by `DatabaseSeeder`. They aren't a persistence store.
-- **Owned types:** `Dimensions` is owned. `Address` is not persisted, because the domain stores no address on any table this week.
 - **Not implemented:** the offline synchronization topics in the lab list aren't in this assignment's requirements.
 
 ## Architecture
 
-The Week 1 layered architecture survived the domain change; the TechNova entities and behaviors were replaced with ApexPost branch, staff, stock, shipping, money-order, identity-verification, and transaction models. The Web project is a new presentation layer. The repository interfaces remain in Application so JSON persistence can be replaced without moving business rules.
+The Week 1 layered architecture survived the domain change, and Week 3's move to SQL Server changed only Infrastructure and the composition root. The layer diagram is at the top of this document, and runtime flow looks like this:
 
 ```mermaid
 flowchart LR
     Browser[Staff browser] --> Web[ApexPost.Web<br/>MVC / middleware / filters]
-    Web --> App[ApexPost.Application<br/>use cases / reports / pricing]
-    App --> Domain[ApexPost.Domain<br/>entities / value objects / rules / events]
-    App --> Infra[ApexPost.Infrastructure<br/>JSON / simulated courier / notifications]
-    Infra --> Files[(Read-only seed and App_Data runtime files)]
-    Infra --> EventDispatcher[Domain event dispatcher]
-    EventDispatcher --> Notifications[Simulated notifications]
+    Partner[Courier partner] --> Web
+    Web --> Commands[Command services<br/>rules, one commit per use case]
+    Web --> Queries[Query services<br/>AsNoTracking DTOs and procedures]
+    Commands --> Domain[ApexPost.Domain<br/>entities / value objects / rules / events]
+    Commands --> Repos[Repositories and unit of work]
+    Repos --> Db[(SQL Server: ApexPostDb)]
+    Queries --> Db
+    Web --> Audit[SqlAuditStore<br/>separate commit]
+    Audit --> Db
+    Commands --> Events[Domain event dispatcher]
+    Events --> Notifications[Simulated notifications]
 ```
 
 ### Domain model
@@ -195,29 +199,21 @@ Audit and performance filters are globally registered through DI. The audit filt
 
 ## Data, async work, and lifetimes
 
-**Status: this section records the Week 2 JSON design. Week 3 replaced its persistence, locking and compensation points; see the Week 3 section and ADRs 25–34. The async, caching and middleware-lifetime points still apply.**
-
-- All runtime data lives in one folder, `Persistence:DataDirectory` (default `App_Data` under the content root, ignored by Git). Repositories read the read-only seed from the output `Data` folder until their first write creates the runtime file, so a clean or rebuild cannot wipe data. The audit log is in the same folder. Next week's database can replace this through `AddJsonPersistence` alone.
-- Settings are bound to validated `IOptions` classes in `ApexPost.Web/Configuration`, and a bad value stops startup. Middleware uses `IOptionsMonitor` so maintenance mode and the allowlist can change without a restart. `Program.cs` is now only the composition root; registration and pipeline order live in `ServiceRegistration` and `PipelineConfiguration`.
-- A basket can hold up to 10 shipments and 10 money orders; the counter screen offers three of each, and money orders and identity checks also have their own screens. Daily sales count only a money order's fee as service revenue, while the customer's total still includes the principal.
-- Shipping rates run through `Task.WhenAll`; `SimulatedCourierRateService` allows `CourierRates:MaxConcurrentRequests` calls around its simulated partner delay. Zone rates come from `CachedShippingZoneLookup` (`ValueTask` plus `IMemoryCache`). Tests measure both: 20 parallel lookups with a limit of 3 never exceed 3 in flight, and 200 parallel zone lookups cause one repository load.
-- `IRepository<TEntity, TId>` provides JSON persistence and locked `UpdateAsync` operations. Stock decrement is performed under the repository's `SemaphoreSlim`, preventing concurrent requests in this app process from taking the same last unit. JSON replacement is written to a same-directory temporary file and then renamed so an interrupted write does not truncate the previous file.
-- Checkout persists an open transaction marker, reserves stock atomically, validates/completes the transaction, and then persists it as paid. Failures before the paid save compensate stock reservations and remove the open marker; failures during compensation are surfaced as an aggregate error for reconciliation. This is a single-process JSON workflow, not a cross-process database transaction.
-- Stock adjustments are limited to active branch managers, require a signed quantity and a reason code, use the locked stock repository update, and emit low-stock events. The audit filter records SKU, quantity delta, and reason code without free-form reason text.
-- Voids and refunds restock retail quantities. Each stock row records reversal transaction IDs under the same per-file update lock, making each row's restock idempotent if reversal processing is retried after a partial failure. The transaction remains marked as pending until all rows are updated; this does not provide multi-file crash atomicity or cross-process transactions.
-- `StaffManagementService` owns staff creation, update, duplicate-email validation, branch validation, ID allocation, and deactivation. Its singleton semaphore serializes these workflows within one application process; JSON file locks and this semaphore do not coordinate multiple application instances.
-- Transaction status, payment method, and reversal metadata have explicit `JsonInclude` annotations so private setters are restored during JSON deserialization. This is required for historical paid transactions to remain paid in reports and for reversal authorization/state checks to work after reload.
-- Identity checks use an explicitly simulated format validator, not an external or government identity provider. The clerk no longer supplies the success result. Only masked last-four details and the result are added to the transaction.
-- Reads/writes use asynchronous stream APIs and propagate `CancellationToken`; repository locks and simulated courier concurrency are bounded with `SemaphoreSlim`.
-- Dashboard reads and the three report queries are independent, so `Task.WhenAll` overlaps them.
-- The product catalogue uses `IMemoryCache` with a five-minute TTL, `ValueTask`, and a single-flight semaphore. `ProductCataloguePerformanceTests` issues 10,000 reads against 30 products and deterministically observes one cached backing load versus 10,000 uncached loads. Elapsed time is diagnostic only; this in-memory test is not a disk-throughput benchmark.
-- The low-stock threshold has one home: the `LowStockRule` object, configured by `Inventory:LowStockThreshold`.
-- Notifications are stored per branch, so low-stock, high-value and void/refund alerts all reach that branch's dashboard, which reads them alongside its other data.
-- Low-stock events are queued after stock reservation; transaction-completion, high-value money-order, low-stock, and void/refund notifications are dispatched after the relevant transaction state is persisted. These in-process notifications are not a durable outbox.
-- Scoped MVC/report/transaction services are resolved per request. JSON repositories, audit store, catalogue cache, courier-rate service, notification service, event dispatcher, and the staff, branch and product management services are singletons; these contain no scoped dependencies. Middleware constructors receive only singleton-safe configuration/loggers; scoped application services are not captured by middleware.
-- The data folder must be writable; the seed folder never changes. The audit store is append-only JSON Lines (`audit-log.jsonl`); `AUDIT-SAMPLE.json` is a readable sample.
-- Branch opening hours are interpreted in each branch's configured `TimeZoneId`. Seed branches use their Australian region timezone; deployment data must keep that timezone accurate.
-- The simulated courier tracking lookup applies a linked timeout token. Its timeout is distinct from caller cancellation; this exercises the cancellation contract without claiming a real courier integration.
+- **Persistence:** all data is in SQL Server. Seed files in `ApexPost.Infrastructure/Data` are read once by `DatabaseSeeder` on an empty database, in one explicit transaction, and are not a store. The schema is only ever created by migrations.
+- **Sales:** one `SaveChangesAsync` commits the stock decrement, transaction, lines and payment. `CheckoutAsync` re-runs on a `rowversion` conflict, up to 5 attempts with a short random delay, on fresh data, and the last conflict returns a 409.
+- **Voids and refunds:** the status change, payment row and restock commit together.
+- **Stock adjustments:** these run through `usp_AdjustStock`, which writes `StockAdjustments` history in the same transaction. Only active branch managers may adjust stock, and each change needs an enumerated reason.
+- **Price revisions:** `ExecuteUpdateAsync` updates a whole category in one statement, then the catalogue cache is cleared.
+- **Reads:** screens and reports use `AsNoTracking` projections or procedures that return DTOs. A DbContext can't run overlapping operations, so reads in one request run in sequence.
+- **Lifetimes:** the DbContext, repositories, unit of work, query services and command services are scoped, so they share one DbContext per request. Middleware receives only singletons, such as options monitors and `PartnerApiKeyValidator`, so it never captures a scoped service. `SqlAuditStore` is a singleton that opens its own scope for each write.
+- **Shared state across requests:** the memory cache, its fill gates and `CourierRateGate` outlive a request; the services using them stay scoped.
+- **Caching:** the product catalogue and zone rates use `IMemoryCache` with a five-minute lifetime and `ValueTask`, and a single-flight gate. `ProductCataloguePerformanceTests` shows 10,000 reads cause one load, and `CourierRatePerformanceTests` shows 200 parallel zone lookups cause one.
+- **Courier calls:** `CourierRateGate` allows `CourierRates:MaxConcurrentRequests` calls around the simulated delay, and a test confirms the limit holds.
+- **Business dates:** `BusinessDate` is fixed at sale time from the branch's time zone, so date reports are SARGable (ADR-33).
+- **Identity checks:** a simulated format validator decides the result, and clerks can't set it. Only the masked last four characters are stored.
+- **Notifications:** alerts are held in memory per branch and dispatched after the commit, so they aren't a durable outbox.
+- **Courier tracking:** a linked timeout token keeps a timeout separate from caller cancellation.
+- **Configuration:** settings bind to validated `IOptions` classes, and a bad value stops startup. `IOptionsMonitor` lets maintenance mode and the allowlist change without a restart.
 
 ## Advanced C# 14 usage
 
@@ -226,14 +222,14 @@ Audit and performance filters are globally registered through DI. The audit filt
 | Records and value objects | Shipping/order details, line items, audit rows, money/weight/SKU/branch codes prevent primitive-only domain APIs. |
 | Pattern matching | Shipping service/parcel pricing, tax categories, event dispatch, and role-sensitive behavior. |
 | C# 14 extension members and `field` | `extension(Transaction)` gives `RetailTotal` and `ServicesTotal`, which the daily sales report uses; `extension(Money)` gives a rounding helper; the `Money.Amount` backing field validates and rounds on assignment. |
-| Generic constraints and repository abstraction | `IRepository<TEntity, TId> where TEntity : Entity<TId> where TId : notnull` gives typed keys, so a wrong ID type no longer compiles and no reflection is needed. `ISpecification<T>` and `FindAsync` keep report filters reusable. |
-| `Predicate<T>` and `Func<T, bool>` | The low-stock report accepts an optional predicate while keeping the branch filter enforced separately. |
+| Generic constraints | `AddValidatedOptions<TOptions> where TOptions : class` registers every settings class in one place. Week 3 deliberately replaced the generic repository with specific ones (ADR-28). |
+| `Func<T, bool>` | `TransactionExtensions.TotalFor` takes a selector, and `LowStockRule` holds the configurable threshold. |
 | `Func<ShippingDetails, decimal, Money>` | The tiered pricing strategy accepts an injectable pricing rule; the configured default keeps zone multipliers and parcel weight surcharge explicit while tests can substitute a business rule. |
 | Custom attribute and cached reflection validator | `[NotBlank]` validates transaction line-item descriptions; `DomainAttributeValidator` caches the annotated property metadata per type. |
 | Domain events | Transaction completion, money-order issue, stock-low, and void/refund events are dispatched to notification handlers after persistence. |
-| Async/await and cancellation | MVC, application, repository, audit, cache, and rate lookups pass cancellation through asynchronous I/O. |
-| `Task.WhenAll` | Independent dashboard reads are awaited together. |
-| `SemaphoreSlim` | Bounds JSON writes/updates, audit appends, cache fills, and concurrent calls to the simulated courier around its delay. |
+| Async/await and cancellation | MVC, services, repositories, query services and EF Core calls pass `CancellationToken` through. |
+| `Task.WhenAll` | In-memory notification lookups on the dashboard overlap. Database reads run in sequence, because a DbContext can't overlap operations (ADR-28). |
+| `SemaphoreSlim` | Limits concurrent courier calls, and stops several requests filling the same cache at once. |
 | `ValueTask` and cache | Hot catalogue and zone-rate reads return synchronously from memory; cache fills remain asynchronous and coalesced. |
 | Cancellation versus timeout | Simulated courier tracking uses a linked timeout token and returns a distinct timeout failure; caller cancellation remains cancellation and is not reported as a timeout. |
 
@@ -264,11 +260,11 @@ Each decision records its context, the decision, the alternatives considered and
 
 ### ADR-02: Compose mixed baskets with typed line items
 
-**Context:** One basket must hold retail goods, shipping, money orders and identity checks, and be saved as JSON.
+**Context:** One basket must hold retail goods, shipping, money orders and identity checks.
 
 **Decision:** `TransactionLineItem` is one record with a `LineItemType` and optional detail records, validated by a switch in `AddLineItem`. `LineItems` is read-only, so `AddLineItem` is the only way in.
 
-**Alternatives:** An inheritance tree (polymorphic JSON and more types for little behaviour); separate lists per kind (awkward totals and ordering).
+**Alternatives:** An inheritance tree (more types and awkward mapping for little behaviour); separate lists per kind (awkward totals and ordering).
 
 **Consequences:** Totals and reports treat every line alike. Optional fields can disagree with the type, which `AddLineItem` guards against.
 
@@ -280,13 +276,13 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Alternatives:** Primitives with validation in services (rules get duplicated and skipped).
 
-**Consequences:** Signatures document themselves and mixed currencies throw. Forms and JSON need small conversions.
+**Consequences:** Signatures document themselves and mixed currencies throw. Forms and persistence need small conversions.
 
 ### ADR-04: Use a pricing strategy plus database-backed zone rates
 
 **Context:** Prices depend on parcel or letter, service level, weight and zone, and the rules will change. Weight limits differ too.
 
-**Decision:** `IPricingStrategy` holds base rates and limits using tuple pattern matching, with an injectable `Func` for the price rule and zone multipliers from JSON. Parcels have service-level limits and need dimensions; letters have a 0.5 kg limit and need none. Tax categories are applied by `Money.CalculateTax`.
+**Decision:** `IPricingStrategy` holds base rates and limits using tuple pattern matching, with an injectable `Func` for the price rule and zone multipliers from the database. Parcels have service-level limits and need dimensions; letters have a 0.5 kg limit and need none. Tax categories are applied by `Money.CalculateTax`.
 
 **Alternatives:** Rates in `if` chains inside the service (hard to test); a full rules engine (too heavy for six base rates).
 
@@ -326,6 +322,8 @@ Each decision records its context, the decision, the alternatives considered and
 
 ### ADR-08: Append audit records and minimise personal data
 
+**Status: Storage replaced in Week 3 by ADR-31. The audit trail now lives in `AuditEntries`; the data-minimising rules still apply.**
+
 **Context:** Business actions must be traceable to a person, branch, time and correlation ID without storing sensitive data.
 
 **Decision:** Write append-only JSON Lines behind `IAuditStore`, using allowlisted values only.
@@ -335,6 +333,8 @@ Each decision records its context, the decision, the alternatives considered and
 **Consequences:** Appends are cheap and history is not rewritten. File permissions remain a deployment responsibility, and a database store can replace it next week.
 
 ### ADR-09: Bound concurrency and cache hot reads
+
+**Status: Partly replaced in Week 3. File locks are gone and database reads no longer overlap (ADR-28); caching and courier limits still apply.**
 
 **Context:** Unbounded file and courier access would cause contention, and the catalogue is read constantly.
 
@@ -390,6 +390,8 @@ Each decision records its context, the decision, the alternatives considered and
 
 ### ADR-14: Keep management rules in services and serialise local writes
 
+**Status: Updated in Week 3. Services are scoped, and the semaphores were replaced by database unique constraints.**
+
 **Context:** Staff, branch and product changes have uniqueness, reference and ID rules. Without management screens, branches and products could not be changed at all.
 
 **Decision:** `StaffManagementService`, `BranchManagementService` and `ProductManagementService` own these rules behind singleton semaphores, with thin administrator-only controllers. New branches and products get zero-quantity stock rows.
@@ -399,6 +401,8 @@ Each decision records its context, the decision, the alternatives considered and
 **Consequences:** Rules are testable and controllers stay thin. The semaphores are not distributed locks; database constraints replace them later.
 
 ### ADR-15: Make pricing rules replaceable and JSON state round-trip safe
+
+**Status: Updated in Week 3. `[JsonInclude]` now serves only seed loading; columns hold state in SQL Server.**
 
 **Context:** Private setters protect entities, but JSON would silently reset them to defaults on load.
 
@@ -552,15 +556,15 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Consequences:** Mappers are plain code that can be tested without a database, which mattered here. They are extra code to maintain, and an update must load the record first, which repositories enforce.
 
-### ADR-30: Use optimistic concurrency with rowversion for stock and transactions
+### ADR-30: Use optimistic concurrency with rowversion and a bounded sale retry
 
-**Context:** Two clerks may sell the last unit together. Holding locks while a clerk works would stop the counters.
+**Context:** Two clerks may sell the last unit together. Holding locks while a clerk works would stop the counters. Testing also showed that `rowversion` alone rejected valid sales: with 10 units and 20 simultaneous requests, as few as 4 succeeded and the rest got a 409 although stock remained.
 
-**Decision:** `BranchStock` and `CounterTransactions` have `rowversion` concurrency tokens. A sale decrements stock, and saves the transaction, lines and payment in one `SaveChangesAsync`. A losing update raises `DbUpdateConcurrencyException`, which becomes a 409. `CK_BranchStock_Quantity` is the last defence against negative stock. Explicit transactions run inside the execution strategy, as the seeder does: its several saves commit together, so a failure can't leave a half-seeded database.
+**Decision:** `BranchStock` and `CounterTransactions` have `rowversion` concurrency tokens. A sale decrements stock and saves the transaction, lines and payment in one `SaveChangesAsync`. `CheckoutAsync` re-runs on a conflict, up to 5 attempts with a short random delay, discarding tracked state so each attempt re-reads stock and re-applies the domain rule. A conflict that outlasts the retries becomes a 409. `CK_BranchStock_Quantity` is the last defence against negative stock. Explicit transactions run inside the execution strategy.
 
-**Alternatives:** Pessimistic locks (blocking and deadlock risk); atomic SQL decrements only (bypasses the domain rule); retrying conflicts automatically (might sell to a customer without the clerk knowing).
+**Alternatives:** Pessimistic locks (blocking and deadlock risk); atomic SQL decrements only (bypasses the domain rule); no retry (safe, but clerks retry by hand on busy products); unbounded retry (a request could spin under load).
 
-**Consequences:** No locks are held between read and save. In 20 simultaneous sales of a product with 10 units, 4 succeeded and 16 got a 409, and later rounds sold exactly the remaining 6, with stock ending at 0 and never negative. So a request that loses the race can get a 409 even when stock remains. A bounded automatic retry is the next step if busy products make this common.
+**Consequences:** In 5 trials of 20 simultaneous sales of 10 units, each run sold exactly 10 and rejected 10 for insufficient stock, with no 409s, and stock never went negative. A retried sale repeats its rate and identity lookups. Reversals don't retry, because a manager should see that a transaction changed. Sustained load hasn't been tested, so 409s remain possible.
 
 ### ADR-31: Commit audit entries separately from the business transaction
 
@@ -632,23 +636,23 @@ Each decision records its context, the decision, the alternatives considered and
 | Over-posting | Input models hold only editable fields, ids come from the route alone, and `Status`, ids and audit columns can only be set by the domain or the DbContext. Tests prove this. |
 | Forged state-changing form requests | Antiforgery token validation for every MVC POST; strict, Secure, HttpOnly auth cookies. |
 | Unauthorized counter/financial actions | Staff role/branch claims, manager/auditor/admin policies, a 403 for denied users, `SameBranchOnly` on branch-scoped reports, domain-side active staff and branch checks, and audit entries for denied attempts. |
-| Stock race or negative balance | Locked atomic repository update and domain guard. |
+| Stock race or negative balance | `rowversion` conflicts, the domain guard, and `CK_BranchStock_Quantity`. |
 | ID-document disclosure | Only masked last-four data is persisted on verification details; request payloads are not audited/logged. |
 | API-key timing/transport abuse | Fixed-time comparison of hashes (which also hides key length), header-only credential, HTTPS, configured key requirement, partner IP allowlist, rate limiting. |
 | Forwarded-IP spoofing | Forwarded headers processed only from trusted proxies; do not trust arbitrary `X-Forwarded-For`; maintain exact known-proxy and allowed-client lists. |
 | Browser cross-origin misuse / clickjacking / MIME sniffing | Single approved CORS origin, CSP, frame denial, `nosniff`, Referrer-Policy. CORS is explicitly not treated as API authentication. |
 | Error detail leakage / untraceable failures | Safe Problem Details with correlation trace ID; exception details stay in server logs. |
-| Audit tampering and excess PII | Append-only JSONL writes behind `IAuditStore`; no sensitive form data in entries; operational file access remains a deployment responsibility. |
+| Audit tampering and excess PII | The application role can only add to `AuditEntries`, and entries hold no sensitive form data. Tested on SQL Server. |
 
 ## Validation
 
-`ApexPost.Test` has 157 tests, and all 157 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 144 run and 13 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
+`ApexPost.Test` has 162 tests, and all 162 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 148 run and 14 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
 
 | Layer | Needs a database | What it covers |
 |---|---|---|
-| Domain and services | No | Rules, plus services over fake repositories and a spy unit of work (commit once, or never on failure). |
+| Domain and services | No | Rules, plus services over fake repositories and a spy unit of work (commit once, or never on failure), including bounded retries. |
 | Persistence model | No | Every table, rowversion, indexes, migrations in step, idempotent script, LINQ translation, mappers, seed volume and dependency direction. |
 | MVC | No (fakes) | Pipeline, security, 409/404/400 Problem Details, over-posting and report totals. |
-| SQL Server | **Yes** | Mapping, rollback, rowversion conflicts, unique and check constraints, procedures, N+1 counts and end-to-end MVC. |
+| SQL Server | **Yes** | Mapping, rollback, rowversion conflicts, unique and check constraints, procedures, N+1 counts, the least-privilege role and end-to-end MVC. |
 
 `Directory.Build.props` sets `TreatWarningsAsErrors`, so the build itself enforces zero warnings.

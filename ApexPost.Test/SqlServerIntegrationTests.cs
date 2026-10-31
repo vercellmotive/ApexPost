@@ -91,7 +91,7 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
         {
             var transaction = new Transaction { Id = id, BranchCode = B001, CounterId = "C01", ClerkStaffId = "STF002", BusinessDate = new DateOnly(2026, 10, 1) };
             transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "Tape", LineItemType.RetailProduct, 1, new Money(10m), TaxCategory.StandardGst, Sku1));
-            transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "Shipping", LineItemType.ParcelShipping, 1, new Money(5m), TaxCategory.Exempt, Shipping: new ShippingDetails(true, Weight.FromKilograms(2m), new Dimensions(3, 4, 5), "Zone 3", ServiceLevel.Express)));
+            transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "Shipping", LineItemType.ParcelShipping, 1, new Money(5m), TaxCategory.Exempt, Shipping: new ShippingDetails(true, Weight.FromKilograms(2m), new Dimensions(3, 4, 5), "Zone 3", ServiceLevel.Express, new Address("1 Test St", "Sydney", "NSW", "2000", "Australia"))));
             transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "ID", LineItemType.IdentityVerification, 1, Money.Zero, TaxCategory.Exempt, IdVerification: IdVerificationDetails.FromDocumentNumber(DocumentType.Passport, "A123456789", true)));
             transaction.Complete("Card", new Money(1000m));
             new CounterTransactionRepository(db).Add(transaction);
@@ -106,6 +106,7 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
             Assert.Equal(TransactionStatus.Paid, restored.Status);
             Assert.Equal("Card", restored.PaymentMethod);
             Assert.Equal("Zone 3", restored.LineItems[1].Shipping!.DestinationZone);
+            Assert.Equal("Sydney", restored.LineItems[1].Shipping!.Destination!.Value.City);
             Assert.Equal("******6789", restored.LineItems[2].IdVerification!.MaskedDocNumber);
         }
     }
@@ -211,6 +212,57 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
         var lowStock = await reports.GetLowStockAsync("B001", 5);
         Assert.All(lowStock, item => Assert.True(item.QuantityOnHand <= 5));
         Assert.All(await reports.GetLowStockAsync(null, 1000000), item => Assert.False(string.IsNullOrEmpty(item.ProductName)));
+    }
+
+    [SqlServerFact]
+    public async Task LeastPrivilegeRole_CanRunTheAppButCannotDeleteOrChangeSchema()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (!File.Exists(Path.Combine(directory!.FullName, "ApexPost.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        var script = await File.ReadAllTextAsync(Path.Combine(directory.FullName, "sql", "security", "least_privilege_role.sql"));
+        await using var connection = new SqlConnection(database.ConnectionString);
+        await connection.OpenAsync();
+        foreach (var batch in Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline).Where(batch => !string.IsNullOrWhiteSpace(batch)))
+        {
+            await RunAsync(connection, batch);
+        }
+
+        await RunAsync(connection, "IF DATABASE_PRINCIPAL_ID('apexpost_test') IS NULL CREATE USER apexpost_test WITHOUT LOGIN; ALTER ROLE apexpost_app ADD MEMBER apexpost_test;");
+        await RunAsync(connection, "EXECUTE AS USER = 'apexpost_test';");
+        try
+        {
+            await RunAsync(connection, "SELECT TOP (1) * FROM dbo.Branches;");
+            await RunAsync(connection, "EXEC dbo.usp_LowStockReport @BranchCode = 'B001', @Threshold = 5;");
+            await RunAsync(connection, "EXEC dbo.usp_DailyBranchSales @BranchCode = 'B001', @Date = '20260101';");
+            await RunAsync(connection, "BEGIN TRAN; UPDATE dbo.BranchStock SET QuantityOnHand = QuantityOnHand WHERE BranchCode = 'B001'; INSERT dbo.AuditEntries (Id, CorrelationId, StaffId, Role, BranchCode, Controller, Action, Parameters, StatusCode, DurationMs) VALUES (NEWID(), 'c', 's', 'r', 'b', 'c', 'a', '{}', 200, 1); ROLLBACK;");
+
+            foreach (var forbidden in new[]
+            {
+                "DELETE FROM dbo.AuditEntries;",
+                "UPDATE dbo.AuditEntries SET StatusCode = 0;",
+                "DELETE FROM dbo.Products;",
+                "ALTER TABLE dbo.Products ADD Hacked int NULL;",
+                "CREATE TABLE dbo.Hacked (Id int);"
+            })
+            {
+                var denied = await Assert.ThrowsAsync<SqlException>(() => RunAsync(connection, forbidden));
+                Assert.Contains(denied.Number, new[] { 229, 262, 1088, 15151, 3701 });
+            }
+        }
+        finally
+        {
+            await RunAsync(connection, "REVERT;");
+        }
+    }
+
+    private static async Task RunAsync(SqlConnection connection, string sql)
+    {
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
     }
 
     [SqlServerFact]

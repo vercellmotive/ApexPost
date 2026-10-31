@@ -1,9 +1,8 @@
 @model ApexPost.Web.Models.TransactionFormViewModel
 @{
     ViewData["Title"] = "Counter";
-    var options = ViewBag.Options as ApexPost.Application.Queries.CheckoutOptionsDto;
-    var counters = options?.CounterTerminals ?? [];
-    var stock = options?.Stock ?? [];
+    var counters = Model.Options?.CounterTerminals ?? [];
+    var stock = Model.Options?.Stock ?? [];
 }
 
 <h2>Counter transaction</h2>
@@ -94,6 +93,22 @@
                 <div class="col-md-2">
                     <label asp-for="Shipments[index].ServiceLevel" class="form-label">Service</label>
                     <select asp-for="Shipments[index].ServiceLevel" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Enums.ServiceLevel>()" class="form-select"></select>
+                </div>
+                <div class="col-md-5">
+                    <label asp-for="Shipments[index].Street" class="form-label">Destination street</label>
+                    <input asp-for="Shipments[index].Street" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Shipments[index].City" class="form-label">City</label>
+                    <input asp-for="Shipments[index].City" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="Shipments[index].State" class="form-label">State</label>
+                    <input asp-for="Shipments[index].State" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="Shipments[index].PostalCode" class="form-label">Postcode</label>
+                    <input asp-for="Shipments[index].PostalCode" class="form-control" />
                 </div>
             </div>
         }

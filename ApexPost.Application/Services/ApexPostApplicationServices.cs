@@ -275,6 +275,7 @@ public sealed class DashboardService
 public sealed class TransactionService
 {
     private const int MaximumServiceLinesPerKind = 10;
+    private const int MaximumSaleAttempts = 5;
 
     private readonly ICounterTransactionRepository _transactions;
     private readonly IBranchRepository _branches;
@@ -368,6 +369,29 @@ public sealed class TransactionService
             throw new DomainValidationException("Add at least one retail item or service to the transaction.");
         }
 
+        // Losing a rowversion race does not mean the stock is gone, so the sale is re-run on fresh data.
+        // Every attempt re-checks stock, so a retry can never oversell; the last conflict still reaches the clerk.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await CheckoutOnceAsync(branchCode, clerkId, request, transactionId, ct);
+            }
+            catch (ConcurrencyConflictException) when (attempt < MaximumSaleAttempts)
+            {
+                _unitOfWork.ResetTracking();
+                await Task.Delay(Random.Shared.Next(10, 50 * attempt), ct);
+            }
+        }
+    }
+
+    private async Task<Transaction> CheckoutOnceAsync(
+        string branchCode,
+        string clerkId,
+        CounterCheckoutRequest request,
+        Guid transactionId,
+        CancellationToken ct)
+    {
         var transaction = await CreateAsync(branchCode, request.CounterId, clerkId, ct, transactionId);
 
         // One DbContext per request cannot run overlapping queries, so rate lookups run in sequence.

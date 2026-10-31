@@ -1,7 +1,6 @@
 @model ApexPost.Web.Models.IdentityVerificationFormViewModel
 @{
     ViewData["Title"] = "Identity verification";
-    var counters = ViewBag.Counters as IEnumerable<string> ?? [];
 }
 
 <h2>Identity verification</h2>
@@ -17,7 +16,7 @@
         <div class="col-md-4">
             <label asp-for="CounterId" class="form-label">Counter</label>
             <select asp-for="CounterId" class="form-select">
-                @foreach (var counter in counters)
+                @foreach (var counter in Model.Counters)
                 {
                     <option value="@counter">@counter</option>
                 }
