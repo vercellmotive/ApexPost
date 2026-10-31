@@ -294,6 +294,37 @@ public sealed class TransactionWorkflowTests
         Assert.Equal(0, persistence.CommitCount);
     }
 
+    [Fact]
+    public async Task Checkout_MoneyOrderExactlyAtTheThreshold_NeedsNoIdentity()
+    {
+        var (_, persistence, service) = Arrange(stock: 10);
+
+        var transaction = await service.CheckoutAsync(Branch, "STF001", MoneyOrderCheckout(1000m), Guid.NewGuid());
+
+        Assert.Equal(TransactionStatus.Paid, transaction.Status);
+        Assert.Equal(1, persistence.CommitCount);
+    }
+
+    [Fact]
+    public async Task Checkout_MoneyOrderOneCentAboveTheThreshold_RequiresIdentity()
+    {
+        var (_, persistence, service) = Arrange(stock: 10);
+
+        await Assert.ThrowsAsync<DomainValidationException>(() =>
+            service.CheckoutAsync(Branch, "STF001", MoneyOrderCheckout(1000.01m), Guid.NewGuid()));
+        Assert.Equal(0, persistence.CommitCount);
+    }
+
+    private static CounterCheckoutRequest MoneyOrderCheckout(decimal amount) => new(
+        "C01",
+        [],
+        [],
+        [new MoneyOrderRequest(amount, "A", "B")],
+        false,
+        DocumentType.Passport,
+        null,
+        "Cash");
+
     private static (InMemoryDatabase Database, InMemoryPersistence Persistence, TransactionService Service) Arrange(int stock, bool manager = false)
     {
         var database = InMemoryDatabase.Empty();
