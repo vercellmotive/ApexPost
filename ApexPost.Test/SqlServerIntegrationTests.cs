@@ -259,6 +259,46 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
         }
     }
 
+    [SqlServerFact]
+    public async Task OppositeUpdateOrder_Deadlocks_AndTheVictimIsRetryableAndRolledBack()
+    {
+        const string first = "UPDATE dbo.BranchStock SET QuantityOnHand = QuantityOnHand + 1 WHERE BranchCode = 'B001' AND Sku = 'SKU-001'";
+        const string second = "UPDATE dbo.BranchStock SET QuantityOnHand = QuantityOnHand + 1 WHERE BranchCode = 'B001' AND Sku = 'SKU-002'";
+        await using var survivor = new SqlConnection(database.ConnectionString);
+        await using var victim = new SqlConnection(database.ConnectionString);
+        await survivor.OpenAsync();
+        await victim.OpenAsync();
+        await RunAsync(victim, "SET DEADLOCK_PRIORITY LOW");
+        await using var before = database.CreateContext();
+        var quantityBefore = await before.BranchStock.AsNoTracking()
+            .Where(stock => stock.BranchCode == B001 && stock.ProductSku == new Sku("SKU-002"))
+            .Select(stock => stock.QuantityOnHand)
+            .SingleAsync();
+
+        await using var survivorTransaction = (SqlTransaction)await survivor.BeginTransactionAsync();
+        await using var victimTransaction = (SqlTransaction)await victim.BeginTransactionAsync();
+        await new SqlCommand(first, survivor, survivorTransaction).ExecuteNonQueryAsync();
+        await new SqlCommand(second, victim, victimTransaction).ExecuteNonQueryAsync();
+        var survivorWaits = new SqlCommand(second, survivor, survivorTransaction).ExecuteNonQueryAsync();
+        var failure = await Assert.ThrowsAsync<SqlException>(() => new SqlCommand(first, victim, victimTransaction).ExecuteNonQueryAsync());
+        await survivorWaits;
+        await survivorTransaction.RollbackAsync();
+
+        Assert.Equal(1205, failure.Number);
+        await using var after = database.CreateContext();
+        Assert.True(new RetryProbe(after).Retries(failure));
+        Assert.Equal(quantityBefore, await after.BranchStock.AsNoTracking()
+            .Where(stock => stock.BranchCode == B001 && stock.ProductSku == new Sku("SKU-002"))
+            .Select(stock => stock.QuantityOnHand)
+            .SingleAsync());
+    }
+
+    // The same strategy EnableRetryOnFailure installs, with its retry decision made visible to the test.
+    private sealed class RetryProbe(DbContext context) : SqlServerRetryingExecutionStrategy(context)
+    {
+        public bool Retries(Exception exception) => ShouldRetryOn(exception);
+    }
+
     private static async Task RunAsync(SqlConnection connection, string sql)
     {
         await using var command = new SqlCommand(sql, connection);
