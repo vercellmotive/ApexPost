@@ -1,4 +1,4 @@
-@model IReadOnlyList<ApexPost.Domain.Entities.Product>
+@model IReadOnlyList<ApexPost.Application.Queries.ProductRowDto>
 @{
     ViewData["Title"] = "Products";
 }
@@ -9,6 +9,23 @@
     <div class="alert alert-success" role="status">@success</div>
 }
 <p><a class="btn btn-primary" asp-action="Create">Add product</a></p>
+<form asp-action="RevisePrices" method="post" class="row g-2 align-items-end mb-3">
+    @Html.AntiForgeryToken()
+    <div class="col-auto">
+        <label for="Category" class="form-label">Revise a category</label>
+        <select id="Category" name="Category" class="form-select">
+            @foreach (var category in ApexPost.Domain.Entities.ProductCategories.All)
+            {
+                <option value="@category">@category</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label for="PercentChange" class="form-label">Change (%)</label>
+        <input id="PercentChange" name="PercentChange" type="number" min="-99" max="100" step="0.01" class="form-control" required />
+    </div>
+    <div class="col-auto"><button type="submit" class="btn btn-outline-primary">Revise prices</button></div>
+</form>
 <table class="table table-striped">
     <thead>
         <tr><th>SKU</th><th>Name</th><th>Category</th><th>Unit price</th><th>Tax</th><th>Actions</th></tr>
@@ -17,12 +34,12 @@
         @foreach (var product in Model)
         {
             <tr>
-                <td>@product.Id.Value</td>
+                <td>@product.Sku</td>
                 <td>@product.Name</td>
                 <td>@product.Category</td>
-                <td>@product.UnitPrice.Amount.ToString("C")</td>
+                <td>@product.UnitPrice.ToString("C")</td>
                 <td>@product.TaxCategory</td>
-                <td><a asp-action="Edit" asp-route-id="@product.Id.Value">Edit</a></td>
+                <td><a asp-action="Edit" asp-route-id="@product.Sku">Edit</a></td>
             </tr>
         }
     </tbody>

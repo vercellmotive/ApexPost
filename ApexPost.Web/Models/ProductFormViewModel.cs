@@ -3,6 +3,15 @@ using ApexPost.Domain.Enums;
 
 namespace ApexPost.Web.Models;
 
+public sealed class PriceRevisionViewModel
+{
+    [Required]
+    public string Category { get; set; } = string.Empty;
+
+    [Range(typeof(decimal), "-99", "100")]
+    public decimal PercentChange { get; set; }
+}
+
 public sealed class ProductFormViewModel
 {
     public bool IsExisting { get; set; }

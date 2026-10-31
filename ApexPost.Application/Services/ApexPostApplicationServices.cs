@@ -1,5 +1,5 @@
 using ApexPost.Application.Interfaces;
-using ApexPost.Application.Pricing;
+using ApexPost.Application.Queries;
 using ApexPost.Domain.Common;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.Enums;
@@ -9,10 +9,9 @@ using ApexPost.Domain.ValueObjects;
 namespace ApexPost.Application.Services;
 
 public sealed record DashboardSnapshot(
-    IReadOnlyList<Branch> Branches,
-    IReadOnlyList<Product> Products,
-    IReadOnlyList<Transaction> Transactions,
-    IReadOnlyList<BranchStock> Inventory,
+    int BranchCount,
+    int ProductCount,
+    int TransactionCount,
     IReadOnlyList<string> Alerts);
 
 public sealed record TransactionRules(
@@ -38,121 +37,80 @@ public sealed record StaffRecordInput(
     string HomeBranchCode,
     string? Password = null);
 
-public sealed record CheckoutOptions(
-    Branch Branch,
-    IReadOnlyList<Product> Products,
-    IReadOnlyList<BranchStock> Stock);
-
 public sealed class StaffManagementService
 {
-    private readonly IRepository<Staff, string> _staff;
-    private readonly IRepository<Branch, BranchCode> _branches;
+    private readonly IStaffRepository _staff;
+    private readonly IBranchRepository _branches;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
-    private readonly SemaphoreSlim _writeGate = new(1, 1);
 
     public StaffManagementService(
-        IRepository<Staff, string> staff,
-        IRepository<Branch, BranchCode> branches,
+        IStaffRepository staff,
+        IBranchRepository branches,
+        IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher)
     {
         _staff = staff;
         _branches = branches;
+        _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
     }
 
-    public async Task<IReadOnlyList<Staff>> GetAllAsync(CancellationToken ct = default) =>
-        (await _staff.GetAllAsync(ct))
-        .OrderBy(person => person.HomeBranchCode.Value)
-        .ThenBy(person => person.Name)
-        .ToList();
-
-    public Task<Staff?> GetByIdAsync(string id, CancellationToken ct = default) =>
-        _staff.GetByIdAsync(id, ct);
-
-    public Task<IReadOnlyList<Branch>> GetBranchesAsync(CancellationToken ct = default) =>
-        _branches.GetAllAsync(ct);
-
     public async Task<Staff> CreateAsync(StaffRecordInput input, CancellationToken ct = default)
     {
-        await _writeGate.WaitAsync(ct);
-        try
-        {
-            var normalized = NormalizeAndValidate(input);
-            var staff = await _staff.GetAllAsync(ct);
-            EnsureEmailIsUnique(staff, normalized.Email, exceptId: null);
-            await EnsureBranchExistsAsync(normalized.HomeBranchCode, ct);
+        var normalized = NormalizeAndValidate(input);
+        await EnsureEmailIsUniqueAsync(normalized.Email, exceptId: null, ct);
+        await EnsureBranchExistsAsync(normalized.HomeBranchCode, ct);
 
-            var nextId = staff
-                .Select(person => person.Id.StartsWith("STF", StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(person.Id.AsSpan(3), out var number) ? number : 0)
-                .DefaultIfEmpty()
-                .Max() + 1;
-            var created = new Staff
-            {
-                Id = $"STF{nextId:D3}",
-                Name = normalized.Name,
-                Email = normalized.Email,
-                Role = normalized.Role,
-                HomeBranchCode = new BranchCode(normalized.HomeBranchCode),
-                PasswordHash = HashPassword(input.Password)
-            };
-            await _staff.SaveAsync(created, ct);
-            return created;
-        }
-        finally
+        var nextId = (await _staff.GetAllIdsAsync(ct))
+            .Select(id => id.StartsWith("STF", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(id.AsSpan(3), out var number) ? number : 0)
+            .DefaultIfEmpty()
+            .Max() + 1;
+        var created = new Staff
         {
-            _writeGate.Release();
-        }
+            Id = $"STF{nextId:D3}",
+            Name = normalized.Name,
+            Email = normalized.Email,
+            Role = normalized.Role,
+            HomeBranchCode = new BranchCode(normalized.HomeBranchCode),
+            PasswordHash = HashPassword(input.Password)
+        };
+        _staff.Add(created);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return created;
     }
 
-    public async Task<Staff> UpdateAsync(
-        string id,
-        StaffRecordInput input,
-        CancellationToken ct = default)
+    public async Task<Staff> UpdateAsync(string id, StaffRecordInput input, CancellationToken ct = default)
     {
-        await _writeGate.WaitAsync(ct);
-        try
-        {
-            var existing = await _staff.GetByIdAsync(id, ct)
-                ?? throw new KeyNotFoundException($"Staff member {id} was not found.");
-            var normalized = NormalizeAndValidate(input);
-            var staff = await _staff.GetAllAsync(ct);
-            EnsureEmailIsUnique(staff, normalized.Email, id);
-            await EnsureBranchExistsAsync(normalized.HomeBranchCode, ct);
+        var existing = await _staff.GetByIdAsync(id, ct)
+            ?? throw new KeyNotFoundException($"Staff member {id} was not found.");
+        var normalized = NormalizeAndValidate(input);
+        await EnsureEmailIsUniqueAsync(normalized.Email, id, ct);
+        await EnsureBranchExistsAsync(normalized.HomeBranchCode, ct);
 
-            var updated = new Staff
-            {
-                Id = existing.Id,
-                Name = normalized.Name,
-                Email = normalized.Email,
-                Role = normalized.Role,
-                HomeBranchCode = new BranchCode(normalized.HomeBranchCode),
-                IsActive = existing.IsActive,
-                PasswordHash = HashPassword(input.Password) ?? existing.PasswordHash
-            };
-            await _staff.SaveAsync(updated, ct);
-            return updated;
-        }
-        finally
+        var updated = new Staff
         {
-            _writeGate.Release();
-        }
+            Id = existing.Id,
+            Name = normalized.Name,
+            Email = normalized.Email,
+            Role = normalized.Role,
+            HomeBranchCode = new BranchCode(normalized.HomeBranchCode),
+            IsActive = existing.IsActive,
+            PasswordHash = HashPassword(input.Password) ?? existing.PasswordHash
+        };
+        _staff.Update(updated);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return updated;
     }
 
     public async Task DeactivateAsync(string id, CancellationToken ct = default)
     {
-        await _writeGate.WaitAsync(ct);
-        try
-        {
-            var existing = await _staff.GetByIdAsync(id, ct)
-                ?? throw new KeyNotFoundException($"Staff member {id} was not found.");
-            existing.IsActive = false;
-            await _staff.SaveAsync(existing, ct);
-        }
-        finally
-        {
-            _writeGate.Release();
-        }
+        var existing = await _staff.GetByIdAsync(id, ct)
+            ?? throw new KeyNotFoundException($"Staff member {id} was not found.");
+        existing.Deactivate();
+        _staff.Update(existing);
+        await _unitOfWork.SaveChangesAsync(ct);
     }
 
     private string? HashPassword(string? password)
@@ -172,10 +130,17 @@ public sealed class StaffManagementService
 
     private async Task EnsureBranchExistsAsync(string branchCode, CancellationToken ct)
     {
-        var branches = await _branches.GetAllAsync(ct);
-        if (!branches.Any(branch => branch.Id.Value == branchCode))
+        if (await _branches.GetByCodeAsync(new BranchCode(branchCode), ct) is null)
         {
             throw new DomainValidationException("Select an existing branch.");
+        }
+    }
+
+    private async Task EnsureEmailIsUniqueAsync(string email, string? exceptId, CancellationToken ct)
+    {
+        if (await _staff.EmailExistsAsync(email, exceptId, ct))
+        {
+            throw new DomainValidationException("A staff member with this email already exists.");
         }
     }
 
@@ -198,23 +163,14 @@ public sealed class StaffManagementService
 
         return (name, email, input.Role, branchCode);
     }
-
-    private static void EnsureEmailIsUnique(IEnumerable<Staff> staff, string email, string? exceptId)
-    {
-        if (staff.Any(person =>
-            person.Id != exceptId && person.Email.Equals(email, StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new DomainValidationException("A staff member with this email already exists.");
-        }
-    }
 }
 
 public sealed class StaffAuthenticationService
 {
-    private readonly IRepository<Staff, string> _staff;
+    private readonly IStaffRepository _staff;
     private readonly IPasswordHasher _passwordHasher;
 
-    public StaffAuthenticationService(IRepository<Staff, string> staff, IPasswordHasher passwordHasher)
+    public StaffAuthenticationService(IStaffRepository staff, IPasswordHasher passwordHasher)
     {
         _staff = staff;
         _passwordHasher = passwordHasher;
@@ -222,8 +178,7 @@ public sealed class StaffAuthenticationService
 
     public async Task<Staff?> AuthenticateAsync(string email, string password, CancellationToken ct = default)
     {
-        var staff = (await _staff.GetAllAsync(ct))
-            .FirstOrDefault(person => person.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase));
+        var staff = await _staff.GetByEmailAsync(email.Trim(), ct);
 
         // Verify even for an unknown email so response time does not reveal which accounts exist.
         var passwordMatches = _passwordHasher.Verify(password, staff?.PasswordHash);
@@ -233,38 +188,24 @@ public sealed class StaffAuthenticationService
 
 public sealed class InventoryService
 {
-    private readonly IRepository<Staff, string> _staff;
-    private readonly IRepository<BranchStock, Guid> _stocks;
+    private readonly IStaffRepository _staff;
+    private readonly IStockAdjustmentCommand _adjustStock;
     private readonly IDomainEventDispatcher _eventDispatcher;
     private readonly LowStockRule _lowStockRule;
 
     public InventoryService(
-        IRepository<Staff, string> staff,
-        IRepository<BranchStock, Guid> stocks,
+        IStaffRepository staff,
+        IStockAdjustmentCommand adjustStock,
         IDomainEventDispatcher eventDispatcher,
         LowStockRule? lowStockRule = null)
     {
         _staff = staff;
-        _stocks = stocks;
+        _adjustStock = adjustStock;
         _eventDispatcher = eventDispatcher;
         _lowStockRule = lowStockRule ?? LowStockRule.Default;
     }
 
-    public async Task<IReadOnlyList<(Product Product, int QuantityOnHand)>> GetBranchCatalogueAsync(
-        ICatalogueService catalogue,
-        string branchCode,
-        CancellationToken ct = default)
-    {
-        var products = await catalogue.GetProductsAsync(ct);
-        var stock = (await _stocks.GetAllAsync(ct))
-            .Where(item => item.BranchCode.Value == branchCode)
-            .ToDictionary(item => item.ProductSku, item => item.QuantityOnHand);
-        return products
-            .Select(product => (product, stock.GetValueOrDefault(product.Id)))
-            .ToList();
-    }
-
-    public async Task<BranchStock> AdjustStockAsync(
+    public async Task<int> AdjustStockAsync(
         string managerId,
         BranchCode branchCode,
         Sku sku,
@@ -291,209 +232,43 @@ public sealed class InventoryService
             throw new UnauthorizedDomainActionException("An active Branch Manager assigned to this branch is required.");
         }
 
-        var stock = (await _stocks.GetAllAsync(ct)).FirstOrDefault(item =>
-            item.BranchCode == branchCode && item.ProductSku == sku)
-            ?? throw new KeyNotFoundException($"Product {sku.Value} is not stocked at branch {branchCode.Value}.");
-        var updated = await _stocks.UpdateAsync(stock.Id, item => item.ApplyAdjustment(quantityDelta), ct)
-            ?? throw new KeyNotFoundException($"Stock record for {sku.Value} is no longer available.");
-
-        if (_lowStockRule.IsLow(updated.QuantityOnHand))
+        var quantityOnHand = await _adjustStock.AdjustAsync(branchCode, sku, quantityDelta, reason, managerId, ct);
+        if (_lowStockRule.IsLow(quantityOnHand))
         {
-            await _eventDispatcher.DispatchAsync(
-                new StockLowEvent(branchCode, sku, updated.QuantityOnHand),
-                ct);
+            await _eventDispatcher.DispatchAsync(new StockLowEvent(branchCode, sku, quantityOnHand), ct);
         }
 
-        return updated;
+        return quantityOnHand;
     }
 }
 
 public sealed class DashboardService
 {
-    private readonly IRepository<Branch, BranchCode> _branches;
-    private readonly IRepository<Product, Sku> _products;
-    private readonly IRepository<Transaction, Guid> _transactions;
-    private readonly IRepository<BranchStock, Guid> _stocks;
+    private readonly IDashboardQueries _queries;
     private readonly INotificationService _notifications;
     private readonly LowStockRule _lowStockRule;
 
     public DashboardService(
-        IRepository<Branch, BranchCode> branches,
-        IRepository<Product, Sku> products,
-        IRepository<Transaction, Guid> transactions,
-        IRepository<BranchStock, Guid> stocks,
+        IDashboardQueries queries,
         INotificationService notifications,
         LowStockRule? lowStockRule = null)
     {
-        _branches = branches;
-        _products = products;
-        _transactions = transactions;
-        _stocks = stocks;
+        _queries = queries;
         _notifications = notifications;
         _lowStockRule = lowStockRule ?? LowStockRule.Default;
     }
 
     public async Task<DashboardSnapshot> BuildAsync(string? branchCode = null, CancellationToken ct = default)
     {
-        var branchesTask = _branches.GetAllAsync(ct);
-        var productsTask = _products.GetAllAsync(ct);
-        var transactionsTask = _transactions.GetAllAsync(ct);
-        var stockTask = _stocks.GetAllAsync(ct);
+        var counts = await _queries.GetCountsAsync(branchCode, _lowStockRule.Threshold, ct);
 
-        await Task.WhenAll(branchesTask, productsTask, transactionsTask, stockTask);
-
-        var branches = await branchesTask;
-        var products = await productsTask;
-        var transactions = await transactionsTask;
-        var stock = await stockTask;
-
-        if (branchCode is not null)
-        {
-            branches = branches.Where(branch => branch.Id.Value == branchCode).ToList();
-            transactions = transactions.Where(transaction => transaction.BranchCode.Value == branchCode).ToList();
-            stock = stock.Where(item => item.BranchCode.Value == branchCode).ToList();
-        }
-
+        // Notifications are in memory, so these lookups can overlap; the DbContext reads above cannot.
         var recentNotifications = await Task.WhenAll(
-            branches.Select(branch => _notifications.GetRecentAlertsAsync(branch.Id, ct)));
+            counts.BranchCodes.Select(code => _notifications.GetRecentAlertsAsync(new BranchCode(code), ct)));
         var alerts = recentNotifications.SelectMany(items => items).Reverse().ToList();
-        foreach (var branch in branches)
-        {
-            if (!branch.IsActive)
-            {
-                alerts.Add($"Branch {branch.Id.Value} is inactive.");
-            }
-
-            foreach (var item in stock.Where(x => x.BranchCode == branch.Id))
-            {
-                if (_lowStockRule.IsLow(item.QuantityOnHand))
-                {
-                    alerts.Add($"Low stock: {item.ProductSku.Value} in {branch.Id.Value}.");
-                }
-            }
-        }
-
-        return new DashboardSnapshot(branches, products, transactions, stock, alerts);
-    }
-}
-
-public sealed class ReportingService
-{
-    private readonly IRepository<Transaction, Guid> _transactions;
-    private readonly IRepository<BranchStock, Guid> _stocks;
-    private readonly IRepository<Branch, BranchCode> _branches;
-
-    public ReportingService(
-        IRepository<Transaction, Guid> transactions,
-        IRepository<BranchStock, Guid> stocks,
-        IRepository<Branch, BranchCode> branches)
-    {
-        _transactions = transactions;
-        _stocks = stocks;
-        _branches = branches;
-    }
-
-    public async Task<IReadOnlyList<(string Branch, Money Sales, Money Services)>> GetDailyBranchSalesAsync(
-        string? branchCode = null,
-        CancellationToken ct = default,
-        DateOnly? date = null)
-    {
-        var transactionsTask = _transactions.FindAsync(new PaidTransactionsSpecification(branchCode), ct);
-        var branchesTask = _branches.GetAllAsync(ct);
-        await Task.WhenAll(transactionsTask, branchesTask);
-        var transactions = await transactionsTask;
-        var branchTimeZones = await GetBranchTimeZonesAsync(branchesTask, transactions);
-        var now = DateTimeOffset.UtcNow;
-
-        return transactions
-            .Where(transaction =>
-            {
-                var timeZone = branchTimeZones[transaction.BranchCode.Value];
-                var reportDate = date ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, timeZone).Date);
-                return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(transaction.CreatedAt, timeZone).Date) == reportDate;
-            })
-            .GroupBy(transaction => transaction.BranchCode.Value)
-            .OrderBy(group => group.Key)
-            .Select(group => (
-                group.Key,
-                group.Aggregate(Money.Zero, (total, transaction) => total + transaction.RetailTotal),
-                group.Aggregate(Money.Zero, (total, transaction) => total + transaction.ServicesTotal)))
-            .ToList();
-    }
-
-    public async Task<DateOnly?> GetLatestSalesDateAsync(string? branchCode = null, CancellationToken ct = default)
-    {
-        var transactionsTask = _transactions.FindAsync(new PaidTransactionsSpecification(branchCode), ct);
-        var branchesTask = _branches.GetAllAsync(ct);
-        await Task.WhenAll(transactionsTask, branchesTask);
-        var transactions = await transactionsTask;
-        var branchTimeZones = await GetBranchTimeZonesAsync(branchesTask, transactions);
-        return transactions
-            .Select(transaction => (DateOnly?)DateOnly.FromDateTime(
-                TimeZoneInfo.ConvertTime(transaction.CreatedAt, branchTimeZones[transaction.BranchCode.Value]).Date))
-            .Max();
-    }
-
-    private static async Task<Dictionary<string, TimeZoneInfo>> GetBranchTimeZonesAsync(
-        Task<IReadOnlyList<Branch>> branchesTask,
-        IReadOnlyList<Transaction> transactions)
-    {
-        var timeZones = (await branchesTask).ToDictionary(
-            branch => branch.Id.Value,
-            branch => TimeZoneInfo.FindSystemTimeZoneById(branch.TimeZoneId),
-            StringComparer.Ordinal);
-        var unknownBranch = transactions.FirstOrDefault(transaction => !timeZones.ContainsKey(transaction.BranchCode.Value));
-        return unknownBranch is null
-            ? timeZones
-            : throw new KeyNotFoundException($"Branch {unknownBranch.BranchCode.Value} has no timezone configuration.");
-    }
-
-    public async Task<IReadOnlyList<(string Branch, string Sku, int Quantity)>> GetLowStockReportAsync(
-        int threshold,
-        string? branchCode = null,
-        CancellationToken ct = default,
-        Predicate<BranchStock>? specification = null)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(threshold);
-        var stock = await _stocks.GetAllAsync(ct);
-        return stock
-            .Where(x => (specification?.Invoke(x) ?? x.QuantityOnHand <= threshold)
-                && (branchCode is null || x.BranchCode.Value == branchCode))
-            .Select(x => (x.BranchCode.Value, x.ProductSku.Value, x.QuantityOnHand))
-            .ToList();
-    }
-
-    public async Task<IReadOnlyList<(string Zone, ServiceLevel ServiceLevel, int Count)>> GetShippingVolumeByZoneAsync(
-        string? branchCode = null,
-        CancellationToken ct = default)
-    {
-        var transactions = await _transactions.FindAsync(new PaidTransactionsSpecification(branchCode), ct);
-        return transactions
-            .SelectMany(transaction => transaction.LineItems)
-            .Where(line => line.Shipping is not null)
-            .GroupBy(line => (line.Shipping!.DestinationZone, line.Shipping.ServiceLevel))
-            .OrderBy(group => group.Key.DestinationZone)
-            .ThenBy(group => group.Key.ServiceLevel)
-            .Select(group => (group.Key.DestinationZone, group.Key.ServiceLevel, group.Sum(line => line.Quantity)))
-            .ToList();
-    }
-
-    public async Task<IReadOnlyList<(string Branch, int MoneyOrders, int IdentityVerifications)>> GetMoneyOrderAuditReportAsync(
-        string? branchCode = null,
-        CancellationToken ct = default)
-    {
-        var transactions = await _transactions.GetAllAsync(ct);
-        return transactions
-            .Where(transaction => branchCode is null || transaction.BranchCode.Value == branchCode)
-            .SelectMany(transaction => transaction.LineItems.Select(line => (transaction.BranchCode.Value, line.ItemType)))
-            .Where(item => item.ItemType is LineItemType.MoneyOrder or LineItemType.IdentityVerification)
-            .GroupBy(item => item.Value)
-            .OrderBy(group => group.Key)
-            .Select(group => (
-                group.Key,
-                group.Count(item => item.ItemType == LineItemType.MoneyOrder),
-                group.Count(item => item.ItemType == LineItemType.IdentityVerification)))
-            .ToList();
+        alerts.AddRange(counts.InactiveBranches.Select(code => $"Branch {code} is inactive."));
+        alerts.AddRange(counts.LowStock.Select(row => $"Low stock: {row.Sku} in {row.BranchCode}."));
+        return new DashboardSnapshot(counts.BranchCodes.Count, counts.ProductCount, counts.TransactionCount, alerts);
     }
 }
 
@@ -501,10 +276,11 @@ public sealed class TransactionService
 {
     private const int MaximumServiceLinesPerKind = 10;
 
-    private readonly IRepository<Transaction, Guid> _transactions;
-    private readonly IRepository<Branch, BranchCode> _branches;
-    private readonly IRepository<Staff, string> _staff;
-    private readonly IRepository<BranchStock, Guid> _stocks;
+    private readonly ICounterTransactionRepository _transactions;
+    private readonly IBranchRepository _branches;
+    private readonly IStaffRepository _staff;
+    private readonly IStockRepository _stocks;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ICourierRateService _courierRates;
     private readonly ICatalogueService _catalogue;
     private readonly IIdentityVerificationService _identityVerification;
@@ -514,10 +290,11 @@ public sealed class TransactionService
     public Money HighValueMoneyOrderThreshold => _rules.HighValueMoneyOrderThreshold;
 
     public TransactionService(
-        IRepository<Transaction, Guid> transactions,
-        IRepository<Branch, BranchCode> branches,
-        IRepository<Staff, string> staff,
-        IRepository<BranchStock, Guid> stocks,
+        ICounterTransactionRepository transactions,
+        IBranchRepository branches,
+        IStaffRepository staff,
+        IStockRepository stocks,
+        IUnitOfWork unitOfWork,
         ICourierRateService courierRates,
         ICatalogueService catalogue,
         IIdentityVerificationService identityVerification,
@@ -529,6 +306,7 @@ public sealed class TransactionService
         _branches = branches;
         _staff = staff;
         _stocks = stocks;
+        _unitOfWork = unitOfWork;
         _courierRates = courierRates;
         _catalogue = catalogue;
         _identityVerification = identityVerification;
@@ -536,21 +314,6 @@ public sealed class TransactionService
         _rules = rules;
         _lowStockRule = lowStockRule ?? LowStockRule.Default;
     }
-
-    public async Task<CheckoutOptions> GetCheckoutOptionsAsync(string branchCode, CancellationToken ct = default)
-    {
-        var branch = await _branches.GetByIdAsync(new BranchCode(branchCode), ct)
-            ?? throw new KeyNotFoundException("Branch not found.");
-        var products = await _catalogue.GetProductsAsync(ct);
-        var stock = (await _stocks.GetAllAsync(ct)).Where(item => item.BranchCode == branch.Id).ToList();
-        return new CheckoutOptions(branch, products, stock);
-    }
-
-    public async Task<IReadOnlyList<Transaction>> GetBranchTransactionsAsync(string branchCode, CancellationToken ct = default) =>
-        (await _transactions.GetAllAsync(ct))
-            .Where(transaction => transaction.BranchCode.Value == branchCode)
-            .OrderByDescending(transaction => transaction.CreatedAt)
-            .ToList();
 
     public async Task<Transaction> CheckoutAsync(
         string branchCode,
@@ -607,12 +370,10 @@ public sealed class TransactionService
 
         var transaction = await CreateAsync(branchCode, request.CounterId, clerkId, ct, transactionId);
 
-        // Rate lookups are independent, and the courier service bounds how many run at once.
-        var rates = await Task.WhenAll(
-            request.Shipments.Select(shipment => _courierRates.GetEstimatedCourierRateAsync(shipment, ct)));
-        foreach (var (shipment, rate) in request.Shipments.Zip(rates))
+        // One DbContext per request cannot run overlapping queries, so rate lookups run in sequence.
+        foreach (var shipment in request.Shipments)
         {
-            AddShipping(transaction, shipment, rate);
+            await AddShippingAsync(transaction, shipment, ct);
         }
 
         foreach (var moneyOrder in request.MoneyOrders)
@@ -629,11 +390,7 @@ public sealed class TransactionService
             AddIdentityVerification(transaction, verification);
         }
 
-        await CompleteWithRetailItemsAsync(
-            transaction,
-            request.RetailItems,
-            request.PaymentMethod,
-            ct);
+        await CompleteWithRetailItemsAsync(transaction, request.RetailItems, request.PaymentMethod, ct);
         return transaction;
     }
 
@@ -644,30 +401,28 @@ public sealed class TransactionService
         CancellationToken ct = default,
         Guid? transactionId = null)
     {
-        var branchesTask = _branches.GetAllAsync(ct);
-        var staffTask = _staff.GetAllAsync(ct);
-        await Task.WhenAll(branchesTask, staffTask);
-        var branches = await branchesTask;
-        var staffMembers = await staffTask;
-        var selectedBranch = branches.FirstOrDefault(x => x.Id.Value == branchCode) ?? throw new KeyNotFoundException("Branch not found.");
-        var clerk = staffMembers.FirstOrDefault(x => x.Id == clerkId) ?? throw new UnauthorizedDomainActionException("Staff not found.");
+        var selectedBranch = await _branches.GetByCodeAsync(new BranchCode(branchCode), ct)
+            ?? throw new KeyNotFoundException("Branch not found.");
+        var clerk = await _staff.GetByIdAsync(clerkId, ct)
+            ?? throw new UnauthorizedDomainActionException("Staff not found.");
 
         clerk.EnsureCanTransact(selectedBranch.Id);
-        selectedBranch.EnsureAcceptsTransaction(DateTimeOffset.UtcNow);
-        if (!selectedBranch.CounterTerminals.Contains(counterId, StringComparer.Ordinal))
-        {
-            throw new DomainValidationException($"Counter {counterId} does not belong to branch {branchCode}.");
-        }
+        var now = DateTimeOffset.UtcNow;
+        selectedBranch.EnsureAcceptsTransaction(now);
+        EnsureCounterBelongsToBranch(selectedBranch, counterId);
 
         return new Transaction
         {
             Id = transactionId ?? Guid.NewGuid(),
             BranchCode = selectedBranch.Id,
             CounterId = counterId,
-            ClerkStaffId = clerkId
+            ClerkStaffId = clerkId,
+            CreatedAt = now,
+            BusinessDate = selectedBranch.LocalDate(now)
         };
     }
 
+    // The stock decrement, transaction, lines and payment all commit in the one SaveChangesAsync below.
     public async Task CompleteWithRetailItemsAsync(
         Transaction transaction,
         IReadOnlyCollection<RetailItemRequest> retailItems,
@@ -689,108 +444,49 @@ public sealed class TransactionService
             throw new DomainValidationException("Retail item quantities must be greater than zero.");
         }
 
-        var branchTask = _branches.GetByIdAsync(transaction.BranchCode, ct);
-        var clerkTask = _staff.GetByIdAsync(transaction.ClerkStaffId, ct);
-        await Task.WhenAll(branchTask, clerkTask);
-        var branch = await branchTask ?? throw new KeyNotFoundException("Branch not found.");
-        var clerk = await clerkTask ?? throw new UnauthorizedDomainActionException("Staff not found.");
+        var branch = await _branches.GetByCodeAsync(transaction.BranchCode, ct)
+            ?? throw new KeyNotFoundException("Branch not found.");
+        var clerk = await _staff.GetByIdAsync(transaction.ClerkStaffId, ct)
+            ?? throw new UnauthorizedDomainActionException("Staff not found.");
         clerk.EnsureCanTransact(branch.Id);
         branch.EnsureAcceptsTransaction(DateTimeOffset.UtcNow);
-        if (!branch.CounterTerminals.Contains(transaction.CounterId, StringComparer.Ordinal))
-        {
-            throw new DomainValidationException($"Counter {transaction.CounterId} does not belong to branch {branch.Id.Value}.");
-        }
+        EnsureCounterBelongsToBranch(branch, transaction.CounterId);
 
-        var stock = await _stocks.GetAllAsync(ct);
-        var reservations = new List<(Guid StockId, int Quantity)>();
-        var openTransactionPersisted = false;
-        var paidTransactionPersisted = false;
-        try
+        foreach (var requestedItem in requestedItems)
         {
-            await _transactions.SaveAsync(transaction, ct);
-            openTransactionPersisted = true;
-
-            foreach (var requestedItem in requestedItems)
+            var product = await _catalogue.GetProductBySkuAsync(requestedItem.Sku, ct)
+                ?? throw new KeyNotFoundException($"Product {requestedItem.Sku.Value} was not found.");
+            if (!ProductCategories.IsSupported(product.Category))
             {
-                var product = await _catalogue.GetProductBySkuAsync(requestedItem.Sku, ct)
-                    ?? throw new KeyNotFoundException($"Product {requestedItem.Sku.Value} was not found.");
-                if (!ProductCategories.IsSupported(product.Category))
-                {
-                    throw new DomainValidationException($"Product {product.Id.Value} has an unsupported category.");
-                }
-
-                var branchStockId = stock.FirstOrDefault(item =>
-                    item.BranchCode == transaction.BranchCode && item.ProductSku == requestedItem.Sku)?.Id;
-                if (branchStockId is null)
-                {
-                    throw new DomainValidationException($"Product {requestedItem.Sku.Value} is not stocked at this branch.");
-                }
-
-                var branchStock = await _stocks.UpdateAsync(
-                    branchStockId.Value,
-                    item => item.ReduceStock(requestedItem.Quantity),
-                    ct) ?? throw new DomainValidationException("The selected product is no longer stocked at this branch.");
-                reservations.Add((branchStockId.Value, requestedItem.Quantity));
-                transaction.AddLineItem(new TransactionLineItem(
-                    Guid.NewGuid(),
-                    product.Name,
-                    LineItemType.RetailProduct,
-                    requestedItem.Quantity,
-                    product.UnitPrice,
-                    product.TaxCategory,
-                    requestedItem.Sku));
-                if (_lowStockRule.IsLow(branchStock.QuantityOnHand))
-                {
-                    transaction.AddDomainEvent(new StockLowEvent(transaction.BranchCode, requestedItem.Sku, branchStock.QuantityOnHand));
-                }
+                throw new DomainValidationException($"Product {product.Id.Value} has an unsupported category.");
             }
 
-            transaction.Complete(paymentMethod, _rules.HighValueMoneyOrderThreshold);
-            await _transactions.SaveAsync(transaction, ct);
-            paidTransactionPersisted = true;
-
-            await DispatchDomainEventsAsync(transaction, ct);
-        }
-        catch (Exception completionFailure) when (!paidTransactionPersisted)
-        {
-            try
+            var stock = await _stocks.GetAsync(transaction.BranchCode, requestedItem.Sku, ct)
+                ?? throw new DomainValidationException($"Product {requestedItem.Sku.Value} is not stocked at this branch.");
+            stock.ReduceStock(requestedItem.Quantity);
+            transaction.AddLineItem(new TransactionLineItem(
+                Guid.NewGuid(),
+                product.Name,
+                LineItemType.RetailProduct,
+                requestedItem.Quantity,
+                product.UnitPrice,
+                product.TaxCategory,
+                requestedItem.Sku));
+            if (_lowStockRule.IsLow(stock.QuantityOnHand))
             {
-                foreach (var reservation in reservations.AsEnumerable().Reverse())
-                {
-                    var restoredStock = await _stocks.UpdateAsync(
-                        reservation.StockId,
-                        item => item.AddStock(reservation.Quantity),
-                        CancellationToken.None);
-                    if (restoredStock is null)
-                    {
-                        throw new InvalidOperationException($"Stock record {reservation.StockId} disappeared during transaction rollback.");
-                    }
-                }
-
-                if (openTransactionPersisted)
-                {
-                    await _transactions.DeleteAsync(transaction.Id, CancellationToken.None);
-                }
+                transaction.AddDomainEvent(new StockLowEvent(transaction.BranchCode, requestedItem.Sku, stock.QuantityOnHand));
             }
-            catch (Exception rollbackFailure)
-            {
-                throw new AggregateException(
-                    "Transaction completion failed and the inventory rollback also failed; reconcile the affected branch stock.",
-                    completionFailure,
-                    rollbackFailure);
-            }
-
-            throw;
         }
+
+        transaction.Complete(paymentMethod, _rules.HighValueMoneyOrderThreshold);
+        _transactions.Add(transaction);
+        await _unitOfWork.SaveChangesAsync(ct);
+        await DispatchDomainEventsAsync(transaction, ct);
     }
 
     public async Task AddShippingAsync(Transaction transaction, ShippingDetails shippingDetails, CancellationToken ct = default)
     {
         var rate = await _courierRates.GetEstimatedCourierRateAsync(shippingDetails, ct);
-        AddShipping(transaction, shippingDetails, rate);
-    }
-
-    private static void AddShipping(Transaction transaction, ShippingDetails shippingDetails, Money rate) =>
         transaction.AddLineItem(new TransactionLineItem(
             Guid.NewGuid(),
             $"Shipping: {shippingDetails.ServiceLevel}",
@@ -799,6 +495,7 @@ public sealed class TransactionService
             rate,
             TaxCategory.Exempt,
             Shipping: shippingDetails));
+    }
 
     public void AddMoneyOrder(Transaction transaction, Money amount, string sender, string recipient)
     {
@@ -830,16 +527,13 @@ public sealed class TransactionService
             IdVerification: verification));
     }
 
-    public async Task VoidAsync(Guid transactionId, string managerId, string reason, CancellationToken ct = default)
-    {
-        await ReverseTransactionAsync(transactionId, managerId, reason, refund: false, ct);
-    }
+    public Task VoidAsync(Guid transactionId, string managerId, string reason, CancellationToken ct = default) =>
+        ReverseTransactionAsync(transactionId, managerId, reason, refund: false, ct);
 
-    public async Task RefundAsync(Guid transactionId, string managerId, string reason, CancellationToken ct = default)
-    {
-        await ReverseTransactionAsync(transactionId, managerId, reason, refund: true, ct);
-    }
+    public Task RefundAsync(Guid transactionId, string managerId, string reason, CancellationToken ct = default) =>
+        ReverseTransactionAsync(transactionId, managerId, reason, refund: true, ct);
 
+    // The status change and the restock commit together, and rowversion stops a concurrent reversal.
     private async Task ReverseTransactionAsync(
         Guid transactionId,
         string managerId,
@@ -856,76 +550,37 @@ public sealed class TransactionService
             throw new DomainValidationException("A reason is required for a transaction reversal.");
         }
 
-        var targetStatus = refund ? TransactionStatus.Refunded : TransactionStatus.Voided;
-        var wasResuming = transaction.Status == targetStatus && !transaction.InventoryRestocked;
-        if (transaction.Status == TransactionStatus.Paid)
+        if (refund)
         {
-            // Apply the state change under the repository lock so a concurrent void and refund cannot both win.
-            transaction = await _transactions.UpdateAsync(
-                transactionId,
-                current =>
-                {
-                    if (refund)
-                    {
-                        current.Refund(manager, reason);
-                    }
-                    else
-                    {
-                        current.Void(manager, reason);
-                    }
-                },
-                ct) ?? throw new KeyNotFoundException("Transaction not found.");
+            transaction.Refund(manager, reason);
         }
-        else if (!wasResuming)
+        else
         {
-            var action = refund ? "refunded" : "voided";
-            throw new DomainValidationException($"Only paid transactions or {action} transactions awaiting inventory restock can be reversed.");
-        }
-        else if (!manager.IsActive
-            || manager.Role != StaffRole.BranchManager
-            || manager.HomeBranchCode != transaction.BranchCode)
-        {
-            throw new UnauthorizedDomainActionException("An active Branch Manager assigned to this branch is required.");
+            transaction.Void(manager, reason);
         }
 
-        if (wasResuming && transaction.DomainEvents.Count == 0
-            && transaction.VoidReason is not null
-            && transaction.VoidedByManagerId is not null)
-        {
-            transaction.AddDomainEvent(new TransactionVoidedEvent(
-                transaction.Id,
-                transaction.BranchCode,
-                transaction.VoidedByManagerId,
-                transaction.VoidReason));
-        }
-
-        await RestoreRetailInventoryAsync(transaction, ct);
-        transaction.MarkReversalInventoryRestocked();
-        await _transactions.SaveAsync(transaction, ct);
-        await DispatchDomainEventsAsync(transaction, ct);
-    }
-
-    private async Task RestoreRetailInventoryAsync(Transaction transaction, CancellationToken ct)
-    {
         var retailQuantities = transaction.LineItems
             .Where(item => item.ItemType == LineItemType.RetailProduct && item.ProductSku is not null)
             .GroupBy(item => item.ProductSku!.Value)
-            .Select(group => (Sku: group.Key, Quantity: group.Sum(item => item.Quantity)))
-            .ToList();
-        var stock = await _stocks.GetAllAsync(ct);
-        foreach (var item in retailQuantities)
+            .Select(group => (Sku: group.Key, Quantity: group.Sum(item => item.Quantity)));
+        foreach (var (sku, quantity) in retailQuantities)
         {
-            var stockId = stock.FirstOrDefault(record =>
-                record.BranchCode == transaction.BranchCode && record.ProductSku == item.Sku)?.Id
-                ?? throw new KeyNotFoundException($"Stock for reversed product {item.Sku.Value} was not found.");
-            var updated = await _stocks.UpdateAsync(
-                stockId,
-                record => record.RestockForReversal(transaction.Id, item.Quantity),
-                ct);
-            if (updated is null)
-            {
-                throw new KeyNotFoundException($"Stock for reversed product {item.Sku.Value} is no longer available.");
-            }
+            var stock = await _stocks.GetAsync(transaction.BranchCode, sku, ct)
+                ?? throw new KeyNotFoundException($"Stock for reversed product {sku.Value} was not found.");
+            stock.AddStock(quantity);
+        }
+
+        transaction.MarkReversalInventoryRestocked();
+        _transactions.Update(transaction);
+        await _unitOfWork.SaveChangesAsync(ct);
+        await DispatchDomainEventsAsync(transaction, ct);
+    }
+
+    private static void EnsureCounterBelongsToBranch(Branch branch, string counterId)
+    {
+        if (!branch.CounterTerminals.Contains(counterId, StringComparer.Ordinal))
+        {
+            throw new DomainValidationException($"Counter {counterId} does not belong to branch {branch.Id.Value}.");
         }
     }
 

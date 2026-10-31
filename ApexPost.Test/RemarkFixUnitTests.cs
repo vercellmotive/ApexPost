@@ -101,34 +101,6 @@ public sealed class RemarkFixUnitTests
     }
 
     [Fact]
-    public async Task JsonRepository_CopiesSeedOnWriteAndLeavesSeedUntouched()
-    {
-        var root = Path.Combine(Path.GetTempPath(), $"apexpost-json-{Guid.NewGuid():N}");
-        var seed = Path.Combine(root, "seed");
-        var data = Path.Combine(root, "data");
-        Directory.CreateDirectory(seed);
-        try
-        {
-            await File.WriteAllTextAsync(
-                Path.Combine(seed, "shippingzone.json"),
-                """[{"Id":"Zone 1","Name":"Zone 1","Multiplier":1.0}]""");
-            var repository = new JsonFileRepository<ShippingZone, string>(new JsonStoreOptions(data, seed));
-
-            Assert.Single(await repository.GetAllAsync());
-            Assert.False(File.Exists(Path.Combine(data, "shippingzone.json")));
-
-            await repository.SaveAsync(new ShippingZone { Id = "Zone 2", Name = "Zone 2", Multiplier = 1.2m });
-
-            Assert.Equal(2, (await repository.GetAllAsync()).Count);
-            Assert.DoesNotContain("Zone 2", await File.ReadAllTextAsync(Path.Combine(seed, "shippingzone.json")));
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Fact]
     public void TransactionTotals_SplitRetailFromServices()
     {
         var transaction = new Transaction

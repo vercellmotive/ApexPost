@@ -17,7 +17,7 @@ public sealed class CourierRatePerformanceTests
     public async Task RateLookups_NeverExceedTheConfiguredConcurrencyLimit()
     {
         var zones = new TrackingZoneLookup();
-        var service = new SimulatedCourierRateService(new TieredShippingPricingStrategy(), zones, 3, TimeSpan.Zero);
+        var service = new SimulatedCourierRateService(new TieredShippingPricingStrategy(), zones, new CourierRateGate(3), TimeSpan.Zero);
 
         await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => service.GetEstimatedCourierRateAsync(Parcel)));
 
@@ -65,7 +65,7 @@ public sealed class CourierRatePerformanceTests
         }
     }
 
-    private sealed class CountingZoneRepository : IRepository<ShippingZone, string>
+    private sealed class CountingZoneRepository : IShippingZoneRepository
     {
         private int _loadCount;
 
@@ -77,15 +77,5 @@ public sealed class CourierRatePerformanceTests
             await Task.Delay(5, ct);
             return [new ShippingZone { Id = "Zone 1", Name = "Zone 1", Multiplier = 1.5m }];
         }
-
-        public Task<ShippingZone?> GetByIdAsync(string id, CancellationToken ct = default) =>
-            Task.FromResult<ShippingZone?>(null);
-
-        public Task<ShippingZone?> UpdateAsync(string id, Action<ShippingZone> update, CancellationToken ct = default) =>
-            Task.FromResult<ShippingZone?>(null);
-
-        public Task SaveAsync(ShippingZone entity, CancellationToken ct = default) => Task.CompletedTask;
-
-        public Task DeleteAsync(string id, CancellationToken ct = default) => Task.CompletedTask;
     }
 }

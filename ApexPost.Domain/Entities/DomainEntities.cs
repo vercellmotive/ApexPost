@@ -10,13 +10,19 @@ namespace ApexPost.Domain.Entities;
 
 public class Branch : AggregateRoot<BranchCode>
 {
+    private bool _isActive = true;
+
     public required string Name { get; init; }
     public required string Region { get; init; }
     public required TimeSpan OpenTime { get; init; }
     public required TimeSpan CloseTime { get; init; }
     public string TimeZoneId { get; init; } = "Australia/Sydney";
-    public bool IsActive { get; set; } = true;
+    public bool IsActive { get => _isActive; init => _isActive = value; }
     public List<string> CounterTerminals { get; init; } = [];
+
+    public void Close() => _isActive = false;
+
+    public void Reopen() => _isActive = true;
 
     public bool IsOpen(DateTimeOffset currentTime)
     {
@@ -24,6 +30,9 @@ public class Branch : AggregateRoot<BranchCode>
         var time = TimeZoneInfo.ConvertTime(currentTime, TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId)).TimeOfDay;
         return time >= OpenTime && time <= CloseTime;
     }
+
+    public DateOnly LocalDate(DateTimeOffset moment) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(moment, TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId)).Date);
 
     public void EnsureAcceptsTransaction(DateTimeOffset currentTime)
     {
@@ -93,12 +102,16 @@ public class BranchStock : Entity<Guid>
 
 public class Staff : Entity<string>
 {
+    private bool _isActive = true;
+
     public required string Name { get; init; }
     public required string Email { get; init; }
     public required StaffRole Role { get; init; }
     public required BranchCode HomeBranchCode { get; init; }
-    public bool IsActive { get; set; } = true;
+    public bool IsActive { get => _isActive; init => _isActive = value; }
     public string? PasswordHash { get; init; }
+
+    public void Deactivate() => _isActive = false;
 
     public void EnsureCanTransact(BranchCode currentBranch)
     {
@@ -212,6 +225,9 @@ public class Transaction : AggregateRoot<Guid>
     [System.Text.Json.Serialization.JsonInclude]
     public string PaymentMethod { get; private set; } = "Pending";
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+
+    // The branch-local trading day, fixed at sale time so date reports stay SARGable and never drift.
+    public DateOnly BusinessDate { get; init; }
     [System.Text.Json.Serialization.JsonInclude]
     public string? VoidReason { get; private set; }
     [System.Text.Json.Serialization.JsonInclude]
@@ -222,6 +238,36 @@ public class Transaction : AggregateRoot<Guid>
     public Money SubTotal => LineItems.Aggregate(Money.Zero, (acc, item) => acc + item.TotalPrice);
     public Money TotalTax => LineItems.Aggregate(Money.Zero, (acc, item) => acc + item.TaxAmount);
     public Money GrandTotal => SubTotal + TotalTax;
+
+    // Restores saved state without replaying rules or raising events; only persistence mappers use this.
+    public static Transaction Rehydrate(
+        Guid id,
+        BranchCode branchCode,
+        string counterId,
+        string clerkStaffId,
+        TransactionStatus status,
+        IEnumerable<TransactionLineItem> lineItems,
+        string paymentMethod,
+        DateTimeOffset createdAt,
+        DateOnly businessDate,
+        string? voidReason,
+        string? voidedByManagerId,
+        bool inventoryRestocked) =>
+        new()
+        {
+            Id = id,
+            BranchCode = branchCode,
+            CounterId = counterId,
+            ClerkStaffId = clerkStaffId,
+            Status = status,
+            LineItems = [.. lineItems],
+            PaymentMethod = paymentMethod,
+            CreatedAt = createdAt,
+            BusinessDate = businessDate,
+            VoidReason = voidReason,
+            VoidedByManagerId = voidedByManagerId,
+            InventoryRestocked = inventoryRestocked
+        };
 
     public void AddLineItem(TransactionLineItem item)
     {

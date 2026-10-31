@@ -1,25 +1,38 @@
 # ApexPost Logistics Counter Platform
 
-ApexPost is a .NET 10 / C# 14 ASP.NET Core MVC counter platform for branch retail sales, shipping, money orders, identity checks, inventory, reporting, and audit. The solution uses a layered domain/application/infrastructure/web architecture. Persistence is asynchronous JSON behind repository interfaces; there is no database or ORM.
+ApexPost is a .NET 10 / C# 14 ASP.NET Core MVC counter platform for branch retail sales, shipping, money orders, identity checks, inventory, reporting, and audit. The solution uses a layered domain/application/infrastructure/web architecture. Data is stored in Microsoft SQL Server through EF Core 10, behind repository and query interfaces.
 
 ## Requirements and run
 
-1. Install the .NET 10 SDK.
-2. From the solution directory, set a partner API key (needed only for `/integration/parcel-status`):
+You need the .NET 10 SDK and a SQL Server you control. Everything here is free: SQL Server Developer or Express edition, or LocalDB on Windows, plus SSMS. Never use a shared training database.
+
+1. Restore the local `dotnet-ef` tool:
+
+```bash
+dotnet tool restore
+```
+
+2. Set the connection string for your server. It stays out of source control. On LocalDB, for example:
+
+```bash
+dotnet user-secrets set "ConnectionStrings:ApexPostDb" "Server=(localdb)\MSSQLLocalDB;Database=ApexPostDb;Trusted_Connection=True;TrustServerCertificate=True" --project ApexPost.Web
+```
+
+3. Create `ApexPostDb` and apply the migrations. Set `APEXPOST_DESIGN_CONNECTION` to the same connection string first, because design-time tools don't read user-secrets:
+
+```bash
+dotnet ef database update --project ApexPost.Infrastructure --startup-project ApexPost.Infrastructure
+```
+
+If you prefer SSMS, run `sql/schema/ApexPostDb-idempotent.sql` in an empty `ApexPostDb` instead.
+
+4. Set a partner API key (needed only for `/integration/parcel-status`):
 
 ```bash
 dotnet user-secrets set "Integration:ApiKey" "Choose-a-long-random-partner-key" --project ApexPost.Web
 ```
 
-3. Build, test and run:
-
-```bash
-dotnet build ApexPost.slnx
-```
-
-```bash
-dotnet test ApexPost.slnx
-```
+5. Run the app. In Development the first start seeds 5 branches, 20 staff, 30 products, 10 zones with 60 rates, and over 200 historical transactions. All of it is fictional.
 
 ```bash
 dotnet run --project ApexPost.Web --launch-profile https
@@ -27,7 +40,23 @@ dotnet run --project ApexPost.Web --launch-profile https
 
 Open the HTTPS URL it prints and sign in with an account below. Warnings fail the build through `Directory.Build.props`.
 
-Runtime data is written to `ApexPost.Web/App_Data` (ignored by Git) and survives clean and rebuild. To reset the demo, stop the app and delete that folder; the seed data then loads again.
+To regenerate the idempotent script after adding a migration:
+
+```bash
+dotnet ef migrations script --idempotent --project ApexPost.Infrastructure --startup-project ApexPost.Infrastructure -o sql/schema/ApexPostDb-idempotent.sql
+```
+
+### Tests
+
+```bash
+dotnet test ApexPost.slnx
+```
+
+This runs 144 tests with no database and reports 13 as skipped. To run those too, point this at a server you control. The tests create and drop their own disposable database and never touch `ApexPostDb`:
+
+```bash
+APEXPOST_TEST_SQLSERVER="Server=localhost;User Id=<user>;Password=<password>;TrustServerCertificate=True" dotnet test ApexPost.slnx
+```
 
 ### Web configuration reference
 
@@ -35,7 +64,8 @@ Most settings read by `ApexPost.Web` are declared in `ApexPost.Web/appsettings.j
 
 | Key | Checked-in default | Purpose |
 |---|---|---|
-| `Persistence:DataDirectory` | `App_Data` | Single folder for runtime JSON and the audit log, absolute or relative to the content root. |
+| `ConnectionStrings:ApexPostDb` | Not in source | SQL Server connection, set with user-secrets. |
+| `Database:SeedOnStartup` | `false` (`true` in Development) | Seeds an empty database on startup. It never creates or migrates the schema. |
 | `Inventory:LowStockThreshold` | `5` | Quantity at or below which a product counts as low stock. |
 | `Integration:ApiKey` | Empty | Single-partner API key, reported as partner `default`. |
 | `Integration:Partners:<PartnerId>:ApiKey` | `CourierA` shown with empty key | Per-partner API key; add one entry per integration partner. |
@@ -79,16 +109,17 @@ Branches enforce their real opening hours in their own time zone, so a sale outs
 - Administrator screens to add and edit branches (hours, time zone, terminals), close or reopen them, and add and edit products. Stock rows and the catalogue cache stay in step automatically.
 - A transactions screen where Branch Managers void or refund a paid sale, with a required reason.
 - Branch terminals, branch operating hours, staff roles, and administrator staff add/edit/deactivate with per-staff passwords. Staff uniqueness/branch rules and ID allocation live in an application service with process-local write serialization.
-- A branch-scoped product catalogue and inventory view; stock is updated atomically per JSON repository and cannot go negative.
-- A counter basket mixing retail lines, several shipments and several money orders with an identity check and payment, plus dedicated money order and identity verification screens. Parcel validation, shipping pricing and the identity threshold rule all apply. Checkout reserves stock, persists an open transaction marker, and compensates reservations if completion fails.
+- A branch-scoped product catalogue and inventory view; `rowversion` and a check constraint stop stock going negative.
+- A counter basket mixing retail lines, several shipments and several money orders with an identity check and payment, plus dedicated money order and identity verification screens. Parcel validation, shipping pricing and the identity threshold rule all apply. A sale commits its stock, transaction, lines and payment together, and two clerks selling the last unit get a 409 conflict rather than negative stock.
 - Identity verification uses a replaceable simulated format-check service; the clerk cannot mark a check successful. The interface retains only a masked document value and result, and the UI explains that no external identity provider is contacted.
-- Branch-manager stock adjustments require a quantity change and enumerated reason, enforce branch ownership and non-negative stock, and are included in the append-only audit log.
-- Voids and refunds restock retail items with per-stock-row idempotency markers so a partially completed reversal can resume without duplicating completed rows.
+- Branch-manager stock adjustments run through `usp_AdjustStock`, which writes `StockAdjustments` history. They require a quantity change and enumerated reason, enforce branch ownership and non-negative stock, and are included in the append-only audit log.
+- Voids and refunds restock retail items in the same commit as the status change.
 - Shipping label preview with the recipient address, ten data-backed destination zones and service levels. Parcels need dimensions and have service-level weight limits; letters are limited to 0.5 kg.
-- Reports with a date picker for daily retail/services sales (opening on the latest day with sales), low stock, shipping volumes, and an auditor-only money-order/identity-verification summary.
+- Set-based price revision by category, using `ExecuteUpdateAsync`.
+- Reports through query services and stored procedures, with a date picker for daily retail/services sales (opening on the latest day with sales), low stock, shipping volumes, and an auditor-only money-order/identity-verification summary.
 - Domain events for low stock, completed transactions, money orders, and void/refund notifications, shown on that branch's dashboard.
-- Append-only JSON Lines audit storage of business actions only (sales, money orders, identity checks, voids, refunds, stock, and staff, branch and product changes), including denied attempts, and `AUDIT-SAMPLE.json`. A failed audit write never fails the business action. Full document numbers, passwords, API keys, and card data are not written to audit entries.
-- Configurable shipping surcharge (`ShippingPricing:ParcelWeightSurchargePerKilogram`) and injectable shipping-pricing delegate; transaction status/payment state is verified to survive JSON reloads.
+- Audit storage in the `AuditEntries` table, committed separately from the sale, covering business actions only (sales, money orders, identity checks, voids, refunds, stock, and staff, branch and product changes), including denied attempts, and `AUDIT-SAMPLE.json`. A failed audit write never fails the business action. Full document numbers, passwords, API keys, and card data are not written to audit entries.
+- Configurable shipping surcharge (`ShippingPricing:ParcelWeightSurchargePerKilogram`) and injectable shipping-pricing delegate; transaction status and payment state are mapped to their own columns and tables.
 - Cookie authentication with staff, role, and branch claims; antiforgery on state-changing form posts.
 - More than 13 active middleware stages for security, request handling, routing, compression, rate limiting, and observability. The exact order is documented in `DESIGN.md`.
 
@@ -148,13 +179,11 @@ Shipping rates use configured zone multipliers and a tiered service-level base r
 
 ## Audit sample provenance
 
-`AUDIT-SAMPLE.json` holds real entries produced by the running app (a mixed sale, money order, identity check, stock adjustment, void, refund, staff, branch and product changes, and denied attempts), passed through the safe-field allowlist. To refresh it on Windows, run the app, perform audited actions, then:
+`AUDIT-SAMPLE.json` holds real entries captured from the running app in Week 2, passed through a safe-field allowlist. The filter and its fields are unchanged, but entries now go to `AuditEntries`. To refresh it from SQL Server:
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Export-AuditSample.ps1
+```bash
+sqlcmd -d ApexPostDb -Q "SELECT TOP (50) * FROM dbo.AuditEntries ORDER BY TimestampUtc DESC FOR JSON PATH"
 ```
-
-The default input is `ApexPost.Web\App_Data\audit-log.jsonl`. The exporter does not copy request bodies or free-form values.
 
 ## Git workflow
 
@@ -164,21 +193,33 @@ Example local sequence:
 
 ```powershell
 git switch -c feature/audit-sample-provenance
-git add README.md DESIGN.md tools/Export-AuditSample.ps1
+git add README.md DESIGN.md
 git commit -m "docs: make audit evidence reproducible"
 git push -u origin feature/audit-sample-provenance
 ```
 
+## Database artifacts
+
+| Path | Contents |
+|---|---|
+| `ApexPost.Infrastructure/Persistence/Migrations` | `InitialCreate`, `AddWorkloadIndexes`, `AddStoredProcedures`, `AddRemainingAuditColumns` |
+| `sql/schema` | Generated idempotent schema script |
+| `sql/procedures` | Stored procedures, with `CREATE OR ALTER` |
+| `sql/reports` | Reporting queries |
+| `sql/transactions` | Atomic sale in T-SQL, and the two-session blocking demo |
+| `sql/performance` | Volume generator and evidence scripts for `PERFORMANCE.md` |
+| `sql/security` | Least-privilege role |
+
 ## Seed data
 
-The included seed set contains five branches, twenty staff, thirty products, 150 branch/product stock records, ten shipping-zone rates, and forty paid historical transactions. Seed JSON files live in `ApexPost.Infrastructure/Data` and are copied read-only to the application output. Branch opening hours use the branch's configured timezone. Grant the running process write access to the data folder (`App_Data` by default). Repository locks and staff-write serialization are process-local: they prevent concurrent writes within one running instance, but do not provide cross-process coordination or multi-file crash atomicity. Run one instance for this JSON-persistence assignment; replace it with transactional storage before scaling writers.
+`DatabaseSeeder` adds the operational rows once, and migrations add reference data. Its source files in `ApexPost.Infrastructure/Data` hold five branches, twenty staff, thirty products and 150 stock rows, and it generates over 200 transactions deterministically, including voids and refunds.
 
 ## Solution layout
 
-- `ApexPost.Domain`: entities, rules, events, enums, value objects.
-- `ApexPost.Application`: repository contracts, use cases, reports, pricing abstractions.
-- `ApexPost.Infrastructure`: asynchronous JSON stores, simulated courier service, cache, notifications, event dispatch.
+- `ApexPost.Domain`: entities, rules, events, enums, value objects. It references nothing.
+- `ApexPost.Application`: repository, unit-of-work and query contracts, DTOs, use cases, pricing.
+- `ApexPost.Infrastructure`: EF Core DbContext, configurations, migrations, repositories, query services, simulated courier service, cache, notifications.
 - `ApexPost.Web`: MVC controllers/views, authentication, middleware, filters, composition root.
-- `ApexPost.Test`: 95 domain unit tests and WebApplicationFactory integration tests, run against a temporary data folder.
+- `ApexPost.Test`: unit, model, MVC and SQL Server integration tests.
 
-See `DESIGN.md` for the architecture/domain diagrams, middleware sequence, filters, ADRs, security decisions, and C# 14 feature rationale.
+See `DESIGN.md` for the architecture and ER diagrams, middleware sequence, filters, ADRs and security decisions, and `PERFORMANCE.md` for index evidence.

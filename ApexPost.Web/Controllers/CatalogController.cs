@@ -1,6 +1,4 @@
-using ApexPost.Application.Interfaces;
-using ApexPost.Application.Services;
-using ApexPost.Web.Models;
+using ApexPost.Application.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -10,13 +8,11 @@ namespace ApexPost.Web.Controllers;
 [Authorize]
 public class CatalogController : Controller
 {
-    private readonly ICatalogueService _catalogue;
-    private readonly InventoryService _inventory;
+    private readonly IScreenQueries _queries;
 
-    public CatalogController(ICatalogueService catalogue, InventoryService inventory)
+    public CatalogController(IScreenQueries queries)
     {
-        _catalogue = catalogue;
-        _inventory = inventory;
+        _queries = queries;
     }
 
     [HttpGet]
@@ -28,7 +24,6 @@ public class CatalogController : Controller
             return Forbid();
         }
 
-        var catalogue = await _inventory.GetBranchCatalogueAsync(_catalogue, branchCode, ct);
-        return View(catalogue.Select(item => new ProductStockViewModel(item.Product, item.QuantityOnHand)).ToList());
+        return View(await _queries.GetBranchCatalogueAsync(branchCode, ct));
     }
 }

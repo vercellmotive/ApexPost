@@ -1,4 +1,4 @@
-@model IReadOnlyList<ApexPost.Domain.Entities.Transaction>
+@model IReadOnlyList<ApexPost.Application.Queries.TransactionRowDto>
 @using ApexPost.Domain.Enums
 @{
     ViewData["Title"] = "Transactions";
@@ -21,8 +21,8 @@
                 <td>@transaction.CreatedAt.ToString("d MMM yyyy HH:mm")</td>
                 <td>@transaction.CounterId</td>
                 <td>@transaction.ClerkStaffId</td>
-                <td>@transaction.LineItems.Count</td>
-                <td>@transaction.GrandTotal.Amount.ToString("C")</td>
+                <td>@transaction.LineCount</td>
+                <td>@transaction.GrandTotal.ToString("C")</td>
                 <td>@transaction.PaymentMethod</td>
                 <td>@transaction.Status @if (transaction.VoidReason is not null) { <small class="text-muted d-block">@transaction.VoidReason</small> }</td>
                 @if (isManager)

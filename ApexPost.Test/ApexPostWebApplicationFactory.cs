@@ -1,13 +1,19 @@
+using ApexPost.Application.Interfaces;
+using ApexPost.Application.Queries;
+using ApexPost.Test.Fakes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace ApexPost.Test;
 
+// Runs the real pipeline, controllers and services over in-memory persistence, so these tests need no database.
 public class ApexPostWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly string _dataDirectory = Path.Combine(Path.GetTempPath(), $"apexpost-tests-{Guid.NewGuid():N}");
+    public InMemoryDatabase Database { get; } = InMemoryDatabase.FromSeed();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -21,24 +27,37 @@ public class ApexPostWebApplicationFactory : WebApplicationFactory<Program>
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Persistence:DataDirectory"] = _dataDirectory,
+                ["Database:SeedOnStartup"] = "false",
                 ["Integration:ApiKey"] = "test-integration-key",
                 ["Security:AllowedIps:0"] = "127.0.0.1",
                 ["Security:AllowedIps:1"] = "::1",
                 ["Security:AllowedIps:2"] = "127.0.0.25",
                 ["Security:AllowedIps:3"] = "127.0.0.30",
                 ["Security:AllowedIps:4"] = "127.0.0.40",
-                ["Security:AllowedIps:5"] = "127.0.0.60"
+                ["Security:AllowedIps:5"] = "127.0.0.60",
+                ["Security:AllowedIps:6"] = "127.0.0.61"
             });
+        });
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton(Database);
+            services.AddSingleton<IAuditStore, InMemoryAuditStore>();
+            services.AddScoped<InMemoryPersistence>();
+            services.AddScoped<IUnitOfWork>(Resolve);
+            services.AddScoped<IBranchRepository>(Resolve);
+            services.AddScoped<IStaffRepository>(Resolve);
+            services.AddScoped<IProductRepository>(Resolve);
+            services.AddScoped<IStockRepository>(Resolve);
+            services.AddScoped<ICounterTransactionRepository>(Resolve);
+            services.AddScoped<IShippingZoneRepository>(Resolve);
+            services.AddScoped<IStockAdjustmentCommand>(Resolve);
+            services.AddScoped<IPriceRevisionCommand>(Resolve);
+            services.AddScoped<IDashboardQueries>(Resolve);
+            services.AddScoped<IReportQueries>(Resolve);
+            services.AddScoped<IScreenQueries>(Resolve);
         });
     }
 
-    protected override void Dispose(bool disposing)
-    {
-        base.Dispose(disposing);
-        if (disposing && Directory.Exists(_dataDirectory))
-        {
-            Directory.Delete(_dataDirectory, recursive: true);
-        }
-    }
+    private static InMemoryPersistence Resolve(IServiceProvider provider) =>
+        provider.GetRequiredService<InMemoryPersistence>();
 }

@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using ApexPost.Application.Interfaces;
+using ApexPost.Application.Queries;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
 using Microsoft.AspNetCore.Hosting;
@@ -33,9 +35,9 @@ public sealed class RemarkFixIntegrationTests : IClassFixture<ApexPostWebApplica
     }
 
     [Fact]
-    public async Task SeedAndConfiguration_ContainHashesAndNoPlainPassword()
+    public void SeedAndConfiguration_ContainHashesAndNoPlainPassword()
     {
-        var staff = await _factory.Services.GetRequiredService<IRepository<Staff, string>>().GetAllAsync();
+        var staff = _factory.Database.AllStaff();
 
         Assert.All(staff, person => Assert.StartsWith("PBKDF2-SHA256$", person.PasswordHash));
         Assert.Equal(staff.Count, staff.Select(person => person.PasswordHash).Distinct().Count());
@@ -159,8 +161,7 @@ public sealed class RemarkFixIntegrationTests : IClassFixture<ApexPostWebApplica
             ["__RequestVerificationToken"] = closeToken
         }));
         Assert.Equal(HttpStatusCode.Redirect, close.StatusCode);
-        var branch = await _factory.Services.GetRequiredService<IRepository<Branch, BranchCode>>()
-            .GetByIdAsync(new BranchCode("B090"));
+        var branch = _factory.Database.BranchByCode("B090");
         Assert.Equal(["C01", "C02"], branch!.CounterTerminals);
         Assert.False(branch.IsActive);
 
@@ -178,8 +179,7 @@ public sealed class RemarkFixIntegrationTests : IClassFixture<ApexPostWebApplica
 
         var catalogue = await (await client.GetAsync("/Catalog")).Content.ReadAsStringAsync();
         Assert.Contains("Test Envelope", catalogue);
-        var stock = await _factory.Services.GetRequiredService<IRepository<BranchStock, Guid>>().GetAllAsync();
-        Assert.Contains(stock, item => item.BranchCode.Value == "B090" && item.ProductSku.Value == "SKU-900");
+        Assert.Equal(0, _factory.Database.StockOf("B090", "SKU-900"));
         var audit = await _factory.Services.GetRequiredService<IAuditStore>().GetAllAsync();
         Assert.Contains(audit, entry => entry.Parameters.Contains("\"businessAction\":\"ProductCreate\"", StringComparison.Ordinal));
     }
@@ -209,7 +209,7 @@ public sealed class RemarkFixIntegrationTests : IClassFixture<ApexPostWebApplica
     {
         var logs = new CapturingLoggerProvider();
         using var factory = new OverridingFactory(
-            services => services.AddSingleton<ICatalogueService, ThrowingCatalogueService>(),
+            services => services.AddScoped(_ => DispatchProxy.Create<IScreenQueries, ThrowingProxy>()),
             logs);
         var client = CreateClient(factory);
         Assert.Equal(HttpStatusCode.Redirect, await LoginAsync(client, "kara@apexpost.com", "Apex-Kara-2026!"));
@@ -271,23 +271,11 @@ public sealed class RemarkFixIntegrationTests : IClassFixture<ApexPostWebApplica
     {
         var client = CreateClient(_factory);
         Assert.Equal(HttpStatusCode.Redirect, await LoginAsync(client, "noah@apexpost.com", "Apex-Noah-2026!"));
-        var branches = _factory.Services.GetRequiredService<IRepository<Branch, BranchCode>>();
-        var original = await branches.GetByIdAsync(new BranchCode("B005"));
-        await branches.SaveAsync(new Branch
-        {
-            Id = original!.Id,
-            Name = original.Name,
-            Region = original.Region,
-            TimeZoneId = "UTC",
-            OpenTime = TimeSpan.Zero,
-            CloseTime = new TimeSpan(23, 59, 59),
-            CounterTerminals = original.CounterTerminals
-        });
         var token = await GetTokenAsync(client, "/Services/IdentityVerification");
 
         var response = await client.PostAsync("/Services/IdentityVerification", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["CounterId"] = original.CounterTerminals[0],
+            ["CounterId"] = _factory.Database.BranchByCode("B005").CounterTerminals[0],
             ["DocumentType"] = "Passport",
             ["DocumentNumber"] = "A123456789",
             ["__RequestVerificationToken"] = token
@@ -391,12 +379,9 @@ public sealed class RemarkFixIntegrationTests : IClassFixture<ApexPostWebApplica
             Task.FromResult<IReadOnlyList<AuditEntry>>([]);
     }
 
-    private sealed class ThrowingCatalogueService : ICatalogueService
+    public class ThrowingProxy : DispatchProxy
     {
-        public ValueTask<IReadOnlyList<Product>> GetProductsAsync(CancellationToken ct = default) =>
-            throw new InvalidOperationException("Simulated catalogue failure.");
-
-        public ValueTask<Product?> GetProductBySkuAsync(Sku sku, CancellationToken ct = default) =>
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
             throw new InvalidOperationException("Simulated catalogue failure.");
     }
 

@@ -30,19 +30,28 @@ public sealed class GlobalExceptionMiddleware
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Unhandled exception processing {Method} {Path}.", context.Request.Method, context.Request.Path);
+            var (status, title, detail) = ProblemMapping.For(exception);
+            if (status == StatusCodes.Status500InternalServerError)
+            {
+                _logger.LogError(exception, "Unhandled exception processing {Method} {Path}.", context.Request.Method, context.Request.Path);
+            }
+            else
+            {
+                _logger.LogWarning("Request {Method} {Path} failed with {StatusCode}: {Title}", context.Request.Method, context.Request.Path, status, title);
+            }
+
             if (context.Response.HasStarted)
             {
                 throw;
             }
 
             context.Response.Clear();
-            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.StatusCode = status;
             var problem = new ProblemDetails
             {
-                Status = StatusCodes.Status500InternalServerError,
-                Title = "An unexpected error occurred.",
-                Detail = "The request could not be completed. Use the trace ID when contacting support."
+                Status = status,
+                Title = title,
+                Detail = detail
             };
             problem.Extensions["traceId"] = context.Items["CorrelationId"] as string ?? context.TraceIdentifier;
             context.Response.ContentType = "application/problem+json";

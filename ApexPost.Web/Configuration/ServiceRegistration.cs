@@ -148,16 +148,18 @@ public static class ServiceRegistration
         services.AddSingleton(provider =>
             new LowStockRule(provider.GetRequiredService<IOptions<InventoryOptions>>().Value.LowStockThreshold));
 
-        services.AddSingleton<IShippingZoneLookup, CachedShippingZoneLookup>();
-        services.AddSingleton<ICourierRateService>(provider =>
-        {
-            var options = provider.GetRequiredService<IOptions<CourierRatesOptions>>().Value;
-            return new SimulatedCourierRateService(
-                provider.GetRequiredService<IPricingStrategy>(),
-                provider.GetRequiredService<IShippingZoneLookup>(),
-                options.MaxConcurrentRequests,
-                TimeSpan.FromMilliseconds(options.SimulatedDelayMs));
-        });
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser, HttpCurrentUser>();
+        services.AddHostedService<DatabaseSeedingHostedService>();
+
+        services.AddScoped<IShippingZoneLookup, CachedShippingZoneLookup>();
+        services.AddSingleton(provider => new CourierRateGate(
+            provider.GetRequiredService<IOptions<CourierRatesOptions>>().Value.MaxConcurrentRequests));
+        services.AddScoped<ICourierRateService>(provider => new SimulatedCourierRateService(
+            provider.GetRequiredService<IPricingStrategy>(),
+            provider.GetRequiredService<IShippingZoneLookup>(),
+            provider.GetRequiredService<CourierRateGate>(),
+            TimeSpan.FromMilliseconds(provider.GetRequiredService<IOptions<CourierRatesOptions>>().Value.SimulatedDelayMs)));
         services.AddSingleton<ICourierTrackingService>(provider =>
         {
             var options = provider.GetRequiredService<IOptions<CourierTrackingOptions>>().Value;
@@ -172,18 +174,18 @@ public static class ServiceRegistration
                 TieredShippingPricingStrategy.CalculateDefaultPrice(details, zoneMultiplier, surcharge));
         });
 
-        services.AddSingleton<ProductCatalogueService>();
-        services.AddSingleton<ICatalogueService>(provider => provider.GetRequiredService<ProductCatalogueService>());
-        services.AddSingleton<ICatalogueCache>(provider => provider.GetRequiredService<ProductCatalogueService>());
+        // A scoped DbContext sits behind every command service, so they must be scoped too.
+        services.AddScoped<ProductCatalogueService>();
+        services.AddScoped<ICatalogueService>(provider => provider.GetRequiredService<ProductCatalogueService>());
+        services.AddScoped<ICatalogueCache>(provider => provider.GetRequiredService<ProductCatalogueService>());
 
         services.AddScoped<DashboardService>();
-        services.AddScoped<ReportingService>();
         services.AddScoped<TransactionService>();
         services.AddScoped<InventoryService>();
         services.AddScoped<StaffAuthenticationService>();
-        services.AddSingleton<StaffManagementService>();
-        services.AddSingleton<BranchManagementService>();
-        services.AddSingleton<ProductManagementService>();
+        services.AddScoped<StaffManagementService>();
+        services.AddScoped<BranchManagementService>();
+        services.AddScoped<ProductManagementService>();
         return services;
     }
 

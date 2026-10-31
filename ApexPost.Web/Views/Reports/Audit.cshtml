@@ -1,4 +1,4 @@
-@model IReadOnlyList<(string Branch, int MoneyOrders, int IdentityVerifications)>
+@model IReadOnlyList<ApexPost.Application.Queries.MoneyOrderAuditRowDto>
 @{
     ViewData["Title"] = "Financial audit";
 }
@@ -16,7 +16,7 @@
         @foreach (var row in Model)
         {
             <tr>
-                <td>@row.Branch</td>
+                <td>@row.BranchCode</td>
                 <td>@row.MoneyOrders</td>
                 <td>@row.IdentityVerifications</td>
             </tr>

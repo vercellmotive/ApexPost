@@ -1,4 +1,4 @@
-@model IReadOnlyList<ApexPost.Domain.Entities.Branch>
+@model IReadOnlyList<ApexPost.Application.Queries.BranchRowDto>
 @{
     ViewData["Title"] = "Branches";
 }
@@ -17,7 +17,7 @@
         @foreach (var branch in Model)
         {
             <tr>
-                <td>@branch.Id.Value</td>
+                <td>@branch.Code</td>
                 <td>@branch.Name</td>
                 <td>@branch.Region</td>
                 <td>@branch.OpenTime.ToString(@"hh\:mm")–@branch.CloseTime.ToString(@"hh\:mm")</td>
@@ -25,8 +25,8 @@
                 <td>@string.Join(", ", branch.CounterTerminals)</td>
                 <td>@(branch.IsActive ? "Active" : "Closed")</td>
                 <td>
-                    <a asp-action="Edit" asp-route-id="@branch.Id.Value">Edit</a>
-                    <form asp-action="SetStatus" asp-route-id="@branch.Id.Value" method="post" class="d-inline">
+                    <a asp-action="Edit" asp-route-id="@branch.Code">Edit</a>
+                    <form asp-action="SetStatus" asp-route-id="@branch.Code" method="post" class="d-inline">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="isActive" value="@((!branch.IsActive).ToString().ToLowerInvariant())" />
                         <button type="submit" class="btn btn-link">@(branch.IsActive ? "Close" : "Reopen")</button>

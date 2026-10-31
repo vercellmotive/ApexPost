@@ -4,7 +4,10 @@ using ApexPost.Domain.Enums;
 using ApexPost.Domain.ValueObjects;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 using ApexPost.Web.Attributes;
+using ApexPost.Web.Filters;
+using ApexPost.Web.Models;
 using System.Security.Claims;
 
 namespace ApexPost.Web.Controllers;
@@ -22,16 +25,11 @@ public sealed class StockController : Controller
     [HttpPost]
     [AuditedAction("StockAdjustment")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Adjust(
-        string productSku,
-        int quantityDelta,
-        StockAdjustmentReason reasonCode,
-        CancellationToken ct)
+    public async Task<IActionResult> Adjust(StockAdjustmentRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(productSku))
-        {
-            return BadRequest("A product SKU is required.");
-        }
+        HttpContext.AddAuditDetail("productSku", request.ProductSku);
+        HttpContext.AddAuditDetail("quantityDelta", request.QuantityDelta.ToString(CultureInfo.InvariantCulture));
+        HttpContext.AddAuditDetail("reasonCode", request.ReasonCode.ToString());
 
         var staffId = User.FindFirstValue("StaffId");
         var branchCode = User.FindFirstValue("BranchCode");
@@ -45,11 +43,11 @@ public sealed class StockController : Controller
             await _inventory.AdjustStockAsync(
                 staffId,
                 new BranchCode(branchCode),
-                new Sku(productSku.Trim()),
-                quantityDelta,
-                reasonCode,
+                new Sku(request.ProductSku),
+                request.QuantityDelta,
+                request.ReasonCode,
                 ct);
-            TempData["Success"] = $"Stock for {productSku} was adjusted.";
+            TempData["Success"] = $"Stock for {request.ProductSku} was adjusted.";
             return RedirectToAction("Index", "Catalog");
         }
         catch (UnauthorizedDomainActionException)

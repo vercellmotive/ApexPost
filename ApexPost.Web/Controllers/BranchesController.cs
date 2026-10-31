@@ -1,3 +1,4 @@
+using ApexPost.Application.Queries;
 using ApexPost.Application.Services;
 using ApexPost.Domain.Common;
 using ApexPost.Web.Attributes;
@@ -13,16 +14,18 @@ namespace ApexPost.Web.Controllers;
 public sealed class BranchesController : Controller, IRepopulatesForm
 {
     private readonly BranchManagementService _branches;
+    private readonly IScreenQueries _queries;
 
-    public BranchesController(BranchManagementService branches)
+    public BranchesController(BranchManagementService branches, IScreenQueries queries)
     {
         _branches = branches;
+        _queries = queries;
     }
 
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        return View(await _branches.GetAllAsync(ct));
+        return View(await _queries.GetBranchesAsync(ct));
     }
 
     [HttpGet]
@@ -53,7 +56,7 @@ public sealed class BranchesController : Controller, IRepopulatesForm
     [HttpGet]
     public async Task<IActionResult> Edit(string id, CancellationToken ct)
     {
-        var branch = await _branches.GetByCodeAsync(id, ct);
+        var branch = await _queries.GetBranchAsync(id, ct);
         if (branch is null)
         {
             return NotFound();
@@ -62,7 +65,7 @@ public sealed class BranchesController : Controller, IRepopulatesForm
         return View("Form", new BranchFormViewModel
         {
             IsExisting = true,
-            Code = branch.Id.Value,
+            Code = branch.Code,
             Name = branch.Name,
             Region = branch.Region,
             OpenTime = branch.OpenTime,
@@ -76,7 +79,7 @@ public sealed class BranchesController : Controller, IRepopulatesForm
     [ValidateAntiForgeryToken]
     [RedisplayOnInvalid("Form")]
     [AuditedAction("BranchUpdate")]
-    public async Task<IActionResult> Edit(string id, BranchFormViewModel model, CancellationToken ct)
+    public async Task<IActionResult> Edit([FromRoute] string id, BranchFormViewModel model, CancellationToken ct)
     {
         model.IsExisting = true;
         model.Code = id;
@@ -100,12 +103,12 @@ public sealed class BranchesController : Controller, IRepopulatesForm
     [HttpPost]
     [ValidateAntiForgeryToken]
     [AuditedAction("BranchStatusChange")]
-    public async Task<IActionResult> SetStatus(string id, bool isActive, CancellationToken ct)
+    public async Task<IActionResult> SetStatus([FromRoute] string id, BranchStatusRequest request, CancellationToken ct)
     {
         try
         {
-            await _branches.SetActiveAsync(id, isActive, ct);
-            TempData["Success"] = isActive ? "Branch reopened." : "Branch closed.";
+            await _branches.SetActiveAsync(id, request.IsActive, ct);
+            TempData["Success"] = request.IsActive ? "Branch reopened." : "Branch closed.";
             return RedirectToAction(nameof(Index));
         }
         catch (KeyNotFoundException)

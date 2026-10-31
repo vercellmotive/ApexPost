@@ -25,86 +25,74 @@ public sealed record ProductRecordInput(
 
 public sealed partial class BranchManagementService
 {
-    private readonly IRepository<Branch, BranchCode> _branches;
-    private readonly IRepository<BranchStock, Guid> _stocks;
-    private readonly IRepository<Product, Sku> _products;
-    private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private readonly IBranchRepository _branches;
+    private readonly IStockRepository _stocks;
+    private readonly IProductRepository _products;
+    private readonly IUnitOfWork _unitOfWork;
 
     public BranchManagementService(
-        IRepository<Branch, BranchCode> branches,
-        IRepository<BranchStock, Guid> stocks,
-        IRepository<Product, Sku> products)
+        IBranchRepository branches,
+        IStockRepository stocks,
+        IProductRepository products,
+        IUnitOfWork unitOfWork)
     {
         _branches = branches;
         _stocks = stocks;
         _products = products;
+        _unitOfWork = unitOfWork;
     }
-
-    public async Task<IReadOnlyList<Branch>> GetAllAsync(CancellationToken ct = default) =>
-        (await _branches.GetAllAsync(ct)).OrderBy(branch => branch.Id.Value).ToList();
-
-    public Task<Branch?> GetByCodeAsync(string code, CancellationToken ct = default) =>
-        _branches.GetByIdAsync(new BranchCode(code), ct);
 
     public async Task<Branch> CreateAsync(BranchRecordInput input, CancellationToken ct = default)
     {
-        await _writeGate.WaitAsync(ct);
-        try
+        var code = input.Code.Trim().ToUpperInvariant();
+        if (!BranchCodeFormat().IsMatch(code))
         {
-            var code = input.Code.Trim().ToUpperInvariant();
-            if (!BranchCodeFormat().IsMatch(code))
-            {
-                throw new DomainValidationException("Branch codes must look like B006.");
-            }
-
-            if (await _branches.GetByIdAsync(new BranchCode(code), ct) is not null)
-            {
-                throw new DomainValidationException($"Branch {code} already exists.");
-            }
-
-            var branch = Build(code, input, isActive: true);
-            await _branches.SaveAsync(branch, ct);
-
-            // A new branch starts with an empty stock row per product, so stock adjustments work immediately.
-            foreach (var product in await _products.GetAllAsync(ct))
-            {
-                await _stocks.SaveAsync(
-                    new BranchStock { Id = Guid.NewGuid(), BranchCode = branch.Id, ProductSku = product.Id },
-                    ct);
-            }
-
-            return branch;
+            throw new DomainValidationException("Branch codes must look like B006.");
         }
-        finally
+
+        if (await _branches.GetByCodeAsync(new BranchCode(code), ct) is not null)
         {
-            _writeGate.Release();
+            throw new DomainValidationException($"Branch {code} already exists.");
         }
+
+        var branch = Build(code, input, isActive: true);
+        _branches.Add(branch);
+
+        // A new branch starts with an empty stock row per product, so stock adjustments work immediately.
+        foreach (var product in await _products.GetAllAsync(ct))
+        {
+            _stocks.Add(new BranchStock { Id = Guid.NewGuid(), BranchCode = branch.Id, ProductSku = product.Id });
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+        return branch;
     }
 
     public async Task<Branch> UpdateAsync(string code, BranchRecordInput input, CancellationToken ct = default)
     {
-        await _writeGate.WaitAsync(ct);
-        try
-        {
-            var existing = await _branches.GetByIdAsync(new BranchCode(code), ct)
-                ?? throw new KeyNotFoundException($"Branch {code} was not found.");
-            var updated = Build(existing.Id.Value, input, existing.IsActive);
-            await _branches.SaveAsync(updated, ct);
-            return updated;
-        }
-        finally
-        {
-            _writeGate.Release();
-        }
+        var existing = await _branches.GetByCodeAsync(new BranchCode(code), ct)
+            ?? throw new KeyNotFoundException($"Branch {code} was not found.");
+        var updated = Build(existing.Id.Value, input, existing.IsActive);
+        _branches.Update(updated);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return updated;
     }
 
     public async Task SetActiveAsync(string code, bool isActive, CancellationToken ct = default)
     {
-        var updated = await _branches.UpdateAsync(new BranchCode(code), branch => branch.IsActive = isActive, ct);
-        if (updated is null)
+        var existing = await _branches.GetByCodeAsync(new BranchCode(code), ct)
+            ?? throw new KeyNotFoundException($"Branch {code} was not found.");
+        if (isActive)
         {
-            throw new KeyNotFoundException($"Branch {code} was not found.");
+            existing.Reopen();
         }
+        else
+        {
+            existing.Close();
+        }
+
+        _branches.Update(existing);
+        await _unitOfWork.SaveChangesAsync(ct);
     }
 
     private static Branch Build(string code, BranchRecordInput input, bool isActive)
@@ -157,82 +145,82 @@ public sealed partial class BranchManagementService
 
 public sealed partial class ProductManagementService
 {
-    private readonly IRepository<Product, Sku> _products;
-    private readonly IRepository<BranchStock, Guid> _stocks;
-    private readonly IRepository<Branch, BranchCode> _branches;
+    private readonly IProductRepository _products;
+    private readonly IStockRepository _stocks;
+    private readonly IBranchRepository _branches;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IPriceRevisionCommand _priceRevision;
     private readonly ICatalogueCache _catalogueCache;
-    private readonly SemaphoreSlim _writeGate = new(1, 1);
 
     public ProductManagementService(
-        IRepository<Product, Sku> products,
-        IRepository<BranchStock, Guid> stocks,
-        IRepository<Branch, BranchCode> branches,
+        IProductRepository products,
+        IStockRepository stocks,
+        IBranchRepository branches,
+        IUnitOfWork unitOfWork,
+        IPriceRevisionCommand priceRevision,
         ICatalogueCache catalogueCache)
     {
         _products = products;
         _stocks = stocks;
         _branches = branches;
+        _unitOfWork = unitOfWork;
+        _priceRevision = priceRevision;
         _catalogueCache = catalogueCache;
     }
 
-    public async Task<IReadOnlyList<Product>> GetAllAsync(CancellationToken ct = default) =>
-        (await _products.GetAllAsync(ct)).OrderBy(product => product.Id.Value).ToList();
-
-    public Task<Product?> GetBySkuAsync(string sku, CancellationToken ct = default) =>
-        _products.GetByIdAsync(new Sku(sku), ct);
-
     public async Task<Product> CreateAsync(ProductRecordInput input, CancellationToken ct = default)
     {
-        await _writeGate.WaitAsync(ct);
-        try
+        var sku = input.Sku.Trim().ToUpperInvariant();
+        if (!SkuFormat().IsMatch(sku))
         {
-            var sku = input.Sku.Trim().ToUpperInvariant();
-            if (!SkuFormat().IsMatch(sku))
-            {
-                throw new DomainValidationException("SKUs must look like SKU-031.");
-            }
-
-            if (await _products.GetByIdAsync(new Sku(sku), ct) is not null)
-            {
-                throw new DomainValidationException($"Product {sku} already exists.");
-            }
-
-            var product = Build(sku, input);
-            await _products.SaveAsync(product, ct);
-
-            // Every branch gets a zero-quantity row, so the product can be stocked with a normal adjustment.
-            foreach (var branch in await _branches.GetAllAsync(ct))
-            {
-                await _stocks.SaveAsync(
-                    new BranchStock { Id = Guid.NewGuid(), BranchCode = branch.Id, ProductSku = product.Id },
-                    ct);
-            }
-
-            _catalogueCache.Invalidate();
-            return product;
+            throw new DomainValidationException("SKUs must look like SKU-031.");
         }
-        finally
+
+        if (await _products.GetBySkuAsync(new Sku(sku), ct) is not null)
         {
-            _writeGate.Release();
+            throw new DomainValidationException($"Product {sku} already exists.");
         }
+
+        var product = Build(sku, input);
+        _products.Add(product);
+
+        // Every branch gets a zero-quantity row, so the product can be stocked with a normal adjustment.
+        foreach (var branch in await _branches.GetAllAsync(ct))
+        {
+            _stocks.Add(new BranchStock { Id = Guid.NewGuid(), BranchCode = branch.Id, ProductSku = product.Id });
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+        _catalogueCache.Invalidate();
+        return product;
     }
 
     public async Task<Product> UpdateAsync(string sku, ProductRecordInput input, CancellationToken ct = default)
     {
-        await _writeGate.WaitAsync(ct);
-        try
+        var existing = await _products.GetBySkuAsync(new Sku(sku), ct)
+            ?? throw new KeyNotFoundException($"Product {sku} was not found.");
+        var updated = Build(existing.Id.Value, input);
+        _products.Update(updated);
+        await _unitOfWork.SaveChangesAsync(ct);
+        _catalogueCache.Invalidate();
+        return updated;
+    }
+
+    public async Task<int> RevisePricesAsync(string category, decimal percentChange, CancellationToken ct = default)
+    {
+        if (!ProductCategories.IsSupported(category))
         {
-            var existing = await _products.GetByIdAsync(new Sku(sku), ct)
-                ?? throw new KeyNotFoundException($"Product {sku} was not found.");
-            var updated = Build(existing.Id.Value, input);
-            await _products.SaveAsync(updated, ct);
-            _catalogueCache.Invalidate();
-            return updated;
+            throw new DomainValidationException("Select a valid product category.");
         }
-        finally
+
+        if (percentChange is 0 or <= -100 or > 100)
         {
-            _writeGate.Release();
+            throw new DomainValidationException("The price change must be non-zero, above -100% and at most 100%.");
         }
+
+        var revised = await _priceRevision.ReviseByCategoryAsync(category, percentChange, ct);
+        _catalogueCache.Invalidate();
+        return revised;
     }
 
     private static Product Build(string sku, ProductRecordInput input)

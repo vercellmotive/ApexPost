@@ -4,6 +4,7 @@ using ApexPost.Domain.Common;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.Enums;
 using ApexPost.Domain.ValueObjects;
+using ApexPost.Test.Fakes;
 
 namespace ApexPost.Test;
 
@@ -13,7 +14,7 @@ public sealed class StaffManagementServiceTests
     public async Task CreateNormalizesValuesAndAssignsNextStaffId()
     {
         var existing = CreateStaff("STF009", "existing@example.test");
-        var staff = new MemoryRepository<Staff, string>([existing]);
+        var staff = CreateDatabase([existing]);
         var service = CreateService(staff);
 
         var created = await service.CreateAsync(new StaffRecordInput(
@@ -31,7 +32,7 @@ public sealed class StaffManagementServiceTests
     [Fact]
     public async Task CreateRejectsDuplicateEmailIgnoringCase()
     {
-        var service = CreateService(new MemoryRepository<Staff, string>(
+        var service = CreateService(CreateDatabase(
             [CreateStaff("STF001", "clerk@example.test")]));
 
         await Assert.ThrowsAsync<DomainValidationException>(() =>
@@ -43,27 +44,25 @@ public sealed class StaffManagementServiceTests
     }
 
     [Fact]
-    public async Task ConcurrentCreatesDoNotAssignDuplicateIdsOrEmails()
+    public async Task CreateCommitsOnceAndAssignsADistinctId()
     {
-        var staff = new MemoryRepository<Staff, string>([CreateStaff("STF001", "existing@example.test")]);
-        var service = CreateService(staff);
-        var input = new StaffRecordInput("New Clerk", "new@example.test", StaffRole.CounterClerk, "B001");
+        var staff = CreateDatabase([CreateStaff("STF001", "existing@example.test")]);
+        var persistence = new InMemoryPersistence(staff);
+        var service = new StaffManagementService(persistence, persistence, persistence, new FakePasswordHasher());
 
-        var outcomes = await Task.WhenAll(
-            CreateAndCaptureAsync(service, input),
-            CreateAndCaptureAsync(service, input));
+        var created = await service.CreateAsync(new StaffRecordInput("New Clerk", "new@example.test", StaffRole.CounterClerk, "B001"));
 
-        Assert.Single(outcomes.OfType<Staff>());
-        Assert.Single(outcomes.OfType<DomainValidationException>());
-        Assert.Equal(2, (await staff.GetAllAsync()).Select(person => person.Id).Distinct().Count());
+        Assert.Equal(1, persistence.CommitCount);
+        Assert.Equal(2, staff.AllStaff().Select(person => person.Id).Distinct().Count());
+        Assert.Equal(created.Id, staff.StaffById(created.Id).Id);
     }
 
     [Fact]
     public async Task UpdatePreservesInactiveStatusAndDeactivateRejectsUnknownStaff()
     {
         var existing = CreateStaff("STF001", "old@example.test");
-        existing.IsActive = false;
-        var staff = new MemoryRepository<Staff, string>([existing]);
+        existing.Deactivate();
+        var staff = CreateDatabase([existing]);
         var service = CreateService(staff);
 
         var updated = await service.UpdateAsync(
@@ -80,7 +79,7 @@ public sealed class StaffManagementServiceTests
     [Fact]
     public async Task CreateRejectsUnknownBranchAndUndefinedRole()
     {
-        var service = CreateService(new MemoryRepository<Staff, string>());
+        var service = CreateService(CreateDatabase());
 
         await Assert.ThrowsAsync<DomainValidationException>(() =>
             service.CreateAsync(new StaffRecordInput(
@@ -96,32 +95,30 @@ public sealed class StaffManagementServiceTests
                 "B001")));
     }
 
-    private static async Task<object> CreateAndCaptureAsync(
-        StaffManagementService service,
-        StaffRecordInput input)
+    private static StaffManagementService CreateService(InMemoryDatabase staff)
     {
-        try
-        {
-            return await service.CreateAsync(input);
-        }
-        catch (DomainValidationException exception)
-        {
-            return exception;
-        }
+        var persistence = new InMemoryPersistence(staff);
+        return new StaffManagementService(persistence, persistence, persistence, new FakePasswordHasher());
     }
 
-    private static StaffManagementService CreateService(MemoryRepository<Staff, string> staff) =>
-        new(staff, new MemoryRepository<Branch, BranchCode>(
-        [
-            new Branch
-            {
-                Id = new BranchCode("B001"),
-                Name = "Test Branch",
-                Region = "NSW",
-                OpenTime = TimeSpan.Zero,
-                CloseTime = TimeSpan.FromHours(23)
-            }
-        ]), new FakePasswordHasher());
+    private static InMemoryDatabase CreateDatabase(IEnumerable<Staff>? staff = null)
+    {
+        var database = InMemoryDatabase.Empty();
+        database.AddBranch(new Branch
+        {
+            Id = new BranchCode("B001"),
+            Name = "Test Branch",
+            Region = "NSW",
+            OpenTime = TimeSpan.Zero,
+            CloseTime = TimeSpan.FromHours(23)
+        });
+        foreach (var person in staff ?? [])
+        {
+            database.AddStaff(person);
+        }
+
+        return database;
+    }
 
     private static Staff CreateStaff(string id, string email) => new()
     {
@@ -131,60 +128,6 @@ public sealed class StaffManagementServiceTests
         Role = StaffRole.CounterClerk,
         HomeBranchCode = new BranchCode("B001")
     };
-
-    private sealed class MemoryRepository<T, TId>(IEnumerable<T>? initial = null) : IRepository<T, TId>
-        where T : Entity<TId>
-        where TId : notnull
-    {
-        private readonly List<T> _items = initial?.ToList() ?? [];
-
-        public Task<IReadOnlyList<T>> GetAllAsync(CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-            return Task.FromResult<IReadOnlyList<T>>(_items.ToList());
-        }
-
-        public Task<T?> GetByIdAsync(TId id, CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-            return Task.FromResult(_items.FirstOrDefault(item => EqualityComparer<TId>.Default.Equals(item.Id, id)));
-        }
-
-        public Task<T?> UpdateAsync(TId id, Action<T> update, CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-            var item = _items.FirstOrDefault(value => EqualityComparer<TId>.Default.Equals(value.Id, id));
-            if (item is not null)
-            {
-                update(item);
-            }
-
-            return Task.FromResult(item);
-        }
-
-        public Task SaveAsync(T entity, CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-            var existingIndex = _items.FindIndex(item => EqualityComparer<TId>.Default.Equals(item.Id, entity.Id));
-            if (existingIndex < 0)
-            {
-                _items.Add(entity);
-            }
-            else
-            {
-                _items[existingIndex] = entity;
-            }
-
-            return Task.CompletedTask;
-        }
-
-        public Task DeleteAsync(TId id, CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-            _items.RemoveAll(item => EqualityComparer<TId>.Default.Equals(item.Id, id));
-            return Task.CompletedTask;
-        }
-    }
 
     private sealed class FakePasswordHasher : IPasswordHasher
     {

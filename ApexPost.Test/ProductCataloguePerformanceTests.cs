@@ -70,7 +70,7 @@ public sealed class ProductCataloguePerformanceTests
             uncachedTimer.Elapsed.TotalMilliseconds);
     }
 
-    private sealed class CountingProductRepository(IReadOnlyList<Product> products) : IRepository<Product, ApexPost.Domain.ValueObjects.Sku>
+    private sealed class CountingProductRepository(IReadOnlyList<Product> products) : IProductRepository
     {
         private int _loadCount;
 
@@ -83,14 +83,15 @@ public sealed class ProductCataloguePerformanceTests
             return Task.FromResult(products);
         }
 
-        public Task<Product?> GetByIdAsync(ApexPost.Domain.ValueObjects.Sku id, CancellationToken ct = default) =>
-            Task.FromResult(products.FirstOrDefault(product => product.Id == id));
+        public Task<Product?> GetBySkuAsync(ApexPost.Domain.ValueObjects.Sku sku, CancellationToken ct = default) =>
+            Task.FromResult(products.FirstOrDefault(product => product.Id == sku));
 
-        public Task<Product?> UpdateAsync(ApexPost.Domain.ValueObjects.Sku id, Action<Product> update, CancellationToken ct = default) =>
-            Task.FromResult<Product?>(null);
+        public void Add(Product product)
+        {
+        }
 
-        public Task SaveAsync(Product entity, CancellationToken ct = default) => Task.CompletedTask;
-
-        public Task DeleteAsync(ApexPost.Domain.ValueObjects.Sku id, CancellationToken ct = default) => Task.CompletedTask;
+        public void Update(Product product)
+        {
+        }
     }
 }

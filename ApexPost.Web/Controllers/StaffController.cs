@@ -1,3 +1,4 @@
+using ApexPost.Application.Queries;
 using ApexPost.Application.Services;
 using ApexPost.Domain.Common;
 using ApexPost.Web.Attributes;
@@ -13,16 +14,18 @@ namespace ApexPost.Web.Controllers;
 public sealed class StaffController : Controller, IRepopulatesForm
 {
     private readonly StaffManagementService _staff;
+    private readonly IScreenQueries _queries;
 
-    public StaffController(StaffManagementService staff)
+    public StaffController(StaffManagementService staff, IScreenQueries queries)
     {
         _staff = staff;
+        _queries = queries;
     }
 
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        return View(await _staff.GetAllAsync(ct));
+        return View(await _queries.GetStaffAsync(ct));
     }
 
     [HttpGet]
@@ -56,7 +59,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
     [HttpGet]
     public async Task<IActionResult> Edit(string id, CancellationToken ct)
     {
-        var person = await _staff.GetByIdAsync(id, ct);
+        var person = await _queries.GetStaffMemberAsync(id, ct);
         if (person is null)
         {
             return NotFound();
@@ -69,7 +72,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
             Name = person.Name,
             Email = person.Email,
             Role = person.Role,
-            HomeBranchCode = person.HomeBranchCode.Value
+            HomeBranchCode = person.HomeBranchCode
         });
     }
 
@@ -77,7 +80,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
     [ValidateAntiForgeryToken]
     [RedisplayOnInvalid("Form")]
     [AuditedAction("StaffUpdate")]
-    public async Task<IActionResult> Edit(string id, StaffFormViewModel model, CancellationToken ct)
+    public async Task<IActionResult> Edit([FromRoute] string id, StaffFormViewModel model, CancellationToken ct)
     {
         try
         {
@@ -100,7 +103,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
     [HttpPost]
     [ValidateAntiForgeryToken]
     [AuditedAction("StaffDeactivate")]
-    public async Task<IActionResult> Deactivate(string id, CancellationToken ct)
+    public async Task<IActionResult> Deactivate([FromRoute] string id, CancellationToken ct)
     {
         try
         {
@@ -125,7 +128,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
 
     private async Task PopulateBranchesAsync(CancellationToken ct)
     {
-        ViewBag.Branches = await _staff.GetBranchesAsync(ct);
+        ViewBag.Branches = await _queries.GetBranchesAsync(ct);
     }
 
     private static StaffRecordInput ToInput(StaffFormViewModel model) =>
