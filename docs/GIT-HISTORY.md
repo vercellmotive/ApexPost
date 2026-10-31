@@ -1,6 +1,6 @@
 # Git history
 
-Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done. GitHub is the full record.
+Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #8. It can't list the commit that updates it, so GitHub is the full record.
 
 ## Pull requests
 
@@ -11,6 +11,9 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | [#3](https://github.com/vercellmotive/ApexPost/pull/3) | Move persistence to SQL Server with EF Core 10 | MERGED |
 | [#4](https://github.com/vercellmotive/ApexPost/pull/4) | Add SQL Server evidence and replace the low-stock index | MERGED |
 | [#5](https://github.com/vercellmotive/ApexPost/pull/5) | Close the remaining Week 3 assessment gaps | MERGED |
+| [#6](https://github.com/vercellmotive/ApexPost/pull/6) | Close the final Week 3 assessment gaps | MERGED |
+| [#7](https://github.com/vercellmotive/ApexPost/pull/7) | Close the gaps from the 91/100 review | MERGED |
+| [#8](https://github.com/vercellmotive/ApexPost/pull/8) | Explain the W2 estimate mismatch | MERGED |
 
 ## Commits on `master` (merges left out)
 
@@ -30,3 +33,10 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | `17164fa` | 2026-10-31 | fix: stop logging expected failures as EF Core errors |
 | `ed96297` | 2026-10-31 | test: prove the least-privilege role on SQL Server |
 | `3f45ba1` | 2026-10-31 | docs: describe the SQL Server system and refresh evidence |
+| `b8b37b1` | 2026-10-31 | refactor: move line item and manager rules into the Domain |
+| `9d9d171` | 2026-10-31 | test: force a real deadlock on SQL Server |
+| `568e21e` | 2026-10-31 | test: add a load test script and its results |
+| `7f900f9` | 2026-10-31 | docs: record load and deadlock evidence and Git history |
+| `96f84eb` | 2026-10-31 | fix: restock voids and refunds through the procedure in one transaction |
+| `92af4e2` | 2026-10-31 | docs: add ER columns, raw statistics output and consistent test counts |
+| `ea1106d` | 2026-10-31 | docs: explain the W2 estimate mismatch with measured evidence |

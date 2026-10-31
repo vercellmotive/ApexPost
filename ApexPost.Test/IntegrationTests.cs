@@ -270,14 +270,14 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
         }));
         Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
 
-            var counterPage = await client.GetAsync("/Counter");
-            var counterToken = FindAntiforgeryToken(await counterPage.Content.ReadAsStringAsync());
-            Assert.True(counterToken.Success);
+        var counterPage = await client.GetAsync("/Counter");
+        var counterToken = FindAntiforgeryToken(await counterPage.Content.ReadAsStringAsync());
+        Assert.True(counterToken.Success);
 
-            var stockBefore = _factory.Database.StockOf("B001", "SKU-001");
+        var stockBefore = _factory.Database.StockOf("B001", "SKU-001");
 
-            var failure = await client.PostAsync("/Counter/Create", new FormUrlEncodedContent(new[]
-            {
+        var failure = await client.PostAsync("/Counter/Create", new FormUrlEncodedContent(new[]
+        {
                 new KeyValuePair<string, string>("CounterId", "C01"),
                 new KeyValuePair<string, string>("RetailItems[0].ProductSku", "SKU-001"),
                 new KeyValuePair<string, string>("RetailItems[0].Quantity", "2"),
@@ -291,9 +291,9 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
                 new KeyValuePair<string, string>("__RequestVerificationToken", counterToken.Groups[1].Success ? counterToken.Groups[1].Value : counterToken.Groups[2].Value)
             }));
 
-            Assert.Equal(HttpStatusCode.OK, failure.StatusCode);
-            Assert.Contains("requires successful identity verification", await failure.Content.ReadAsStringAsync());
-            Assert.Equal(stockBefore, _factory.Database.StockOf("B001", "SKU-001"));
+        Assert.Equal(HttpStatusCode.OK, failure.StatusCode);
+        Assert.Contains("requires successful identity verification", await failure.Content.ReadAsStringAsync());
+        Assert.Equal(stockBefore, _factory.Database.StockOf("B001", "SKU-001"));
     }
 
     [Fact]

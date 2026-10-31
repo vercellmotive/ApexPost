@@ -78,7 +78,7 @@ namespace ApexPost.Domain.ValueObjects
 
         private Weight(decimal kilograms)
         {
-            if(kilograms < 0) throw new ArgumentOutOfRangeException(nameof(Kilograms), "Weight cannot be negative.");
+            if (kilograms < 0) throw new ArgumentOutOfRangeException(nameof(Kilograms), "Weight cannot be negative.");
             Kilograms = kilograms;
         }
 

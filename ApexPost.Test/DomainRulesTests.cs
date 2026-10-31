@@ -76,7 +76,7 @@ namespace ApexPost.Test
                 HomeBranchCode = new BranchCode("B001")
             };
 
-           Assert.Throws<UnauthorizedDomainActionException>(() => tx.Void(clerk, "Customer changed mind"));
+            Assert.Throws<UnauthorizedDomainActionException>(() => tx.Void(clerk, "Customer changed mind"));
         }
 
         [Fact]
