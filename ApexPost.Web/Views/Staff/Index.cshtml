@@ -1,4 +1,4 @@
-@model IReadOnlyList<ApexPost.Domain.Entities.Staff>
+@model IReadOnlyList<ApexPost.Application.Queries.StaffRowDto>
 @{
     ViewData["Title"] = "Staff";
 }
@@ -21,7 +21,7 @@
                 <td>@person.Name</td>
                 <td>@person.Email</td>
                 <td>@person.Role</td>
-                <td>@person.HomeBranchCode.Value</td>
+                <td>@person.HomeBranchCode</td>
                 <td>@(person.IsActive ? "Active" : "Inactive")</td>
                 <td>
                     <a asp-action="Edit" asp-route-id="@person.Id">Edit</a>

@@ -1,5 +1,96 @@
 # ApexPost architecture and design decisions
 
+## Week 3: SQL Server and EF Core
+
+The JSON files are gone. Everything now persists to SQL Server through EF Core 10, behind interfaces in the Application layer. The sections below cover the new design. Older sections describe Week 2 decisions that still apply; ADRs that Week 3 replaced say so.
+
+**Evidence status:** the code, migrations and scripts were built and checked without a running SQL Server. The model, migrations and LINQ translation are verified by tests, and every `.sql` file passes Microsoft's T-SQL parser, but 13 SQL Server tests are skipped until a database is supplied. `PERFORMANCE.md` has no measured results yet.
+
+### Layers and dependencies
+
+```mermaid
+flowchart TB
+    Web["ApexPost.Web<br/>composition root, MVC, filters, middleware"]
+    App["ApexPost.Application<br/>services, repository and query interfaces, DTOs"]
+    Domain["ApexPost.Domain<br/>rich entities and rules<br/>references nothing"]
+    Infra["ApexPost.Infrastructure<br/>EF Core, migrations, repositories, query services"]
+    Db[("SQL Server: ApexPostDb")]
+    Web --> App
+    Web --> Infra
+    Infra --> App
+    App --> Domain
+    Infra --> Domain
+    Infra --> Db
+```
+
+Commands go through services, repositories and the unit of work. Reads go through `IDashboardQueries`, `IReportQueries` and `IScreenQueries`, which use `AsNoTracking` projections or stored procedures and return DTOs. Both sides use the same database; no separate read store exists. The DbContext, repositories, unit of work and services are all scoped, so they share one DbContext per request.
+
+### ER diagram
+
+```mermaid
+erDiagram
+    Roles ||--o{ Staff : "RoleId"
+    Branches ||--o{ Staff : "HomeBranchCode"
+    Branches ||--|{ Counters : "BranchCode"
+    Branches ||--o{ BranchStock : "BranchCode"
+    ProductCategories ||--o{ Products : "CategoryId"
+    Products ||--o{ BranchStock : "Sku"
+    Branches ||--o{ StockAdjustments : "BranchCode"
+    Products ||--o{ StockAdjustments : "Sku"
+    Staff ||--o{ StockAdjustments : "ChangedBy"
+    ShippingZones ||--|{ ShippingRates : "ZoneId"
+    Counters ||--o{ CounterTransactions : "BranchCode, CounterCode"
+    Staff ||--o{ CounterTransactions : "ClerkStaffId, VoidedByStaffId"
+    CounterTransactions ||--|{ TransactionLines : "TransactionId (cascade)"
+    CounterTransactions ||--o{ Payments : "TransactionId (cascade)"
+    Products ||--o{ TransactionLines : "Sku"
+    TransactionLines ||--o| Shipments : "TransactionLineId (cascade)"
+    ShippingRates ||--o{ Shipments : "ShippingRateId"
+    TransactionLines ||--o| MoneyOrders : "TransactionLineId (cascade)"
+    TransactionLines ||--o| IdentityVerifications : "TransactionLineId (cascade)"
+```
+
+`AuditEntries` has no foreign keys on purpose: an audit row must outlive whatever it describes, and it also records anonymous and denied attempts.
+
+Keys and constraints are defined in `EntityConfigurations.cs` and are visible in `sql/schema/ApexPostDb-idempotent.sql`. Every table has `CreatedAtUtc`, `CreatedBy` and `ModifiedAtUtc` as shadow properties, and `BranchStock` and `CounterTransactions` have a `RowVersion`.
+
+| Rule | Where it is enforced |
+|---|---|
+| Unique `BranchCode`, `Sku`, staff email | `UQ_Branches_BranchCode`, `UQ_Products_Sku`, `UQ_Staff_Email` |
+| Quantities not negative, amounts positive | `CK_BranchStock_Quantity`, `CK_TransactionLines_Quantity`, `CK_MoneyOrders_Amount`, `CK_Products_UnitPrice` |
+| Allowed status and type values | `CK_CounterTransactions_Status`, `CK_TransactionLines_Type`, `CK_Payments_Kind` |
+| Weight limits | `CK_Shipments_Weight`, `CK_ShippingRates_MaxWeight` |
+| Masked documents only | `varchar(10)` and `CK_IdentityVerifications_Masked` |
+| Counter belongs to the branch | Composite foreign key from `CounterTransactions` to `Counters` |
+
+### Normalization: three anomalies this design prevents
+
+1. **Update anomaly:** zone and service level live once, on `ShippingRates`. If `Shipments` repeated them, one correction could leave old shipments saying something different.
+2. **Insertion anomaly:** branches and products exist in their own tables, so a new product with no sales yet can still be stored, and a new branch needs no staff or stock first.
+3. **Deletion anomaly:** `Products` is separate from `TransactionLines`, and the foreign key is `Restrict`, so removing a product can never silently erase what it sold. Lines also keep their own description, price and tax, so history stays correct after a price change.
+
+`LineTotal`, `TaxAmount` and `BusinessDate` look derived but are facts frozen at sale time. They must not change when a tax rate or a branch time zone changes later.
+
+### Delete behaviour
+
+| Relationship | Behaviour | Why |
+|---|---|---|
+| Transaction to lines and payments; line to shipment, money order, identity check | Cascade | These rows have no meaning without their parent. |
+| Everything referencing branches, staff, products, zones and rates | Restrict | History must not vanish. Deactivate branches and staff instead. |
+
+### Stored procedures and least privilege
+
+`usp_DailyBranchSales`, `usp_LowStockReport` and `usp_AdjustStock` are in `sql/procedures` and deployed by the `AddStoredProcedures` migration. EF Core calls them only through parameterized `SqlQuery`. The application login needs the `apexpost_app` role from `sql/security/least_privilege_role.sql`: `SELECT`, `INSERT` and `UPDATE` on `dbo`, `EXECUTE` on the three procedures, no `DELETE`, and no schema changes. It can only add to `AuditEntries`. Migrations run under a separate deployment login.
+
+### Deviations to review
+
+- **Index style:** `[Index]` can't express `INCLUDE` or filters and can't be placed on Domain classes, so some indexes combine it with Fluent, and `BranchStock` uses Fluent alone (ADR-26).
+- **Security pin:** `System.Security.Cryptography.Pkcs` isn't on the allowed list. It's pinned to fix a vulnerable version that SqlClient brings in. **This needs trainer approval** (ADR-32).
+- **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database are also written, and skipped until one exists.
+- **Seed loading:** seed files in `ApexPost.Infrastructure/Data` are JSON, read once by `DatabaseSeeder`. They aren't a persistence store.
+- **Owned types:** `Dimensions` is owned. `Address` is not persisted, because the domain stores no address on any table this week.
+- **Not implemented:** the offline synchronization topics in the lab list aren't in this assignment's requirements.
+
 ## Architecture
 
 The Week 1 layered architecture survived the domain change; the TechNova entities and behaviors were replaced with ApexPost branch, staff, stock, shipping, money-order, identity-verification, and transaction models. The Web project is a new presentation layer. The repository interfaces remain in Application so JSON persistence can be replaced without moving business rules.
@@ -104,6 +195,8 @@ Audit and performance filters are globally registered through DI. The audit filt
 
 ## Data, async work, and lifetimes
 
+**Status: this section records the Week 2 JSON design. Week 3 replaced its persistence, locking and compensation points; see the Week 3 section and ADRs 25–34. The async, caching and middleware-lifetime points still apply.**
+
 - All runtime data lives in one folder, `Persistence:DataDirectory` (default `App_Data` under the content root, ignored by Git). Repositories read the read-only seed from the output `Data` folder until their first write creates the runtime file, so a clean or rebuild cannot wipe data. The audit log is in the same folder. Next week's database can replace this through `AddJsonPersistence` alone.
 - Settings are bound to validated `IOptions` classes in `ApexPost.Web/Configuration`, and a bad value stops startup. Middleware uses `IOptionsMonitor` so maintenance mode and the allowlist can change without a restart. `Program.cs` is now only the composition root; registration and pipeline order live in `ServiceRegistration` and `PipelineConfiguration`.
 - A basket can hold up to 10 shipments and 10 money orders; the counter screen offers three of each, and money orders and identity checks also have their own screens. Daily sales count only a money order's fee as service revenue, while the customer's total still includes the principal.
@@ -189,7 +282,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Consequences:** Signatures document themselves and mixed currencies throw. Forms and JSON need small conversions.
 
-### ADR-04: Use a pricing strategy plus JSON-backed zone rates
+### ADR-04: Use a pricing strategy plus database-backed zone rates
 
 **Context:** Prices depend on parcel or letter, service level, weight and zone, and the rules will change. Weight limits differ too.
 
@@ -200,6 +293,8 @@ Each decision records its context, the decision, the alternatives considered and
 **Consequences:** Rules can be tested and replaced alone. Unknown zones fail rather than getting a fallback price. Tax rates remain in code until a later week needs them configurable.
 
 ### ADR-05: Keep JSON behind repositories during Week 2
+
+**Status: Replaced in Week 3 by ADR-25 and ADR-28.**
 
 **Context:** No database is allowed this week, but next week's database must not disturb business logic.
 
@@ -251,6 +346,8 @@ Each decision records its context, the decision, the alternatives considered and
 
 ### ADR-10: Compensate JSON checkout reservations
 
+**Status: Replaced in Week 3 by ADR-30. One database transaction makes compensation unnecessary.**
+
 **Context:** JSON files cannot offer a transaction across stock and sales.
 
 **Decision:** Save an open marker, reserve stock under the repository lock, and mark paid last. On failure, restore reservations and delete the marker; surface a rollback failure for reconciliation.
@@ -270,6 +367,8 @@ Each decision records its context, the decision, the alternatives considered and
 **Consequences:** A provider can be plugged in later. The current check validates format only and is labelled as simulated in the UI.
 
 ### ADR-12: Restock voided and refunded goods idempotently
+
+**Status: Replaced in Week 3 by ADR-30. The status change and restock now commit together.**
 
 **Context:** Reversals touch several files and may be retried after a partial failure. A concurrent void and refund must not both succeed.
 
@@ -311,6 +410,8 @@ Each decision records its context, the decision, the alternatives considered and
 
 ### ADR-16: Type repository keys and add specifications
 
+**Status: Replaced in Week 3 by ADR-28, which keeps its aim of compile-time safety.**
+
 **Context:** `IRepository<T>` took `object id` and used reflection on each call, so wrong ID types failed silently at runtime.
 
 **Decision:** Use `IRepository<TEntity, TId>` constrained to `Entity<TId>`, plus `ISpecification<T>` and a `FindAsync` extension for report filters.
@@ -330,6 +431,8 @@ Each decision records its context, the decision, the alternatives considered and
 **Consequences:** URLs are predictable. The shipping label moved to `/Shipping/ShippingLabel`, so old bookmarks to `/Counter/ShippingLabel` return 404.
 
 ### ADR-18: Keep one configurable data folder with a read-only seed
+
+**Status: Replaced in Week 3: runtime data moved to SQL Server.**
 
 **Context:** Repositories wrote to `bin/.../Data`, so a clean or rebuild wiped data, while the audit log lived elsewhere and was committed by accident.
 
@@ -399,13 +502,113 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Consequences:** Pages load without CSP errors and the policy stays strict. A browser's client-side errors appear beside each field rather than in the summary.
 
+### ADR-25: Design a normalized schema with restrictive deletes
+
+**Context:** JSON files could not enforce relationships, and thousands of branches need a reliable system of record.
+
+**Decision:** Use 3NF tables with surrogate keys, natural codes as unique alternate keys, and foreign keys that reference those codes. Deletes are `Restrict` except for rows that are parts of a transaction, which cascade. `Roles` and `ProductCategories` are lookup tables, with enums and category names converted to their keys.
+
+**Alternatives:** Natural primary keys everywhere (wide keys and awkward changes); soft cascades through the application (rules could be bypassed); keeping categories as text (spelling drift).
+
+**Consequences:** The database rejects invalid data whatever the code does. Reports need more joins, which the indexes in ADR-26 support. Removing a branch or product needs a deliberate decision rather than a delete.
+
+### ADR-26: Declare indexes in code, with evidence still to be captured
+
+**Context:** The project was built without SQL Server access, so indexes had to be code-first. The brief asks for evidence-backed choices.
+
+**Decision:** Use `[Index]` on persistence records for key columns, adding Fluent `HasIndex` on the same named index for `INCLUDE` and filters. `BranchStock` is Fluent only, because an attribute would make Domain depend on EF Core. `AddWorkloadIndexes` is a separate migration, so a baseline without them can be measured.
+
+**Alternatives:** Hand-written SQL indexes (drift from the model); Fluent only (less visible on the class); attributes on Domain (breaks the dependency rule).
+
+**Consequences:** Choices rest on the workload shape and documented optimizer behaviour. **They are not yet backed by measurements**, and `PERFORMANCE.md` must be completed before they can be called evidence-based. An index may prove not worth its cost, and that result should be kept.
+
+### ADR-27: Use stored procedures only where they add value
+
+**Context:** "Stored procedures are faster" is not an accepted reason, and most queries are clear as LINQ.
+
+**Decision:** `usp_AdjustStock` is a procedure because the check, update and history row must be one atomic unit for every caller, including DBAs and batch jobs, and because the application role needs only `EXECUTE` for that rule. `usp_LowStockReport` is a procedure so its optional-parameter plan choice (`OPTION (RECOMPILE)`) lives with the query and can be tuned without a release. `usp_DailyBranchSales` is a procedure because its `CASE` revenue rule is shared with head-office tooling and SSMS, and must not exist in two versions.
+
+**Alternatives:** All LINQ (the atomic history rule would be enforced only in this application); everything as procedures (loses compile-time checks and hides simple queries).
+
+**Consequences:** Schema changes must update the procedures by hand, and the compiler won't catch mistakes, so the SQL Server tests matter. Procedures are deployed by migration from `/sql`, which keeps them versioned.
+
+### ADR-28: Bound repositories and the unit of work, and allow projections in query services
+
+**Context:** Repositories that return `IQueryable` or commit by themselves leak EF Core and make transaction boundaries unclear.
+
+**Decision:** One specific repository per aggregate: they stage changes only, and never return `IQueryable`. `IUnitOfWork` makes one commit per use case and translates EF Core exceptions into Application exceptions. Direct DbContext projections are allowed only in Infrastructure query services, which return DTOs. Procedure and `ExecuteUpdate` writes are command interfaces, because they run immediately and can't be staged.
+
+**Alternatives:** A generic `IRepository<T>` (forces one shape on every aggregate); calling DbContext from services (ties Application to EF Core); a query service built on repositories (loads whole aggregates to read a few columns).
+
+**Consequences:** The rule is simple to test, and `RepositoryContracts_NeverExposeIQueryableOrCommit` does so. There are more interfaces, and a DbContext can't run overlapping operations, so reads run in sequence: Week 2's `Task.WhenAll` over repositories is gone, and now covers only in-memory notifications.
+
+### ADR-29: Separate persistence models where the shapes differ
+
+**Context:** The brief asks for rich domain entities mapped directly, plus at least one separate persistence model. The domain `Transaction` holds one list of line items, while the schema spreads it over six tables.
+
+**Decision:** `Staff`, `BranchStock` and `ShippingZone` map directly with Fluent and shadow properties, because their shape matches their table. State changes go through domain methods such as `Staff.Deactivate` and `Branch.Close`. Transactions, branches and products use persistence records and `PersistenceMapper`. `IdentityVerificationRecord` is the clearest case: only the domain's always-masked value can reach it, and the column cannot hold more.
+
+**Alternatives:** Direct mapping for all (record constructors and nested value objects would strain EF Core, and it would be hard to verify without a database); records for all (loses shadow-property mapping where it fits well).
+
+**Consequences:** Mappers are plain code that can be tested without a database, which mattered here. They are extra code to maintain, and an update must load the record first, which repositories enforce.
+
+### ADR-30: Use optimistic concurrency with rowversion for stock and transactions
+
+**Context:** Two clerks may sell the last unit together. Holding locks while a clerk works would stop the counters.
+
+**Decision:** `BranchStock` and `CounterTransactions` have `rowversion` concurrency tokens. A sale decrements stock, and saves the transaction, lines and payment in one `SaveChangesAsync`. A losing update raises `DbUpdateConcurrencyException`, which becomes a 409. `CK_BranchStock_Quantity` is the last defence against negative stock. Explicit transactions run inside the execution strategy, as the seeder does: its several saves commit together, so a failure can't leave a half-seeded database.
+
+**Alternatives:** Pessimistic locks (blocking and deadlock risk); atomic SQL decrements only (bypasses the domain rule); retrying conflicts automatically (might sell to a customer without the clerk knowing).
+
+**Consequences:** No locks are held between read and save. A clerk occasionally sees a conflict and must retry. Hot products will conflict more often under load, which should be measured before scaling.
+
+### ADR-31: Commit audit entries separately from the business transaction
+
+**Context:** Audit writes must not break a sale, and failed attempts must still be recorded.
+
+**Decision:** `SqlAuditStore` writes to `AuditEntries` using its own scope, DbContext and commit, after the business action. The filter catches and logs audit failures.
+
+**Alternatives:** Sharing the unit of work (an audit failure rolls back the sale, and a failed sale loses its audit row); an outbox (reliable, but heavier than this week needs).
+
+**Consequences:** Audit rows survive failed sales and denied attempts. A crash between the sale and the audit write can lose that one audit row, and an audit outage produces error logs rather than rows. A later outbox could close that gap.
+
+### ADR-32: Pin a patched cryptography package
+
+**Context:** `Microsoft.EntityFrameworkCore.SqlServer` brings in a version of `System.Security.Cryptography.Pkcs` with known moderate and high vulnerabilities, which fails the zero-warnings build.
+
+**Decision:** Reference the patched `System.Security.Cryptography.Pkcs` directly, at the same 10.0.x servicing level.
+
+**Alternatives:** Suppress the warning (leaves the vulnerability in place); wait for an upstream fix (blocks the build).
+
+**Consequences:** The build is clean and the vulnerable version is gone. The package is outside the allowed list, so it **needs trainer approval**. Remove the pin once SqlClient carries the fix.
+
+### ADR-33: Store a business date for reports
+
+**Context:** Week 2 converted each sale to branch-local time while reading. SQL Server's `AT TIME ZONE` only accepts Windows zone names, and functions on columns stop index seeks.
+
+**Decision:** Store `BusinessDate` as a `date`, set once at sale time from the branch's time zone.
+
+**Alternatives:** Convert in SQL (not SARGable, and needs a second set of zone names); report in UTC (a late sale lands on the wrong trading day).
+
+**Consequences:** Reports match Week 2's meaning and can seek on the index. A sale keeps its original date even if the branch later changes time zone, which is the right outcome for accounting.
+
+### ADR-34: Test without a database first, and keep real-database tests skippable
+
+**Context:** This week's work was done with no SQL Server, yet most logic still needs checking. Skipped tests must not pass silently.
+
+**Decision:** Test domain rules, services, mappers, the model, migrations and LINQ translation without a database, using `ToQueryString()` and in-memory fakes. Real-database tests use `[SqlServerFact]`, which reports them as skipped until `APEXPOST_TEST_SQLSERVER` is set, and they create and drop their own database.
+
+**Alternatives:** Requiring a database for all tests (nothing could run here); the EF Core InMemory provider (not on the allowed list, and it ignores constraints and rowversion, so it would give false confidence).
+
+**Consequences:** Fast tests caught real bugs, including untranslatable queries and an over-posting hole. **Constraint, rowversion, procedure and materialization behaviour stays unverified until the skipped tests run.** The fakes are extra code that must follow the same rules as EF Core.
+
 ## SOLID mapping
 
-- **Single Responsibility:** Domain rules, orchestration, JSON I/O, MVC transport, and audit each live in their own layer/service.
-- **Open/Closed:** `IPricingStrategy`, repository interfaces, event dispatcher, and notification interface permit alternate pricing, storage, or notification implementations.
-- **Liskov Substitution:** JSON repositories implement the same `IRepository<T>` async contract and can be substituted with database repositories.
-- **Interface Segregation:** Catalogue, audit, courier-rate, notification, and repository consumers depend on focused interfaces.
-- **Dependency Inversion:** Application use cases depend on repository/rate/event contracts; Web composes Infrastructure implementations in `Program.cs`.
+- **Single Responsibility:** repositories stage, the unit of work commits, mappers translate, query services read, and controllers handle HTTP.
+- **Open/Closed:** a new persistence provider or query implementation is added by implementing Application interfaces and changing one registration.
+- **Liskov Substitution:** `InMemoryPersistence` and the EF Core classes honour the same contracts, including staged writes and concurrency conflicts, so services behave the same over both.
+- **Interface Segregation:** repositories are per aggregate, and commands and queries have separate interfaces.
+- **Dependency Inversion:** Application defines every interface, Infrastructure implements them, and only the Web composition root knows both.
 
 ## Security and audit threats / mitigations
 
@@ -414,6 +617,9 @@ Each decision records its context, the decision, the alternatives considered and
 | Password/API-key disclosure | No passwords or keys in configuration files; partner keys come from user-secrets or a secret store. Staff passwords are stored only as salted PBKDF2 hashes, and hashes are never shown or audited. |
 | Account enumeration | The same failure message and the same hashing work for unknown emails, inactive staff and wrong passwords. |
 | Brute-force login / partner overload | Configurable per-IP login window (default 3/minute) and per-partner window (default 60/minute); 429 and `Retry-After`. |
+| SQL injection | EF Core LINQ and parameterized `SqlQuery` only, with no concatenated user input. The only built SQL string deploys embedded procedure files during migrations. |
+| Excess database rights | The `apexpost_app` role has no `DELETE` or schema rights, and can only add to `AuditEntries`. |
+| Over-posting | Input models hold only editable fields, ids come from the route alone, and `Status`, ids and audit columns can only be set by the domain or the DbContext. Tests prove this. |
 | Forged state-changing form requests | Antiforgery token validation for every MVC POST; strict, Secure, HttpOnly auth cookies. |
 | Unauthorized counter/financial actions | Staff role/branch claims, manager/auditor/admin policies, a 403 for denied users, `SameBranchOnly` on branch-scoped reports, domain-side active staff and branch checks, and audit entries for denied attempts. |
 | Stock race or negative balance | Locked atomic repository update and domain guard. |
@@ -426,6 +632,13 @@ Each decision records its context, the decision, the alternatives considered and
 
 ## Validation
 
-`ApexPost.Test` has 95 tests. Unit tests cover stock, identity verification and masking, parcel and letter weight limits, pricing, currency consistency, branch hours, JSON round trips, checkout compensation, idempotent reversals, password hashing, the low-stock rule, read-only line items and seed handling. WebApplicationFactory tests cover every required scenario (security headers, API key 401, blocked IP 403, login 429, login redirect, clerk 403 on void, correlation ID) plus per-staff login, conventional routes, branch and product management, void through the UI with its dashboard notification, mixed baskets with several services, fee-only revenue, filter-driven form redisplay, configured rate limits, courier concurrency and zone caching, audit narrowing, denied-action auditing, failed audit writes, and failed requests logged as 500 with Problem Details and their correlation ID. Tests use a temporary data folder and leave the repository unchanged.
+`ApexPost.Test` has 157 tests: 144 run without a database and pass, and 13 need SQL Server and are skipped until `APEXPOST_TEST_SQLSERVER` is set. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
 
-`Directory.Build.props` sets `TreatWarningsAsErrors`, so the build itself enforces zero warnings. Run `dotnet build ApexPost.slnx` and `dotnet test ApexPost.slnx`.
+| Layer | Runs now | What it covers |
+|---|---|---|
+| Domain and services | Yes | Rules, plus services over fake repositories and a spy unit of work (commit once, or never on failure). |
+| Persistence model | Yes | Every table, rowversion, indexes, migrations in step, idempotent script, LINQ translation, mappers, seed volume and dependency direction. |
+| MVC | Yes, over fakes | Pipeline, security, 409/404/400 Problem Details, over-posting and report totals. |
+| SQL Server | **Skipped** | Mapping, rollback, rowversion conflicts, unique and check constraints, procedures, N+1 counts and end-to-end MVC. |
+
+`Directory.Build.props` sets `TreatWarningsAsErrors`, so the build itself enforces zero warnings.

@@ -1,4 +1,4 @@
-using ApexPost.Infrastructure.Services;
+using ApexPost.Infrastructure.Persistence;
 using ApexPost.Web.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,7 +9,7 @@ builder.Services
     .AddApexPostSecurity()
     .AddApexPostRateLimiting()
     .AddApexPostApplication()
-    .AddJsonPersistence(builder.Environment.ContentRootPath);
+    .AddSqlServerPersistence();
 
 var app = builder.Build();
 

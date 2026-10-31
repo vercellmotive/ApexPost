@@ -1,10 +1,9 @@
 @model ApexPost.Web.Models.TransactionFormViewModel
 @{
     ViewData["Title"] = "Counter";
-    var products = ViewBag.Products as IEnumerable<ApexPost.Domain.Entities.Product> ?? [];
-    var branches = ViewBag.Branches as IEnumerable<ApexPost.Domain.Entities.Branch> ?? [];
-    var stocks = ViewBag.Stocks as IEnumerable<ApexPost.Domain.Entities.BranchStock> ?? [];
-    var branchCode = branches.FirstOrDefault()?.Id.Value;
+    var options = ViewBag.Options as ApexPost.Application.Queries.CheckoutOptionsDto;
+    var counters = options?.CounterTerminals ?? [];
+    var stock = options?.Stock ?? [];
 }
 
 <h2>Counter transaction</h2>
@@ -21,12 +20,9 @@
             <div class="col-md-4">
                 <label asp-for="CounterId" class="form-label">Counter</label>
                 <select asp-for="CounterId" class="form-select">
-                    @foreach (var branch in branches)
+                    @foreach (var counter in counters)
                     {
-                        foreach (var counter in branch.CounterTerminals)
-                        {
-                            <option value="@counter">@counter</option>
-                        }
+                        <option value="@counter">@counter</option>
                     }
                 </select>
             </div>
@@ -38,14 +34,9 @@
                     <label asp-for="RetailItems[index].ProductSku" class="form-label">Product @(index + 1)</label>
                     <select asp-for="RetailItems[index].ProductSku" class="form-select">
                         <option value="">No item</option>
-                        @foreach (var product in products)
+                        @foreach (var product in stock.Where(row => row.QuantityOnHand > 0))
                         {
-                            var available = stocks.FirstOrDefault(item =>
-                                item.BranchCode.Value == branchCode && item.ProductSku == product.Id)?.QuantityOnHand ?? 0;
-                            if (available > 0)
-                            {
-                                <option value="@product.Id.Value">@product.Name — @product.UnitPrice.Amount.ToString("C") (stock: @available)</option>
-                            }
+                            <option value="@product.Sku">@product.Name — @product.UnitPrice.ToString("C") (stock: @product.QuantityOnHand)</option>
                         }
                     </select>
                 </div>

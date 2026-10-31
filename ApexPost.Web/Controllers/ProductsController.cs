@@ -1,3 +1,4 @@
+using ApexPost.Application.Queries;
 using ApexPost.Application.Services;
 using ApexPost.Domain.Common;
 using ApexPost.Web.Attributes;
@@ -13,16 +14,18 @@ namespace ApexPost.Web.Controllers;
 public sealed class ProductsController : Controller, IRepopulatesForm
 {
     private readonly ProductManagementService _products;
+    private readonly IScreenQueries _queries;
 
-    public ProductsController(ProductManagementService products)
+    public ProductsController(ProductManagementService products, IScreenQueries queries)
     {
         _products = products;
+        _queries = queries;
     }
 
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        return View(await _products.GetAllAsync(ct));
+        return View(await _queries.GetProductsAsync(ct));
     }
 
     [HttpGet]
@@ -53,7 +56,7 @@ public sealed class ProductsController : Controller, IRepopulatesForm
     [HttpGet]
     public async Task<IActionResult> Edit(string id, CancellationToken ct)
     {
-        var product = await _products.GetBySkuAsync(id, ct);
+        var product = await _queries.GetProductAsync(id, ct);
         if (product is null)
         {
             return NotFound();
@@ -62,10 +65,10 @@ public sealed class ProductsController : Controller, IRepopulatesForm
         return View("Form", new ProductFormViewModel
         {
             IsExisting = true,
-            Sku = product.Id.Value,
+            Sku = product.Sku,
             Name = product.Name,
             Category = product.Category,
-            UnitPrice = product.UnitPrice.Amount,
+            UnitPrice = product.UnitPrice,
             TaxCategory = product.TaxCategory
         });
     }
@@ -74,7 +77,7 @@ public sealed class ProductsController : Controller, IRepopulatesForm
     [ValidateAntiForgeryToken]
     [RedisplayOnInvalid("Form")]
     [AuditedAction("ProductUpdate")]
-    public async Task<IActionResult> Edit(string id, ProductFormViewModel model, CancellationToken ct)
+    public async Task<IActionResult> Edit([FromRoute] string id, ProductFormViewModel model, CancellationToken ct)
     {
         model.IsExisting = true;
         model.Sku = id;
@@ -92,6 +95,26 @@ public sealed class ProductsController : Controller, IRepopulatesForm
         {
             ModelState.AddModelError(string.Empty, exception.Message);
             return View("Form", model);
+        }
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [AuditedAction("PriceRevision")]
+    public async Task<IActionResult> RevisePrices(PriceRevisionViewModel model, CancellationToken ct)
+    {
+        try
+        {
+            var revised = await _products.RevisePricesAsync(model.Category, model.PercentChange, ct);
+            HttpContext.AddAuditDetail("category", model.Category.Replace(' ', '-'));
+            HttpContext.AddAuditDetail("percentChange", model.PercentChange.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+            HttpContext.AddAuditDetail("productsRevised", revised.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            TempData["Success"] = $"Revised {revised} prices in {model.Category}.";
+            return RedirectToAction(nameof(Index));
+        }
+        catch (DomainValidationException exception)
+        {
+            return BadRequest(new ProblemDetails { Status = StatusCodes.Status400BadRequest, Title = "The request broke a business rule.", Detail = exception.Message });
         }
     }
 

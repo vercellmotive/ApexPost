@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ApexPost.Application.Interfaces;
 using ApexPost.Web.Attributes;
+using ApexPost.Web.Middleware;
 using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace ApexPost.Web.Filters;
@@ -129,7 +130,7 @@ public sealed class AuditActionFilter : IAsyncActionFilter
     {
         if (executed?.Exception is not null && !executed.ExceptionHandled)
         {
-            return StatusCodes.Status500InternalServerError;
+            return ProblemMapping.For(executed.Exception).Status;
         }
 
         if (executed?.Result is Microsoft.AspNetCore.Mvc.Infrastructure.IStatusCodeActionResult statusResult

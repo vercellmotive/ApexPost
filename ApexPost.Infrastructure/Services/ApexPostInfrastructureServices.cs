@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using ApexPost.Application.Interfaces;
 using ApexPost.Application.Pricing;
 using ApexPost.Application.Services;
@@ -11,220 +9,18 @@ using ApexPost.Domain.Enums;
 using ApexPost.Domain.Events;
 using ApexPost.Domain.ValueObjects;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
 
 namespace ApexPost.Infrastructure.Services;
-
-public sealed record JsonStoreOptions(string DataDirectory, string SeedDirectory);
-
-public class JsonFileRepository<TEntity, TId> : IRepository<TEntity, TId>
-    where TEntity : Entity<TId>
-    where TId : notnull
-{
-    private readonly string _filePath;
-    private readonly string _seedPath;
-    private readonly SemaphoreSlim _fileLock = new(1, 1);
-    private readonly JsonSerializerOptions _options = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = true
-    };
-
-    public JsonFileRepository(JsonStoreOptions options)
-    {
-        var fileName = $"{typeof(TEntity).Name.ToLowerInvariant()}.json";
-        _filePath = Path.Combine(options.DataDirectory, fileName);
-        _seedPath = Path.Combine(options.SeedDirectory, fileName);
-    }
-
-    public async Task<IReadOnlyList<TEntity>> GetAllAsync(CancellationToken ct = default)
-    {
-        await _fileLock.WaitAsync(ct);
-        try
-        {
-            return await ReadAllUnlockedAsync(ct);
-        }
-        finally
-        {
-            _fileLock.Release();
-        }
-    }
-
-    public async Task<TEntity?> GetByIdAsync(TId id, CancellationToken ct = default)
-    {
-        var items = await GetAllAsync(ct);
-        return items.FirstOrDefault(item => EqualityComparer<TId>.Default.Equals(item.Id, id));
-    }
-
-    public async Task<TEntity?> UpdateAsync(TId id, Action<TEntity> update, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(update);
-        await _fileLock.WaitAsync(ct);
-        try
-        {
-            var items = await ReadAllUnlockedAsync(ct);
-            var entity = items.FirstOrDefault(item => EqualityComparer<TId>.Default.Equals(item.Id, id));
-            if (entity is null)
-            {
-                return null;
-            }
-
-            update(entity);
-            await WriteAllUnlockedAsync(items, ct);
-            return entity;
-        }
-        finally
-        {
-            _fileLock.Release();
-        }
-    }
-
-    public async Task SaveAsync(TEntity entity, CancellationToken ct = default)
-    {
-        await _fileLock.WaitAsync(ct);
-        try
-        {
-            var items = await ReadAllUnlockedAsync(ct);
-            var index = items.FindIndex(item => EqualityComparer<TId>.Default.Equals(item.Id, entity.Id));
-            if (index >= 0)
-            {
-                items[index] = entity;
-            }
-            else
-            {
-                items.Add(entity);
-            }
-
-            await WriteAllUnlockedAsync(items, ct);
-        }
-        finally
-        {
-            _fileLock.Release();
-        }
-    }
-
-    public async Task DeleteAsync(TId id, CancellationToken ct = default)
-    {
-        await _fileLock.WaitAsync(ct);
-        try
-        {
-            var items = await ReadAllUnlockedAsync(ct);
-            items.RemoveAll(item => EqualityComparer<TId>.Default.Equals(item.Id, id));
-            await WriteAllUnlockedAsync(items, ct);
-        }
-        finally
-        {
-            _fileLock.Release();
-        }
-    }
-
-    private async Task<List<TEntity>> ReadAllUnlockedAsync(CancellationToken ct)
-    {
-        // Runtime data is created from the read-only seed on first use and is never overwritten by a build.
-        var path = File.Exists(_filePath) ? _filePath : _seedPath;
-        if (!File.Exists(path))
-        {
-            return [];
-        }
-
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
-        return await JsonSerializer.DeserializeAsync<List<TEntity>>(stream, _options, ct) ?? [];
-    }
-
-    private async Task WriteAllUnlockedAsync(List<TEntity> items, CancellationToken ct)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-        var temporaryPath = $"{_filePath}.{Guid.NewGuid():N}.tmp";
-        try
-        {
-            await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, useAsync: true))
-            {
-                await JsonSerializer.SerializeAsync(stream, items, _options, ct);
-                await stream.FlushAsync(ct);
-            }
-
-            File.Move(temporaryPath, _filePath, true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-        }
-    }
-}
-
-public class JsonAuditStore : IAuditStore
-{
-    private readonly string _path;
-    private readonly SemaphoreSlim _gate = new(1, 1);
-
-    public JsonAuditStore(JsonStoreOptions options)
-    {
-        _path = Path.Combine(options.DataDirectory, "audit-log.jsonl");
-    }
-
-    public async Task AppendAsync(AuditEntry entry, CancellationToken ct = default)
-    {
-        await _gate.WaitAsync(ct);
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            await using var stream = new FileStream(_path, FileMode.Append, FileAccess.Write, FileShare.Read, 4096, useAsync: true);
-            await JsonSerializer.SerializeAsync(stream, entry, cancellationToken: ct);
-            await stream.WriteAsync("\n"u8.ToArray(), ct);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    public async Task<IReadOnlyList<AuditEntry>> GetAllAsync(CancellationToken ct = default)
-    {
-        await _gate.WaitAsync(ct);
-        try
-        {
-            return await ReadAsync(ct);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    private async Task<IReadOnlyList<AuditEntry>> ReadAsync(CancellationToken ct)
-    {
-        if (!File.Exists(_path))
-        {
-            return Array.Empty<AuditEntry>();
-        }
-
-        var entries = new List<AuditEntry>();
-        using var reader = new StreamReader(new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, useAsync: true));
-        while (await reader.ReadLineAsync(ct) is { } line)
-        {
-            if (!string.IsNullOrWhiteSpace(line))
-            {
-                entries.Add(JsonSerializer.Deserialize<AuditEntry>(line)
-                    ?? throw new JsonException("Audit log contains an invalid entry."));
-            }
-        }
-
-        return entries;
-    }
-}
 
 public sealed class CachedShippingZoneLookup : IShippingZoneLookup
 {
     private const string CacheKey = "apexpost-shipping-zones";
-    private readonly IRepository<ShippingZone, string> _zones;
+    private static readonly SemaphoreSlim Gate = new(1, 1);
+    private readonly IShippingZoneRepository _zones;
     private readonly IMemoryCache _cache;
     private readonly TimeSpan _ttl = TimeSpan.FromMinutes(5);
-    private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public CachedShippingZoneLookup(IRepository<ShippingZone, string> zones, IMemoryCache cache)
+    public CachedShippingZoneLookup(IShippingZoneRepository zones, IMemoryCache cache)
     {
         _zones = zones;
         _cache = cache;
@@ -237,7 +33,7 @@ public sealed class CachedShippingZoneLookup : IShippingZoneLookup
 
     private async ValueTask<ShippingZone?> LoadAndFindAsync(string name, CancellationToken ct)
     {
-        await _gate.WaitAsync(ct);
+        await Gate.WaitAsync(ct);
         try
         {
             if (!_cache.TryGetValue(CacheKey, out Dictionary<string, ShippingZone>? zones))
@@ -252,9 +48,21 @@ public sealed class CachedShippingZoneLookup : IShippingZoneLookup
         }
         finally
         {
-            _gate.Release();
+            Gate.Release();
         }
     }
+}
+
+// The limit must span requests, so the gate is a singleton while the service is scoped with its repositories.
+public sealed class CourierRateGate
+{
+    public CourierRateGate(int maxConcurrentRequests)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrentRequests);
+        Slots = new SemaphoreSlim(maxConcurrentRequests, maxConcurrentRequests);
+    }
+
+    public SemaphoreSlim Slots { get; }
 }
 
 public class SimulatedCourierRateService : ICourierRateService
@@ -267,14 +75,13 @@ public class SimulatedCourierRateService : ICourierRateService
     public SimulatedCourierRateService(
         IPricingStrategy pricing,
         IShippingZoneLookup zones,
-        int maxConcurrentRequests,
+        CourierRateGate gate,
         TimeSpan simulatedDelay)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrentRequests);
         ArgumentOutOfRangeException.ThrowIfLessThan(simulatedDelay, TimeSpan.Zero);
         _pricing = pricing;
         _zones = zones;
-        _gate = new SemaphoreSlim(maxConcurrentRequests, maxConcurrentRequests);
+        _gate = gate.Slots;
         _simulatedDelay = simulatedDelay;
     }
 
@@ -443,24 +250,26 @@ public sealed class DomainEventDispatcher : IDomainEventDispatcher
         };
 }
 
+// Scoped with its repository; the memory cache and fill gate are shared across requests.
 public sealed class ProductCatalogueService : ICatalogueService, ICatalogueCache
 {
-    private readonly IRepository<Product, Sku> _products;
+    private const string CacheKey = "apexpost-catalogue";
+    private static readonly SemaphoreSlim Gate = new(1, 1);
+    private readonly IProductRepository _products;
     private readonly IMemoryCache _cache;
     private readonly TimeSpan _ttl = TimeSpan.FromMinutes(5);
-    private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public ProductCatalogueService(IRepository<Product, Sku> products, IMemoryCache cache)
+    public ProductCatalogueService(IProductRepository products, IMemoryCache cache)
     {
         _products = products;
         _cache = cache;
     }
 
-    public void Invalidate() => _cache.Remove("apexpost-catalogue");
+    public void Invalidate() => _cache.Remove(CacheKey);
 
     public ValueTask<IReadOnlyList<Product>> GetProductsAsync(CancellationToken ct = default)
     {
-        if (_cache.TryGetValue("apexpost-catalogue", out IReadOnlyList<Product>? cached))
+        if (_cache.TryGetValue(CacheKey, out IReadOnlyList<Product>? cached))
         {
             return ValueTask.FromResult(cached ?? Array.Empty<Product>());
         }
@@ -476,21 +285,21 @@ public sealed class ProductCatalogueService : ICatalogueService, ICatalogueCache
 
     private async ValueTask<IReadOnlyList<Product>> GetAndCacheAsync(CancellationToken ct)
     {
-        await _gate.WaitAsync(ct);
+        await Gate.WaitAsync(ct);
         try
         {
-            if (_cache.TryGetValue("apexpost-catalogue", out IReadOnlyList<Product>? cached))
+            if (_cache.TryGetValue(CacheKey, out IReadOnlyList<Product>? cached))
             {
                 return cached ?? Array.Empty<Product>();
             }
 
             var products = await _products.GetAllAsync(ct);
-            _cache.Set("apexpost-catalogue", products, _ttl);
+            _cache.Set(CacheKey, products, _ttl);
             return products;
         }
         finally
         {
-            _gate.Release();
+            Gate.Release();
         }
     }
 }

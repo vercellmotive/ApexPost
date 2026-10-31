@@ -1,5 +1,5 @@
-using ApexPost.Application.Interfaces;
-using ApexPost.Application.Services;
+using ApexPost.Application.Queries;
+using ApexPost.Web.Models;
 using ApexPost.Domain.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,12 +10,12 @@ namespace ApexPost.Web.Controllers;
 [Authorize]
 public class ReportsController : Controller
 {
-    private readonly ReportingService _reportingService;
+    private readonly IReportQueries _reportingService;
     private readonly IAuthorizationService _authorizationService;
     private readonly LowStockRule _lowStockRule;
 
     public ReportsController(
-        ReportingService reportingService,
+        IReportQueries reportingService,
         IAuthorizationService authorizationService,
         LowStockRule lowStockRule)
     {
@@ -40,16 +40,12 @@ public class ReportsController : Controller
         var reportDate = date
             ?? await _reportingService.GetLatestSalesDateAsync(reportBranch, ct)
             ?? DateOnly.FromDateTime(DateTime.UtcNow);
-        var salesTask = _reportingService.GetDailyBranchSalesAsync(reportBranch, ct, reportDate);
-        var stockTask = _reportingService.GetLowStockReportAsync(_lowStockRule.Threshold, reportBranch, ct);
-        var shippingTask = _reportingService.GetShippingVolumeByZoneAsync(reportBranch, ct);
-        await Task.WhenAll(salesTask, stockTask, shippingTask);
-        ViewBag.ReportDate = reportDate;
-        ViewBag.Sales = await salesTask;
-        ViewBag.Stock = await stockTask;
-        ViewBag.LowStockThreshold = _lowStockRule.Threshold;
-        ViewBag.Shipping = await shippingTask;
-        return View();
+        return View(new ReportsViewModel(
+            reportDate,
+            _lowStockRule.Threshold,
+            await _reportingService.GetDailyBranchSalesAsync(reportBranch, reportDate, ct),
+            await _reportingService.GetLowStockAsync(reportBranch, _lowStockRule.Threshold, ct),
+            await _reportingService.GetShippingVolumeAsync(reportBranch, ct)));
     }
 
     [HttpGet]
@@ -60,7 +56,7 @@ public class ReportsController : Controller
             return StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        var report = await _reportingService.GetMoneyOrderAuditReportAsync(null, ct);
+        var report = await _reportingService.GetMoneyOrderAuditAsync(null, ct);
         return View(report);
     }
 }

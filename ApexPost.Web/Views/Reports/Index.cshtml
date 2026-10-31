@@ -1,48 +1,45 @@
-﻿@using ApexPost.Domain.ValueObjects
+@model ApexPost.Web.Models.ReportsViewModel
 @{
     ViewData["Title"] = "Reports";
-    var sales = ViewBag.Sales as IEnumerable<(string Branch, Money Sales, Money Services)> ?? [];
-    var stock = ViewBag.Stock as IEnumerable<(string Branch, string Sku, int Quantity)> ?? [];
-    var shipping = ViewBag.Shipping as IEnumerable<(string Zone, ApexPost.Domain.Enums.ServiceLevel ServiceLevel, int Count)> ?? [];
 }
 
 <h2>Reports</h2>
 <form method="get" asp-action="Index" class="row g-2 align-items-end mb-3">
     <div class="col-auto">
         <label for="date" class="form-label">Sales date</label>
-        <input id="date" name="date" type="date" class="form-control" value="@(((DateOnly)ViewBag.ReportDate).ToString("yyyy-MM-dd"))" />
+        <input id="date" name="date" type="date" class="form-control" value="@Model.ReportDate.ToString("yyyy-MM-dd")" />
     </div>
     <div class="col-auto"><button type="submit" class="btn btn-outline-primary">Show</button></div>
 </form>
 <div class="row">
     <div class="col-md-6">
-        <h3>Daily branch sales (@(((DateOnly)ViewBag.ReportDate).ToString("d MMM yyyy")))</h3>
-        @if (!sales.Any())
+        <h3>Daily branch sales (@Model.ReportDate.ToString("d MMM yyyy"))</h3>
+        @if (Model.Sales.Count == 0)
         {
             <p class="text-muted">No paid sales on this date.</p>
         }
         <ul>
-            @foreach (var item in sales)
+            @foreach (var item in Model.Sales)
             {
-                <li>@item.Branch: retail @item.Sales.Amount.ToString("C"), services @item.Services.Amount.ToString("C")</li>
+                <li>@item.BranchCode: retail @item.RetailTotal.ToString("C"), services @item.ServicesTotal.ToString("C")</li>
             }
         </ul>
     </div>
     <div class="col-md-6">
         <h3>Shipping volume by zone and service level</h3>
         <ul>
-            @foreach (var item in shipping)
+            @foreach (var item in Model.Shipping)
             {
-                <li>@item.Zone / @item.ServiceLevel: @item.Count</li>
+                <li>@item.ZoneName / @item.ServiceLevel: @item.Shipments</li>
             }
         </ul>
     </div>
     <div class="col-md-6">
-        <h3>Low stock (@ViewBag.LowStockThreshold units or fewer)</h3>
+        <h3>Low stock (@Model.LowStockThreshold units or fewer)</h3>
         <ul>
-            @foreach (var item in stock)
+            @foreach (var item in Model.LowStock)
             {
-                <li>@item.Branch / @item.Sku: @item.Quantity</li>
+                <li>@item.BranchCode / @item.Sku (@item.ProductName): @item.QuantityOnHand</li>
             }
         </ul>
     </div>

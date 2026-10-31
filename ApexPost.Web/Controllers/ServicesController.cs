@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using ApexPost.Application.Queries;
 using ApexPost.Application.Services;
 using ApexPost.Domain.Common;
 using ApexPost.Domain.Entities;
@@ -16,10 +17,12 @@ namespace ApexPost.Web.Controllers;
 public sealed class ServicesController : Controller, IRepopulatesForm
 {
     private readonly TransactionService _transactions;
+    private readonly IScreenQueries _queries;
 
-    public ServicesController(TransactionService transactions)
+    public ServicesController(TransactionService transactions, IScreenQueries queries)
     {
         _transactions = transactions;
+        _queries = queries;
     }
 
     [HttpGet]
@@ -138,7 +141,7 @@ public sealed class ServicesController : Controller, IRepopulatesForm
     private async Task PopulateCountersAsync(CancellationToken ct)
     {
         ViewBag.Counters = User.FindFirstValue("BranchCode") is { } branchCode
-            ? (await _transactions.GetCheckoutOptionsAsync(branchCode, ct)).Branch.CounterTerminals
+            ? (await _queries.GetCheckoutOptionsAsync(branchCode, ct))?.CounterTerminals ?? []
             : [];
     }
 }

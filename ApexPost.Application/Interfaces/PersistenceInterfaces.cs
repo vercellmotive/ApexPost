@@ -1,45 +1,88 @@
-﻿using ApexPost.Domain.Entities;
 using ApexPost.Domain.Common;
+using ApexPost.Domain.Entities;
 using ApexPost.Domain.Enums;
 using ApexPost.Domain.ValueObjects;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ApexPost.Application.Interfaces;
 
-public interface IRepository<TEntity, in TId>
-    where TEntity : Entity<TId>
-    where TId : notnull
+// Repositories stage changes only: they never commit and never expose IQueryable.
+public interface IBranchRepository
 {
-    Task<IReadOnlyList<TEntity>> GetAllAsync(CancellationToken ct = default);
-    Task<TEntity?> GetByIdAsync(TId id, CancellationToken ct = default);
-    Task<TEntity?> UpdateAsync(TId id, Action<TEntity> update, CancellationToken ct = default);
-    Task SaveAsync(TEntity entity, CancellationToken ct = default);
-    Task DeleteAsync(TId id, CancellationToken ct = default);
+    Task<Branch?> GetByCodeAsync(BranchCode code, CancellationToken ct = default);
+    Task<IReadOnlyList<Branch>> GetAllAsync(CancellationToken ct = default);
+    void Add(Branch branch);
+    void Update(Branch branch);
 }
 
-public interface ISpecification<in T>
+public interface IStaffRepository
 {
-    bool IsSatisfiedBy(T candidate);
+    Task<Staff?> GetByIdAsync(string id, CancellationToken ct = default);
+    Task<Staff?> GetByEmailAsync(string email, CancellationToken ct = default);
+    Task<bool> EmailExistsAsync(string email, string? exceptStaffId, CancellationToken ct = default);
+    Task<IReadOnlyList<string>> GetAllIdsAsync(CancellationToken ct = default);
+    void Add(Staff staff);
+    void Update(Staff staff);
 }
 
-public static class RepositorySpecificationExtensions
+public interface IProductRepository
 {
-    public static async Task<IReadOnlyList<TEntity>> FindAsync<TEntity, TId>(
-        this IRepository<TEntity, TId> repository,
-        ISpecification<TEntity> specification,
-        CancellationToken ct = default)
-        where TEntity : Entity<TId>
-        where TId : notnull =>
-        (await repository.GetAllAsync(ct)).Where(specification.IsSatisfiedBy).ToList();
+    Task<Product?> GetBySkuAsync(Sku sku, CancellationToken ct = default);
+    Task<IReadOnlyList<Product>> GetAllAsync(CancellationToken ct = default);
+    void Add(Product product);
+    void Update(Product product);
 }
 
-public sealed record PaidTransactionsSpecification(string? BranchCode) : ISpecification<Transaction>
+public interface IStockRepository
 {
-    public bool IsSatisfiedBy(Transaction candidate) =>
-        candidate.Status == TransactionStatus.Paid
-        && (BranchCode is null || candidate.BranchCode.Value == BranchCode);
+    Task<BranchStock?> GetAsync(BranchCode branchCode, Sku sku, CancellationToken ct = default);
+    void Add(BranchStock stock);
+}
+
+public interface ICounterTransactionRepository
+{
+    Task<Transaction?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    void Add(Transaction transaction);
+    void Update(Transaction transaction);
+}
+
+public interface IShippingZoneRepository
+{
+    Task<IReadOnlyList<ShippingZone>> GetAllAsync(CancellationToken ct = default);
+}
+
+// One commit per use case. Failures surface as the Application exceptions below, never as EF types.
+public interface IUnitOfWork
+{
+    Task<int> SaveChangesAsync(CancellationToken ct = default);
+    Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default);
+}
+
+public sealed class ConcurrencyConflictException(string message, Exception? innerException = null)
+    : Exception(message, innerException);
+
+public sealed class DuplicateValueException(string message, Exception? innerException = null)
+    : Exception(message, innerException);
+
+// Set-based and procedure-backed writes run immediately, so they are commands rather than repository stages.
+public interface IStockAdjustmentCommand
+{
+    Task<int> AdjustAsync(
+        BranchCode branchCode,
+        Sku sku,
+        int delta,
+        StockAdjustmentReason reason,
+        string changedBy,
+        CancellationToken ct = default);
+}
+
+public interface IPriceRevisionCommand
+{
+    Task<int> ReviseByCategoryAsync(string category, decimal percentChange, CancellationToken ct = default);
+}
+
+public interface ICurrentUser
+{
+    string Name { get; }
 }
 
 public interface IPasswordHasher
@@ -51,6 +94,11 @@ public interface IPasswordHasher
 public interface ICatalogueCache
 {
     void Invalidate();
+}
+
+public interface IShippingZoneLookup
+{
+    ValueTask<ShippingZone?> FindByNameAsync(string name, CancellationToken ct = default);
 }
 
 public interface ICatalogueService
@@ -81,11 +129,6 @@ public interface IAuditStore
 public interface IDomainEventDispatcher
 {
     Task DispatchAsync(IDomainEvent domainEvent, CancellationToken ct = default);
-}
-
-public interface IShippingZoneLookup
-{
-    ValueTask<ShippingZone?> FindByNameAsync(string name, CancellationToken ct = default);
 }
 
 public interface ICourierRateService

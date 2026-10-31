@@ -1,3 +1,4 @@
+using ApexPost.Application.Queries;
 using ApexPost.Application.Services;
 using ApexPost.Domain.Common;
 using ApexPost.Domain.Entities;
@@ -16,14 +17,18 @@ namespace ApexPost.Web.Controllers;
 [Authorize]
 public class CounterController : Controller, IRepopulatesForm
 {
+    private const int RecentTransactionLimit = 200;
     private readonly TransactionService _transactionService;
+    private readonly IScreenQueries _queries;
     private readonly IAuthorizationService _authorizationService;
 
     public CounterController(
         TransactionService transactionService,
+        IScreenQueries queries,
         IAuthorizationService authorizationService)
     {
         _transactionService = transactionService;
+        _queries = queries;
         _authorizationService = authorizationService;
     }
 
@@ -49,7 +54,7 @@ public class CounterController : Controller, IRepopulatesForm
             return Forbid();
         }
 
-        return View(await _transactionService.GetBranchTransactionsAsync(branchCode, ct));
+        return View(await _queries.GetBranchTransactionsAsync(branchCode, RecentTransactionLimit, ct));
     }
 
     [HttpPost]
@@ -140,8 +145,9 @@ public class CounterController : Controller, IRepopulatesForm
     [HttpPost]
     [ValidateAntiForgeryToken]
     [AuditedAction("Void")]
-    public async Task<IActionResult> Void(Guid transactionId, string reason, CancellationToken ct)
+    public async Task<IActionResult> Void(TransactionReversalRequest request, CancellationToken ct)
     {
+        HttpContext.AddAuditDetail("transactionId", request.TransactionId!.Value.ToString("D"));
         if (!(await _authorizationService.AuthorizeAsync(User, "BranchManagerOnly")).Succeeded)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
@@ -155,7 +161,7 @@ public class CounterController : Controller, IRepopulatesForm
 
         try
         {
-            await _transactionService.VoidAsync(transactionId, managerId, reason, ct);
+            await _transactionService.VoidAsync(request.TransactionId.Value, managerId, request.Reason, ct);
             TempData["Success"] = "Transaction voided.";
             return RedirectToAction(nameof(Transactions));
         }
@@ -176,8 +182,9 @@ public class CounterController : Controller, IRepopulatesForm
     [HttpPost]
     [ValidateAntiForgeryToken]
     [AuditedAction("Refund")]
-    public async Task<IActionResult> Refund(Guid transactionId, string reason, CancellationToken ct)
+    public async Task<IActionResult> Refund(TransactionReversalRequest request, CancellationToken ct)
     {
+        HttpContext.AddAuditDetail("transactionId", request.TransactionId!.Value.ToString("D"));
         if (!(await _authorizationService.AuthorizeAsync(User, "BranchManagerOnly")).Succeeded)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
@@ -191,7 +198,7 @@ public class CounterController : Controller, IRepopulatesForm
 
         try
         {
-            await _transactionService.RefundAsync(transactionId, managerId, reason, ct);
+            await _transactionService.RefundAsync(request.TransactionId.Value, managerId, request.Reason, ct);
             TempData["Success"] = "Transaction refunded.";
             return RedirectToAction(nameof(Transactions));
         }
@@ -216,9 +223,6 @@ public class CounterController : Controller, IRepopulatesForm
 
     private async Task PopulateCheckoutViewAsync(string branchCode, CancellationToken ct)
     {
-        var options = await _transactionService.GetCheckoutOptionsAsync(branchCode, ct);
-        ViewBag.Branches = new[] { options.Branch };
-        ViewBag.Stocks = options.Stock;
-        ViewBag.Products = options.Products;
+        ViewBag.Options = await _queries.GetCheckoutOptionsAsync(branchCode, ct);
     }
 }

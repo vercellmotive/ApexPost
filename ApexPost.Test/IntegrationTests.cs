@@ -270,31 +270,11 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
         }));
         Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
 
-        var branchRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.Branch, ApexPost.Domain.ValueObjects.BranchCode>>();
-        var originalBranch = await branchRepository.GetByIdAsync(new ApexPost.Domain.ValueObjects.BranchCode("B001"))
-            ?? throw new InvalidOperationException("The test branch was not seeded.");
-        await branchRepository.SaveAsync(new ApexPost.Domain.Entities.Branch
-        {
-            Id = originalBranch.Id,
-            Name = originalBranch.Name,
-            Region = originalBranch.Region,
-            TimeZoneId = "UTC",
-            OpenTime = TimeSpan.Zero,
-            CloseTime = new TimeSpan(23, 59, 59),
-            IsActive = originalBranch.IsActive,
-            CounterTerminals = originalBranch.CounterTerminals
-        });
-
-        try
-        {
             var counterPage = await client.GetAsync("/Counter");
             var counterToken = FindAntiforgeryToken(await counterPage.Content.ReadAsStringAsync());
             Assert.True(counterToken.Success);
 
-            var stockRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.BranchStock, Guid>>();
-            var stockBefore = (await stockRepository.GetAllAsync())
-                .Single(item => item.BranchCode.Value == "B001" && item.ProductSku.Value == "SKU-001")
-                .QuantityOnHand;
+            var stockBefore = _factory.Database.StockOf("B001", "SKU-001");
 
             var failure = await client.PostAsync("/Counter/Create", new FormUrlEncodedContent(new[]
             {
@@ -313,15 +293,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
 
             Assert.Equal(HttpStatusCode.OK, failure.StatusCode);
             Assert.Contains("requires successful identity verification", await failure.Content.ReadAsStringAsync());
-            var stockAfter = (await stockRepository.GetAllAsync())
-                .Single(item => item.BranchCode.Value == "B001" && item.ProductSku.Value == "SKU-001")
-                .QuantityOnHand;
-            Assert.Equal(stockBefore, stockAfter);
-        }
-        finally
-        {
-            await branchRepository.SaveAsync(originalBranch);
-        }
+            Assert.Equal(stockBefore, _factory.Database.StockOf("B001", "SKU-001"));
     }
 
     [Fact]
@@ -370,10 +342,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
         var token = FindAntiforgeryToken(await catalog.Content.ReadAsStringAsync());
         Assert.True(token.Success);
 
-        var stockRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.BranchStock, Guid>>();
-        var before = (await stockRepository.GetAllAsync())
-            .Single(item => item.BranchCode.Value == "B001" && item.ProductSku.Value == "SKU-001")
-            .QuantityOnHand;
+        var before = _factory.Database.StockOf("B001", "SKU-001");
         var response = await client.PostAsync("/Stock/Adjust", new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("productSku", "SKU-001"),
@@ -383,10 +352,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
         }));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var after = (await stockRepository.GetAllAsync())
-            .Single(item => item.BranchCode.Value == "B001" && item.ProductSku.Value == "SKU-001")
-            .QuantityOnHand;
-        Assert.Equal(before + 2, after);
+        Assert.Equal(before + 2, _factory.Database.StockOf("B001", "SKU-001"));
 
         var auditStore = _factory.Services.GetRequiredService<IAuditStore>();
         var auditEntry = (await auditStore.GetAllAsync()).Last(entry =>
@@ -402,82 +368,38 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
     public async Task SuccessfulCounterSale_IsPersistedAndAudited()
     {
         var client = await CreateAuthenticatedClientAsync("alice@apexpost.com", "127.0.0.41");
-        var branches = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.Branch, ApexPost.Domain.ValueObjects.BranchCode>>();
-        var originalBranch = await branches.GetByIdAsync(new ApexPost.Domain.ValueObjects.BranchCode("B001"))
-            ?? throw new InvalidOperationException("The test branch was not seeded.");
-        await branches.SaveAsync(new ApexPost.Domain.Entities.Branch
-        {
-            Id = originalBranch.Id,
-            Name = originalBranch.Name,
-            Region = originalBranch.Region,
-            TimeZoneId = originalBranch.TimeZoneId,
-            OpenTime = TimeSpan.Zero,
-            CloseTime = TimeSpan.FromHours(23).Add(TimeSpan.FromMinutes(59)).Add(TimeSpan.FromSeconds(59)),
-            IsActive = originalBranch.IsActive,
-            CounterTerminals = originalBranch.CounterTerminals
-        });
-
-        var stockRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.BranchStock, Guid>>();
-        var transactionRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.Transaction, Guid>>();
         var auditStore = _factory.Services.GetRequiredService<IAuditStore>();
-        ApexPost.Domain.Entities.BranchStock? stockBeforeSale = null;
-        Guid? createdTransactionId = null;
-        try
+        var initialQuantity = _factory.Database.StockOf("B001", "SKU-001");
+        Assert.True(initialQuantity > 0);
+
+        var counterPage = await client.GetAsync("/Counter");
+        Assert.Equal(HttpStatusCode.OK, counterPage.StatusCode);
+        var token = FindAntiforgeryToken(await counterPage.Content.ReadAsStringAsync());
+        Assert.True(token.Success);
+
+        var sale = await client.PostAsync("/Counter/Create", new FormUrlEncodedContent(new[]
         {
-            stockBeforeSale = (await stockRepository.GetAllAsync())
-                .Single(item => item.BranchCode.Value == "B001" && item.ProductSku.Value == "SKU-001");
-            var initialQuantity = stockBeforeSale.QuantityOnHand;
-            Assert.True(initialQuantity > 0);
+            new KeyValuePair<string, string>("CounterId", "C01"),
+            new KeyValuePair<string, string>("RetailItems[0].ProductSku", "SKU-001"),
+            new KeyValuePair<string, string>("RetailItems[0].Quantity", "1"),
+            new KeyValuePair<string, string>("PaymentMethod", "Cash"),
+            new KeyValuePair<string, string>("__RequestVerificationToken", token.Groups[1].Success ? token.Groups[1].Value : token.Groups[2].Value)
+        }));
 
-            var counterPage = await client.GetAsync("/Counter");
-            Assert.Equal(HttpStatusCode.OK, counterPage.StatusCode);
-            var token = FindAntiforgeryToken(await counterPage.Content.ReadAsStringAsync());
-            Assert.True(token.Success);
+        Assert.Equal(HttpStatusCode.Redirect, sale.StatusCode);
+        var correlationId = Assert.Single(sale.Headers.GetValues("X-Correlation-Id"));
+        Assert.Equal(initialQuantity - 1, _factory.Database.StockOf("B001", "SKU-001"));
 
-            var sale = await client.PostAsync("/Counter/Create", new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("CounterId", "C01"),
-                new KeyValuePair<string, string>("RetailItems[0].ProductSku", "SKU-001"),
-                new KeyValuePair<string, string>("RetailItems[0].Quantity", "1"),
-                new KeyValuePair<string, string>("PaymentMethod", "Cash"),
-                new KeyValuePair<string, string>("__RequestVerificationToken", token.Groups[1].Success ? token.Groups[1].Value : token.Groups[2].Value)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, sale.StatusCode);
-            var correlationId = Assert.Single(sale.Headers.GetValues("X-Correlation-Id"));
-            var currentStock = await stockRepository.GetByIdAsync(stockBeforeSale.Id)
-                ?? throw new InvalidOperationException("The test stock record disappeared.");
-            Assert.Equal(initialQuantity - 1, currentStock.QuantityOnHand);
-
-            var saleAuditEntries = (await auditStore.GetAllAsync()).Where(entry =>
-                entry.Controller == "CounterController"
-                && entry.Action == "Create"
-                && entry.StaffId == "STF001"
-                && entry.StatusCode == StatusCodes.Status302Found
-                && entry.CorrelationId == correlationId).ToList();
-            var saleAudit = Assert.Single(saleAuditEntries);
-            using var parameters = System.Text.Json.JsonDocument.Parse(saleAudit.Parameters);
-            createdTransactionId = Guid.Parse(parameters.RootElement.GetProperty("transactionId").GetString()!);
-            var transaction = await transactionRepository.GetByIdAsync(createdTransactionId.Value);
-            Assert.NotNull(transaction);
-            Assert.Equal(ApexPost.Domain.Enums.TransactionStatus.Paid, transaction!.Status);
-        }
-        finally
-        {
-            if (createdTransactionId is Guid transactionId)
-            {
-                await transactionRepository.DeleteAsync(transactionId);
-            }
-
-            if (stockBeforeSale is not null && createdTransactionId is not null)
-            {
-                await stockRepository.UpdateAsync(
-                    stockBeforeSale.Id,
-                    stock => stock.AddStock(1));
-            }
-
-            await branches.SaveAsync(originalBranch);
-        }
+        var saleAuditEntries = (await auditStore.GetAllAsync()).Where(entry =>
+            entry.Controller == "CounterController"
+            && entry.Action == "Create"
+            && entry.StaffId == "STF001"
+            && entry.StatusCode == StatusCodes.Status302Found
+            && entry.CorrelationId == correlationId).ToList();
+        var saleAudit = Assert.Single(saleAuditEntries);
+        using var parameters = System.Text.Json.JsonDocument.Parse(saleAudit.Parameters);
+        var transactionId = Guid.Parse(parameters.RootElement.GetProperty("transactionId").GetString()!);
+        Assert.Equal(ApexPost.Domain.Enums.TransactionStatus.Paid, _factory.Database.TransactionById(transactionId).Status);
     }
 
     private async Task<HttpClient> CreateAuthenticatedClientAsync(string email, string clientIp = "127.0.0.30")
@@ -508,11 +430,11 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
             html,
             "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"|value=\"([^\"]+)\"[^>]*name=\"__RequestVerificationToken\"");
 
-    private sealed class PartnerRateLimitFactory : WebApplicationFactory<Program>
+    private sealed class PartnerRateLimitFactory : ApexPostWebApplicationFactory
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            builder.UseEnvironment("Development");
+            base.ConfigureWebHost(builder);
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
