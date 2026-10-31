@@ -15,12 +15,12 @@ using Microsoft.Extensions.Logging;
 
 namespace ApexPost.Test;
 
-public sealed class RemarkFixIntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
+public sealed class WebWorkflowIntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
 {
     private static int _clientNumber;
     private readonly ApexPostWebApplicationFactory _factory;
 
-    public RemarkFixIntegrationTests(ApexPostWebApplicationFactory factory)
+    public WebWorkflowIntegrationTests(ApexPostWebApplicationFactory factory)
     {
         _factory = factory;
     }
