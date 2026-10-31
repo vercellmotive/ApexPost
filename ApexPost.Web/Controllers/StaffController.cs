@@ -63,7 +63,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
         var person = await _queries.GetStaffMemberAsync(id, ct);
         if (person is null)
         {
-            return NotFound();
+            throw new KeyNotFoundException("Staff member not found.");
         }
 
         var model = new StaffFormViewModel
@@ -90,10 +90,6 @@ public sealed class StaffController : Controller, IRepopulatesForm
             TempData["Success"] = "Staff member updated.";
             return RedirectToAction(nameof(Index));
         }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
         catch (DomainValidationException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
@@ -107,16 +103,9 @@ public sealed class StaffController : Controller, IRepopulatesForm
     [AuditedAction("StaffDeactivate")]
     public async Task<IActionResult> Deactivate([FromRoute] string id, CancellationToken ct)
     {
-        try
-        {
-            await _staff.DeactivateAsync(id, ct);
-            TempData["Success"] = "Staff member deactivated.";
-            return RedirectToAction(nameof(Index));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        await _staff.DeactivateAsync(id, ct);
+        TempData["Success"] = "Staff member deactivated.";
+        return RedirectToAction(nameof(Index));
     }
 
     public async Task RepopulateFormAsync(object model, CancellationToken ct)

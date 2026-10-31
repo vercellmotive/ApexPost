@@ -59,7 +59,7 @@ public sealed class BranchesController : Controller, IRepopulatesForm
         var branch = await _queries.GetBranchAsync(id, ct);
         if (branch is null)
         {
-            return NotFound();
+            throw new KeyNotFoundException("Branch not found.");
         }
 
         return View("Form", new BranchFormViewModel
@@ -89,10 +89,6 @@ public sealed class BranchesController : Controller, IRepopulatesForm
             TempData["Success"] = "Branch updated.";
             return RedirectToAction(nameof(Index));
         }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
         catch (DomainValidationException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
@@ -105,16 +101,9 @@ public sealed class BranchesController : Controller, IRepopulatesForm
     [AuditedAction("BranchStatusChange")]
     public async Task<IActionResult> SetStatus([FromRoute] string id, BranchStatusRequest request, CancellationToken ct)
     {
-        try
-        {
-            await _branches.SetActiveAsync(id, request.IsActive, ct);
-            TempData["Success"] = request.IsActive ? "Branch reopened." : "Branch closed.";
-            return RedirectToAction(nameof(Index));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        await _branches.SetActiveAsync(id, request.IsActive, ct);
+        TempData["Success"] = request.IsActive ? "Branch reopened." : "Branch closed.";
+        return RedirectToAction(nameof(Index));
     }
 
     public Task RepopulateFormAsync(object model, CancellationToken ct)

@@ -38,29 +38,14 @@ public sealed class StockController : Controller
             return Forbid();
         }
 
-        try
-        {
-            await _inventory.AdjustStockAsync(
-                staffId,
-                new BranchCode(branchCode),
-                new Sku(request.ProductSku),
-                request.QuantityDelta,
-                request.ReasonCode,
-                ct);
-            TempData["Success"] = $"Stock for {request.ProductSku} was adjusted.";
-            return RedirectToAction("Index", "Catalog");
-        }
-        catch (UnauthorizedDomainActionException)
-        {
-            return Forbid();
-        }
-        catch (DomainValidationException exception)
-        {
-            return BadRequest(exception.Message);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        await _inventory.AdjustStockAsync(
+            staffId,
+            new BranchCode(branchCode),
+            new Sku(request.ProductSku),
+            request.QuantityDelta,
+            request.ReasonCode,
+            ct);
+        TempData["Success"] = $"Stock for {request.ProductSku} was adjusted.";
+        return RedirectToAction("Index", "Catalog");
     }
 }

@@ -4,7 +4,7 @@
 
 SQL Server, reached through EF Core 10, is now the system of record, behind interfaces in the Application layer. ADRs that Week 3 replaced say so at the top.
 
-**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 181 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
+**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 184 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
 
 ### Layers and dependencies
 
@@ -788,6 +788,16 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Consequences:** Every reversal leaves history. If the status change loses a `rowversion` race, the restock and history roll back with it, and the clerk gets a 409. A SQL Server test proves this through HTTP. The transaction lasts slightly longer than a single save.
 
+### ADR-38: Let action errors reach the Problem Details boundary
+
+**Context:** Void, refund, stock adjustment and the administrator actions caught exceptions and returned plain text, so those errors skipped `GlobalExceptionMiddleware`. The mapping test called the middleware directly, so only running the app showed the gap.
+
+**Decision:** An action with no form to redisplay lets exceptions reach the middleware, and a missing record always throws `KeyNotFoundException`. Form screens still show a `DomainValidationException` on the form, because the brief accepts a view error there and the clerk keeps what they typed. Concurrency conflicts and unique violations aren't caught by those forms, so they always return a 409.
+
+**Alternatives:** Build Problem Details in each controller (repeats the mapping and loses the trace ID); show a friendly page for every error (doesn't meet the brief's mapping).
+
+**Consequences:** One boundary formats these errors, and tests now assert the real responses. The audit filter reads the status from the exception, so audit rows stay correct. A manager who voids a sale twice sees a Problem Details response rather than a friendly message. The explicit `BranchManagerOnly` checks still return a plain 403, which isn't in the brief's mapping.
+
 ## SOLID mapping
 
 - **Single Responsibility:** repositories stage, the unit of work commits, mappers translate, query services read, and controllers handle HTTP.
@@ -818,13 +828,13 @@ Each decision records its context, the decision, the alternatives considered and
 
 ## Validation
 
-`ApexPost.Test` has 181 tests, and all 181 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 162 run and 19 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
+`ApexPost.Test` has 184 tests, and all 184 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 164 run and 20 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
 
 | Layer | Needs a database | What it covers |
 |---|---|---|
 | Domain and services | No | Rules, plus services over fake repositories and a spy unit of work (commit once, or never on failure), including bounded retries. |
 | Persistence model | No | Every table, rowversion, indexes, migrations in step, idempotent script, LINQ translation, mappers, seed volume and dependency direction. |
-| MVC | No (fakes) | Pipeline, security, 409/404/400 Problem Details, over-posting and report totals. |
-| SQL Server | **Yes** | Mapping, rollback, rowversion conflicts, unique and check constraints, procedures, N+1 counts, the least-privilege role and end-to-end MVC, including report totals. |
+| MVC | No (fakes) | Pipeline, security, 409/404/400 Problem Details from real void, refund, stock and administrator requests, over-posting and report totals. |
+| SQL Server | **Yes** | Mapping, rollback, rowversion conflicts, unique and check constraints, procedures, N+1 counts, the least-privilege role and end-to-end MVC, including report totals and Problem Details for procedure errors. |
 
 `Directory.Build.props` sets `TreatWarningsAsErrors`, so the build itself enforces zero warnings.

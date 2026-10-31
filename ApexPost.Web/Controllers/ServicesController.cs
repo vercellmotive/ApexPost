@@ -135,10 +135,6 @@ public sealed class ServicesController : Controller, IRepopulatesForm
         {
             return (Forbid(), null);
         }
-        catch (KeyNotFoundException)
-        {
-            return (NotFound(), null);
-        }
     }
 
     private async Task PopulateCountersAsync(ICounterChoices model, CancellationToken ct)

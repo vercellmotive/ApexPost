@@ -419,6 +419,42 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
     }
 
     [SqlServerFact]
+    public async Task Mvc_NotFoundAndProcedureErrors_AreProblemDetailsAndChangeNothing()
+    {
+        var sku = new Sku("SKU-008");
+        using var factory = new SqlServerWebFactory(database.ConnectionString);
+        await OpenAllBranchesAsync();
+        var quantityBefore = await StockQuantityAsync(sku);
+        var (client, token) = await SignInManagerAsync(factory, "127.0.3.5");
+
+        var missingSale = await client.PostAsync("/Counter/Void", VoidForm(Guid.NewGuid(), token));
+        Assert.Equal(HttpStatusCode.NotFound, missingSale.StatusCode);
+        Assert.Equal("application/problem+json", missingSale.Content.Headers.ContentType?.MediaType);
+
+        var overdraw = await client.PostAsync("/Stock/Adjust", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["productSku"] = sku.Value,
+            ["quantityDelta"] = "-1000000",
+            ["reasonCode"] = "CountCorrection",
+            ["__RequestVerificationToken"] = token
+        }));
+        Assert.Equal(HttpStatusCode.BadRequest, overdraw.StatusCode);
+        Assert.Equal("application/problem+json", overdraw.Content.Headers.ContentType?.MediaType);
+
+        var unknownProduct = await client.PostAsync("/Stock/Adjust", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["productSku"] = "SKU-404",
+            ["quantityDelta"] = "1",
+            ["reasonCode"] = "CountCorrection",
+            ["__RequestVerificationToken"] = token
+        }));
+        Assert.Equal(HttpStatusCode.NotFound, unknownProduct.StatusCode);
+        Assert.Equal("application/problem+json", unknownProduct.Content.Headers.ContentType?.MediaType);
+
+        Assert.Equal(quantityBefore, await StockQuantityAsync(sku));
+    }
+
+    [SqlServerFact]
     public async Task Mvc_Reports_ShowTheTotalsHeldInTheTables()
     {
         var lowSku = new Sku("SKU-002");
