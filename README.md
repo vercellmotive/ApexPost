@@ -8,10 +8,14 @@ ApexPost is a .NET 10 / C# 14 ASP.NET Core MVC counter platform for branch retai
 
 You need the .NET 10 SDK and a SQL Server you control. Free options include SQL Server Developer or Express, LocalDB on Windows, or the Developer image in Docker, plus SSMS. Docker Desktop itself needs a paid plan at larger companies. Never use a shared training database.
 
-1. Restore the local `dotnet-ef` tool:
+1. Restore the local `dotnet-ef` tool and the solution's packages. `dotnet ef` fails with `NETSDK1004` if the projects haven't been restored:
 
 ```bash
 dotnet tool restore
+```
+
+```bash
+dotnet restore ApexPost.slnx
 ```
 
 2. Set the connection string for your server. It stays out of source control. On LocalDB, for example:
@@ -41,6 +45,12 @@ dotnet run --project ApexPost.Web --launch-profile https
 ```
 
 Open the HTTPS URL it prints and sign in with an account below. Warnings fail the build through `Directory.Build.props`.
+
+If it stops with `Unable to configure HTTPS endpoint`, your machine has no development certificate. Create and trust one, which may ask for your password, then run the app again:
+
+```bash
+dotnet dev-certs https --trust
+```
 
 To regenerate the idempotent script after adding a migration:
 
