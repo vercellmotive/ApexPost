@@ -121,6 +121,63 @@ public sealed class TransactionWorkflowTests
         Assert.Equal(4, database.StockOf(Branch, Sku1));
     }
 
+    private static CounterCheckoutRequest OneUnitSale() =>
+        new("C01", [new RetailItemRequest(new Sku(Sku1), 1)], [], [], false, DocumentType.Passport, null, "Cash");
+
+    [Fact]
+    public async Task Checkout_RetriesAConflictAndCommitsOnce()
+    {
+        var (database, persistence, service) = Arrange(stock: 5);
+        persistence.FailNextSaveWith = new ConcurrencyConflictException("Lost the race.");
+
+        await service.CheckoutAsync(Branch, "STF001", OneUnitSale(), Guid.NewGuid());
+
+        Assert.Equal(1, persistence.ResetCount);
+        Assert.Equal(1, persistence.CommitCount);
+        Assert.Equal(4, database.StockOf(Branch, Sku1));
+        Assert.Single(database.AllTransactions());
+    }
+
+    [Fact]
+    public async Task Checkout_RetryRechecksStockSoItCannotOversell()
+    {
+        var (database, persistence, service) = Arrange(stock: 1);
+        persistence.FailNextSaveWith = new ConcurrencyConflictException("Lost the race.");
+        database.SimulateConcurrentStockChange(Branch, Sku1, 0);
+
+        await Assert.ThrowsAsync<DomainValidationException>(() =>
+            service.CheckoutAsync(Branch, "STF001", OneUnitSale(), Guid.NewGuid()));
+
+        Assert.Equal(0, database.StockOf(Branch, Sku1));
+        Assert.Empty(database.AllTransactions());
+    }
+
+    [Fact]
+    public async Task Checkout_GivesUpAfterBoundedAttempts()
+    {
+        var (database, _, service) = Arrange(stock: 5);
+        var conflicting = new AlwaysConflictingPersistence(database);
+        service = new TransactionService(
+            conflicting.Inner, conflicting.Inner, conflicting.Inner, conflicting.Inner, conflicting,
+            new StubCourierRateService(), new StubCatalogueService(TestProduct()), new StubIdentityVerificationService(),
+            new StubEventDispatcher(), new TransactionRules(new Money(1000m), new Money(20000m)));
+
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(() =>
+            service.CheckoutAsync(Branch, "STF001", OneUnitSale(), Guid.NewGuid()));
+
+        Assert.Equal(5, conflicting.Saves);
+        Assert.Equal(5, database.StockOf(Branch, Sku1));
+    }
+
+    [Fact]
+    public void MoneyOrder_RequiresVerificationOnlyAboveTheThreshold()
+    {
+        var threshold = new Money(1000m);
+
+        Assert.False(new MoneyOrderDetails(new Money(1000m), "A", "B", new Money(10m)).RequiresVerification(threshold));
+        Assert.True(new MoneyOrderDetails(new Money(1000.01m), "A", "B", new Money(10m)).RequiresVerification(threshold));
+    }
+
     [Fact]
     public async Task RefundRestocksInOneCommitAndCannotRepeat()
     {
@@ -299,6 +356,22 @@ public sealed class TransactionWorkflowTests
         CounterId = "C01",
         ClerkStaffId = "STF001"
     };
+
+    private sealed class AlwaysConflictingPersistence(InMemoryDatabase database) : IUnitOfWork
+    {
+        public InMemoryPersistence Inner { get; private set; } = new(database);
+        public int Saves { get; private set; }
+
+        public Task<int> SaveChangesAsync(CancellationToken ct = default)
+        {
+            Saves++;
+            throw new ConcurrencyConflictException("Lost the race.");
+        }
+
+        public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default) => work(ct);
+
+        public void ResetTracking() => Inner.ResetTracking();
+    }
 
     private sealed class StubCatalogueService(Product product) : ICatalogueService
     {

@@ -187,6 +187,7 @@ public sealed class InMemoryPersistence(InMemoryDatabase database) :
     private readonly List<Action> _staged = [];
 
     public int CommitCount { get; private set; }
+    public int ResetCount { get; private set; }
     public Exception? FailNextSaveWith { get; set; }
 
     public Task<int> SaveChangesAsync(CancellationToken ct = default)
@@ -242,6 +243,14 @@ public sealed class InMemoryPersistence(InMemoryDatabase database) :
     }
 
     public Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken ct = default) => work(ct);
+
+    public void ResetTracking()
+    {
+        _trackedStock.Clear();
+        _trackedTransactions.Clear();
+        _staged.Clear();
+        ResetCount++;
+    }
 
     Task<Branch?> IBranchRepository.GetByCodeAsync(BranchCode code, CancellationToken ct) =>
         Task.FromResult(database.Locked(() => database.Branches.TryGetValue(code, out var branch) ? InMemoryDatabase.Clone(branch) : null));
