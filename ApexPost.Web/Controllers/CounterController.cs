@@ -75,7 +75,7 @@ public class CounterController : Controller, IRepopulatesForm
             string.IsNullOrWhiteSpace(item.ProductSku) != (item.Quantity is null));
         if (hasIncompleteRetailLine)
         {
-            return BadRequest("Each retail item needs both a product and a quantity.");
+            throw new DomainValidationException("Each retail item needs both a product and a quantity.");
         }
 
         var retailItems = model.RetailItems
@@ -138,10 +138,6 @@ public class CounterController : Controller, IRepopulatesForm
         {
             return Forbid();
         }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
     }
 
     [HttpPost]
@@ -161,24 +157,9 @@ public class CounterController : Controller, IRepopulatesForm
             return StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        try
-        {
-            await _transactionService.VoidAsync(request.TransactionId.Value, managerId, request.Reason, ct);
-            TempData["Success"] = "Transaction voided.";
-            return RedirectToAction(nameof(Transactions));
-        }
-        catch (UnauthorizedDomainActionException)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden);
-        }
-        catch (DomainValidationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        await _transactionService.VoidAsync(request.TransactionId.Value, managerId, request.Reason, ct);
+        TempData["Success"] = "Transaction voided.";
+        return RedirectToAction(nameof(Transactions));
     }
 
     [HttpPost]
@@ -198,24 +179,9 @@ public class CounterController : Controller, IRepopulatesForm
             return StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        try
-        {
-            await _transactionService.RefundAsync(request.TransactionId.Value, managerId, request.Reason, ct);
-            TempData["Success"] = "Transaction refunded.";
-            return RedirectToAction(nameof(Transactions));
-        }
-        catch (UnauthorizedDomainActionException)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden);
-        }
-        catch (DomainValidationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        await _transactionService.RefundAsync(request.TransactionId.Value, managerId, request.Reason, ct);
+        TempData["Success"] = "Transaction refunded.";
+        return RedirectToAction(nameof(Transactions));
     }
 
     public Task RepopulateFormAsync(object model, CancellationToken ct) =>

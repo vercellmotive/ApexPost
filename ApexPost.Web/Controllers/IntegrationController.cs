@@ -39,9 +39,5 @@ public class IntegrationController : ControllerBase
                 title: "Courier tracking is temporarily unavailable.",
                 statusCode: StatusCodes.Status504GatewayTimeout);
         }
-        catch (DomainValidationException exception)
-        {
-            return BadRequest(new { error = exception.Message });
-        }
     }
 }

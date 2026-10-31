@@ -180,6 +180,83 @@ public sealed class ErrorMappingAndOverPostingTests : IClassFixture<ApexPostWebA
         Assert.Equal(before + 10m, after);
     }
 
+    [Fact]
+    public async Task ReversalAndStockErrors_ReturnProblemDetailsAndAreAudited()
+    {
+        var client = CreateClient(_factory);
+        await LoginAsync(client, "alice@apexpost.com", "Apex-Alice-2026!");
+        var token = await GetTokenAsync(client, "/Counter");
+
+        var unknownId = Guid.NewGuid();
+        await AssertProblemAsync(await client.PostAsync("/Counter/Void", ReversalForm(unknownId, token)), HttpStatusCode.NotFound);
+        await AssertProblemAsync(await client.PostAsync("/Counter/Refund", ReversalForm(unknownId, token)), HttpStatusCode.NotFound);
+        await AssertProblemAsync(await client.PostAsync("/Stock/Adjust", StockForm("SKU-001", -1000000, token)), HttpStatusCode.BadRequest);
+        await AssertProblemAsync(await client.PostAsync("/Stock/Adjust", StockForm("SKU-404", 1, token)), HttpStatusCode.NotFound);
+
+        var known = _factory.Database.AllTransactions().Select(transaction => transaction.Id).ToHashSet();
+        var sale = await client.PostAsync("/Counter/Create", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["CounterId"] = "C01",
+            ["RetailItems[0].ProductSku"] = "SKU-001",
+            ["RetailItems[0].Quantity"] = "1",
+            ["PaymentMethod"] = "Cash",
+            ["__RequestVerificationToken"] = token
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, sale.StatusCode);
+        var saleId = _factory.Database.AllTransactions().Single(transaction => !known.Contains(transaction.Id)).Id;
+
+        Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/Counter/Void", ReversalForm(saleId, token))).StatusCode);
+        await AssertProblemAsync(await client.PostAsync("/Counter/Void", ReversalForm(saleId, token)), HttpStatusCode.BadRequest);
+        await AssertProblemAsync(await client.PostAsync("/Counter/Refund", ReversalForm(saleId, token)), HttpStatusCode.BadRequest);
+
+        var audit = await _factory.Services.GetRequiredService<IAuditStore>().GetAllAsync();
+        Assert.Contains(audit, entry => entry.Action == "Void" && entry.StatusCode == StatusCodes.Status404NotFound);
+        Assert.Contains(audit, entry => entry.Action == "Void" && entry.StatusCode == StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task AdministratorRequestsForUnknownRecords_Return404ProblemDetails()
+    {
+        var client = CreateClient(_factory, "127.0.0.61");
+        await LoginAsync(client, "olive@apexpost.com", "Apex-Olive-2026!");
+        var token = await GetTokenAsync(client, "/Staff");
+        var form = new Dictionary<string, string>
+        {
+            ["IsActive"] = "false",
+            ["__RequestVerificationToken"] = token
+        };
+
+        await AssertProblemAsync(await client.PostAsync("/Staff/Deactivate/STF999", new FormUrlEncodedContent(form)), HttpStatusCode.NotFound);
+        await AssertProblemAsync(await client.PostAsync("/Branches/SetStatus/B999", new FormUrlEncodedContent(form)), HttpStatusCode.NotFound);
+        await AssertProblemAsync(await client.GetAsync("/Staff/Edit/STF999"), HttpStatusCode.NotFound);
+        await AssertProblemAsync(await client.GetAsync("/Branches/Edit/B999"), HttpStatusCode.NotFound);
+        await AssertProblemAsync(await client.GetAsync("/Products/Edit/SKU-404"), HttpStatusCode.NotFound);
+    }
+
+    private static FormUrlEncodedContent ReversalForm(Guid transactionId, string token) => new(new Dictionary<string, string>
+    {
+        ["transactionId"] = transactionId.ToString(),
+        ["reason"] = "Customer changed their mind",
+        ["__RequestVerificationToken"] = token
+    });
+
+    private static FormUrlEncodedContent StockForm(string sku, int delta, string token) => new(new Dictionary<string, string>
+    {
+        ["productSku"] = sku,
+        ["quantityDelta"] = delta.ToString(),
+        ["reasonCode"] = "CountCorrection",
+        ["__RequestVerificationToken"] = token
+    });
+
+    private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode expected)
+    {
+        Assert.Equal(expected, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains($"\"status\":{(int)expected}", body);
+        Assert.Contains("\"traceId\"", body);
+    }
+
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory, string? clientIp = null)
     {
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions

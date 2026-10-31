@@ -59,7 +59,7 @@ public sealed class ProductsController : Controller, IRepopulatesForm
         var product = await _queries.GetProductAsync(id, ct);
         if (product is null)
         {
-            return NotFound();
+            throw new KeyNotFoundException("Product not found.");
         }
 
         return View("Form", new ProductFormViewModel
@@ -86,10 +86,6 @@ public sealed class ProductsController : Controller, IRepopulatesForm
             await _products.UpdateAsync(id, ToInput(model), ct);
             TempData["Success"] = "Product updated.";
             return RedirectToAction(nameof(Index));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
         }
         catch (DomainValidationException exception)
         {
