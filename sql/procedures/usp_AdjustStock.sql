@@ -38,8 +38,8 @@ BEGIN
             THROW 50404, N'This product is not stocked at this branch.', 1;
         END;
 
-        INSERT dbo.StockAdjustments (BranchCode, Sku, Delta, QuantityAfter, Reason, ChangedBy)
-        SELECT @BranchCode, @Sku, @Delta, QuantityOnHand, @Reason, @ChangedBy
+        INSERT dbo.StockAdjustments (BranchCode, Sku, Delta, QuantityAfter, Reason, ChangedBy, CreatedBy)
+        SELECT @BranchCode, @Sku, @Delta, QuantityOnHand, @Reason, @ChangedBy, @ChangedBy
         FROM @Updated;
 
         COMMIT TRANSACTION;

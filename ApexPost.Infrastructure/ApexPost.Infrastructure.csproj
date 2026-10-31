@@ -42,5 +42,6 @@
   </ItemGroup>
     <ItemGroup>
     <EmbeddedResource Include="..\sql\procedures\*.sql" LogicalName="ApexPost.Sql.%(Filename).sql" />
+    <EmbeddedResource Include="..\sql\procedures\history\*.sql" LogicalName="ApexPost.Sql.%(Filename).sql" />
   </ItemGroup>
 </Project>

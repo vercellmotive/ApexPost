@@ -12,7 +12,8 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
         {
             migrationBuilder.Sql(SqlScripts.ReadForMigration("usp_DailyBranchSales"));
             migrationBuilder.Sql(SqlScripts.ReadForMigration("usp_LowStockReport"));
-            migrationBuilder.Sql(SqlScripts.ReadForMigration("usp_AdjustStock"));
+            // The body as shipped: this runs before the audit columns exist, so it can't use the current file.
+            migrationBuilder.Sql(SqlScripts.ReadForMigration("usp_AdjustStock_v1"));
         }
 
         /// <inheritdoc />

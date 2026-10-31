@@ -1,6 +1,7 @@
 namespace ApexPost.Infrastructure.Persistence;
 
-// Migrations deploy the procedures from /sql, so one file stays the single source of each procedure.
+// Migrations deploy the procedures from /sql. sql/procedures holds each current body, and
+// sql/procedures/history holds bodies that an older migration must keep creating.
 public static class SqlScripts
 {
     public static string Read(string procedureName)
