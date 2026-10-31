@@ -4,7 +4,7 @@
 
 The JSON files are gone. Everything now persists to SQL Server through EF Core 10, behind interfaces in the Application layer. The sections below cover the new design. Older sections describe Week 2 decisions that still apply; ADRs that Week 3 replaced say so.
 
-**Evidence status:** the code, migrations and scripts were built and checked without a running SQL Server. The model, migrations and LINQ translation are verified by tests, and every `.sql` file passes Microsoft's T-SQL parser, but 13 SQL Server tests are skipped until a database is supplied. `PERFORMANCE.md` has no measured results yet.
+**Evidence status:** this has now run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 157 tests pass against the real server, and `PERFORMANCE.md` holds measured results. It has not had a sustained load test.
 
 ### Layers and dependencies
 
@@ -86,7 +86,7 @@ Keys and constraints are defined in `EntityConfigurations.cs` and are visible in
 
 - **Index style:** `[Index]` can't express `INCLUDE` or filters and can't be placed on Domain classes, so some indexes combine it with Fluent, and `BranchStock` uses Fluent alone (ADR-26).
 - **Security pin:** `System.Security.Cryptography.Pkcs` isn't on the allowed list. It's pinned to fix a vulnerable version that SqlClient brings in. **This needs trainer approval** (ADR-32).
-- **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database are also written, and skipped until one exists.
+- **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database also exist, and run when `APEXPOST_TEST_SQLSERVER` is set.
 - **Seed loading:** seed files in `ApexPost.Infrastructure/Data` are JSON, read once by `DatabaseSeeder`. They aren't a persistence store.
 - **Owned types:** `Dimensions` is owned. `Address` is not persisted, because the domain stores no address on any table this week.
 - **Not implemented:** the offline synchronization topics in the lab list aren't in this assignment's requirements.
@@ -512,15 +512,15 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Consequences:** The database rejects invalid data whatever the code does. Reports need more joins, which the indexes in ADR-26 support. Removing a branch or product needs a deliberate decision rather than a delete.
 
-### ADR-26: Declare indexes in code, with evidence still to be captured
+### ADR-26: Declare indexes in code and keep them only on measured evidence
 
-**Context:** The project was built without SQL Server access, so indexes had to be code-first. The brief asks for evidence-backed choices.
+**Context:** Indexes needed to be code-first, and the brief asks for evidence-backed choices.
 
-**Decision:** Use `[Index]` on persistence records for key columns, adding Fluent `HasIndex` on the same named index for `INCLUDE` and filters. `BranchStock` is Fluent only, because an attribute would make Domain depend on EF Core. `AddWorkloadIndexes` is a separate migration, so a baseline without them can be measured.
+**Decision:** Use `[Index]` on persistence records for key columns, adding Fluent `HasIndex` on the same named index for `INCLUDE` and filters. `BranchStock` is Fluent only, because an attribute would make Domain depend on EF Core. Workload indexes are in a separate migration, so a baseline can be measured. Measured on 200,234 transactions, they cut reads by 90–99%.
 
 **Alternatives:** Hand-written SQL indexes (drift from the model); Fluent only (less visible on the class); attributes on Domain (breaks the dependency rule).
 
-**Consequences:** Choices rest on the workload shape and documented optimizer behaviour. **They are not yet backed by measurements**, and `PERFORMANCE.md` must be completed before they can be called evidence-based. An index may prove not worth its cost, and that result should be kept.
+**Consequences:** Choices can be repeated from `PERFORMANCE.md`. The filters fix thresholds at 5 and 1,000, so changing them needs a migration. `IX_ShippingRates_Zone_Level` showed no measurable gain and could be removed; it stays for now because it costs 16 KB on a table that rarely changes.
 
 ### ADR-27: Use stored procedures only where they add value
 
@@ -560,7 +560,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Alternatives:** Pessimistic locks (blocking and deadlock risk); atomic SQL decrements only (bypasses the domain rule); retrying conflicts automatically (might sell to a customer without the clerk knowing).
 
-**Consequences:** No locks are held between read and save. A clerk occasionally sees a conflict and must retry. Hot products will conflict more often under load, which should be measured before scaling.
+**Consequences:** No locks are held between read and save. In 20 simultaneous sales of a product with 10 units, 4 succeeded and 16 got a 409, and later rounds sold exactly the remaining 6, with stock ending at 0 and never negative. So a request that loses the race can get a 409 even when stock remains. A bounded automatic retry is the next step if busy products make this common.
 
 ### ADR-31: Commit audit entries separately from the business transaction
 
@@ -594,13 +594,23 @@ Each decision records its context, the decision, the alternatives considered and
 
 ### ADR-34: Test without a database first, and keep real-database tests skippable
 
-**Context:** This week's work was done with no SQL Server, yet most logic still needs checking. Skipped tests must not pass silently.
+**Context:** Most logic can be checked quickly without a server, yet skipped tests must not pass silently.
 
 **Decision:** Test domain rules, services, mappers, the model, migrations and LINQ translation without a database, using `ToQueryString()` and in-memory fakes. Real-database tests use `[SqlServerFact]`, which reports them as skipped until `APEXPOST_TEST_SQLSERVER` is set, and they create and drop their own database.
 
-**Alternatives:** Requiring a database for all tests (nothing could run here); the EF Core InMemory provider (not on the allowed list, and it ignores constraints and rowversion, so it would give false confidence).
+**Alternatives:** Requiring a database for all tests (slower, and impossible on a machine without a server); the EF Core InMemory provider (not on the allowed list, and it ignores constraints and rowversion).
 
-**Consequences:** Fast tests caught real bugs, including untranslatable queries and an over-posting hole. **Constraint, rowversion, procedure and materialization behaviour stays unverified until the skipped tests run.** The fakes are extra code that must follow the same rules as EF Core.
+**Consequences:** Fast tests caught real bugs before any database existed. All 157 tests have since passed on SQL Server 2022, but anyone running without the variable sees 13 skips. The fakes are extra code that must follow the same rules as EF Core.
+
+### ADR-35: Replace the low-stock index with a filtered index
+
+**Context:** My first index, `(BranchCode, QuantityOnHand) INCLUDE (Sku)`, reduced reads, but measurements showed it made a bulk stock update about 6× slower (about 317 ms to 1,806 ms) and used 12,944 KB, because the key column changes on every sale.
+
+**Decision:** Replace it with `IX_BranchStock_LowStock (BranchCode, Sku) INCLUDE (QuantityOnHand) WHERE [QuantityOnHand] <= 5`, via a follow-up migration.
+
+**Alternatives:** Keep the composite (higher write cost and worse all-branch reads: 348 against 13); no index (1,030 reads for all branches).
+
+**Consequences:** Bulk updates take about 380 ms, the index is 104 KB, and reads are lower for both report shapes. A threshold above 5 can't use it and falls back to a scan of about 1,032 reads, which is still correct. A permanently higher threshold needs a new migration.
 
 ## SOLID mapping
 
@@ -632,13 +642,13 @@ Each decision records its context, the decision, the alternatives considered and
 
 ## Validation
 
-`ApexPost.Test` has 157 tests: 144 run without a database and pass, and 13 need SQL Server and are skipped until `APEXPOST_TEST_SQLSERVER` is set. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
+`ApexPost.Test` has 157 tests, and all 157 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 144 run and 13 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
 
-| Layer | Runs now | What it covers |
+| Layer | Needs a database | What it covers |
 |---|---|---|
-| Domain and services | Yes | Rules, plus services over fake repositories and a spy unit of work (commit once, or never on failure). |
-| Persistence model | Yes | Every table, rowversion, indexes, migrations in step, idempotent script, LINQ translation, mappers, seed volume and dependency direction. |
-| MVC | Yes, over fakes | Pipeline, security, 409/404/400 Problem Details, over-posting and report totals. |
-| SQL Server | **Skipped** | Mapping, rollback, rowversion conflicts, unique and check constraints, procedures, N+1 counts and end-to-end MVC. |
+| Domain and services | No | Rules, plus services over fake repositories and a spy unit of work (commit once, or never on failure). |
+| Persistence model | No | Every table, rowversion, indexes, migrations in step, idempotent script, LINQ translation, mappers, seed volume and dependency direction. |
+| MVC | No (fakes) | Pipeline, security, 409/404/400 Problem Details, over-posting and report totals. |
+| SQL Server | **Yes** | Mapping, rollback, rowversion conflicts, unique and check constraints, procedures, N+1 counts and end-to-end MVC. |
 
 `Directory.Build.props` sets `TreatWarningsAsErrors`, so the build itself enforces zero warnings.

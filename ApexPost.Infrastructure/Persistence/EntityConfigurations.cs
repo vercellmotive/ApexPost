@@ -219,8 +219,10 @@ internal sealed class BranchStockConfiguration : IEntityTypeConfiguration<Branch
         builder.HasIndex(stock => new { stock.BranchCode, stock.ProductSku }).IsUnique().HasDatabaseName("UQ_BranchStock_Branch_Sku");
         builder.HasOne<BranchRecord>().WithMany().HasForeignKey(stock => stock.BranchCode).HasPrincipalKey(branch => branch.Code).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ProductRecord>().WithMany().HasForeignKey(stock => stock.ProductSku).HasPrincipalKey(product => product.Sku).OnDelete(DeleteBehavior.Restrict);
-        builder.HasIndex(stock => new { stock.BranchCode, stock.QuantityOnHand }, IndexNames.LowStockByBranch)
-            .IncludeProperties(stock => stock.ProductSku);
+        // Filtered, because measurements showed a QuantityOnHand key made bulk stock updates about 6x slower (ADR-35).
+        builder.HasIndex(stock => new { stock.BranchCode, stock.ProductSku }, IndexNames.LowStock)
+            .HasFilter("[QuantityOnHand] <= 5")
+            .IncludeProperties(stock => stock.QuantityOnHand);
         builder.Property<byte[]>(AuditColumns.RowVersion).IsRowVersion().IsRequired();
         AuditColumns.AddTo(builder);
     }

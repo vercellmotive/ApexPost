@@ -4,7 +4,7 @@ ApexPost is a .NET 10 / C# 14 ASP.NET Core MVC counter platform for branch retai
 
 ## Requirements and run
 
-You need the .NET 10 SDK and a SQL Server you control. Everything here is free: SQL Server Developer or Express edition, or LocalDB on Windows, plus SSMS. Never use a shared training database.
+You need the .NET 10 SDK and a SQL Server you control. Free options include SQL Server Developer or Express, LocalDB on Windows, or the Developer image in Docker, plus SSMS. Docker Desktop itself needs a paid plan at larger companies. Never use a shared training database.
 
 1. Restore the local `dotnet-ef` tool:
 
@@ -179,7 +179,7 @@ Shipping rates use configured zone multipliers and a tiered service-level base r
 
 ## Audit sample provenance
 
-`AUDIT-SAMPLE.json` holds real entries captured from the running app in Week 2, passed through a safe-field allowlist. The filter and its fields are unchanged, but entries now go to `AuditEntries`. To refresh it from SQL Server:
+`AUDIT-SAMPLE.json` holds real entries from `AuditEntries`, captured while the app ran on SQL Server. To refresh it from SQL Server:
 
 ```bash
 sqlcmd -d ApexPostDb -Q "SELECT TOP (50) * FROM dbo.AuditEntries ORDER BY TimestampUtc DESC FOR JSON PATH"
@@ -202,7 +202,7 @@ git push -u origin feature/audit-sample-provenance
 
 | Path | Contents |
 |---|---|
-| `ApexPost.Infrastructure/Persistence/Migrations` | `InitialCreate`, `AddWorkloadIndexes`, `AddStoredProcedures`, `AddRemainingAuditColumns` |
+| `ApexPost.Infrastructure/Persistence/Migrations` | `InitialCreate`, `AddWorkloadIndexes`, `AddStoredProcedures`, `AddRemainingAuditColumns`, `ReplaceLowStockIndexWithFiltered` |
 | `sql/schema` | Generated idempotent schema script |
 | `sql/procedures` | Stored procedures, with `CREATE OR ALTER` |
 | `sql/reports` | Reporting queries |
