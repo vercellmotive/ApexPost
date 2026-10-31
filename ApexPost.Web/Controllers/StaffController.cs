@@ -1,6 +1,7 @@
 using ApexPost.Application.Services;
 using ApexPost.Domain.Common;
 using ApexPost.Web.Attributes;
+using ApexPost.Web.Filters;
 using ApexPost.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,7 @@ namespace ApexPost.Web.Controllers;
 
 [Authorize(Policy = "AdministratorOnly")]
 [IpRestricted]
-public sealed class StaffController : Controller
+public sealed class StaffController : Controller, IRepopulatesForm
 {
     private readonly StaffManagementService _staff;
 
@@ -33,19 +34,10 @@ public sealed class StaffController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayOnInvalid("Form")]
     [AuditedAction("StaffCreate")]
     public async Task<IActionResult> Create(StaffFormViewModel model, CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(model.Password))
-        {
-            ModelState.AddModelError(nameof(model.Password), "A password is required for a new staff member.");
-        }
-
-        if (!ModelState.IsValid)
-        {
-            await PopulateBranchesAsync(ct);
-            return View("Form", model);
-        }
 
         try
         {
@@ -83,16 +75,10 @@ public sealed class StaffController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayOnInvalid("Form")]
     [AuditedAction("StaffUpdate")]
     public async Task<IActionResult> Edit(string id, StaffFormViewModel model, CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-        {
-            await PopulateBranchesAsync(ct);
-            model.Id = id;
-            return View("Form", model);
-        }
-
         try
         {
             await _staff.UpdateAsync(id, ToInput(model), ct);
@@ -125,6 +111,15 @@ public sealed class StaffController : Controller
         catch (KeyNotFoundException)
         {
             return NotFound();
+        }
+    }
+
+    public async Task RepopulateFormAsync(object model, CancellationToken ct)
+    {
+        await PopulateBranchesAsync(ct);
+        if (model is StaffFormViewModel form)
+        {
+            form.Id = RouteData.Values["id"]?.ToString();
         }
     }
 

@@ -15,6 +15,8 @@
                 <a class="nav-link" asp-controller="Home" asp-action="Index">Dashboard</a>
                 <a class="nav-link" asp-controller="Catalog" asp-action="Index">Catalogue</a>
                 <a class="nav-link" asp-controller="Counter" asp-action="Index">Counter</a>
+                <a class="nav-link" asp-controller="Services" asp-action="MoneyOrder">Money order</a>
+                <a class="nav-link" asp-controller="Services" asp-action="IdentityVerification">Identity check</a>
                 <a class="nav-link" asp-controller="Counter" asp-action="Transactions">Transactions</a>
                 <a class="nav-link" asp-controller="Shipping" asp-action="ShippingLabel">Shipping label</a>
                 <a class="nav-link" asp-controller="Reports" asp-action="Index">Reports</a>
@@ -41,5 +43,7 @@
     <div class="container">
         @RenderBody()
     </div>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <partial name="_ValidationScriptsPartial" />
 </body>
 </html>

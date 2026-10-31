@@ -3,6 +3,7 @@ using ApexPost.Application.Interfaces;
 using ApexPost.Domain.Common;
 using ApexPost.Domain.Entities;
 using ApexPost.Domain.ValueObjects;
+using ApexPost.Web.Attributes;
 using ApexPost.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,13 +33,9 @@ public sealed class ShippingController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayOnInvalid]
     public async Task<IActionResult> ShippingLabel(ShippingLabelViewModel model, CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
         try
         {
             var details = new ShippingDetails(

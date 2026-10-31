@@ -189,6 +189,9 @@ public record TransactionLineItem(
     public Money TotalPrice => UnitPrice * Quantity;
     public Money TaxAmount => TotalPrice.CalculateTax(TaxCategory);
     public Money GrandTotal => TotalPrice + TaxAmount;
+
+    // A money order's principal is customer money passing through; only its fee is ApexPost revenue.
+    public Money Revenue => MoneyOrder is { } order ? order.Fee : GrandTotal;
 }
 
 public class Transaction : AggregateRoot<Guid>
@@ -326,6 +329,6 @@ public static class TransactionExtensions
         public Money ServicesTotal => transaction.TotalFor(item => item.ItemType != LineItemType.RetailProduct);
 
         private Money TotalFor(Func<TransactionLineItem, bool> selector) =>
-            transaction.LineItems.Where(selector).Aggregate(Money.Zero, (total, item) => total + item.GrandTotal);
+            transaction.LineItems.Where(selector).Aggregate(Money.Zero, (total, item) => total + item.Revenue);
     }
 }

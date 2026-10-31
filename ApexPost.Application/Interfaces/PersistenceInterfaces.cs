@@ -83,6 +83,11 @@ public interface IDomainEventDispatcher
     Task DispatchAsync(IDomainEvent domainEvent, CancellationToken ct = default);
 }
 
+public interface IShippingZoneLookup
+{
+    ValueTask<ShippingZone?> FindByNameAsync(string name, CancellationToken ct = default);
+}
+
 public interface ICourierRateService
 {
     Task<Money> GetEstimatedCourierRateAsync(ShippingDetails details, CancellationToken ct = default);

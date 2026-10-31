@@ -1,6 +1,6 @@
+using ApexPost.Web.Configuration;
 using ApexPost.Web.Middleware;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
 
 namespace ApexPost.Test;
 
@@ -41,14 +41,6 @@ public sealed class MaintenanceModeMiddlewareTests
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
     }
 
-    private static MaintenanceModeMiddleware CreateMiddleware(RequestDelegate next)
-    {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["MaintenanceMode:Enabled"] = "true"
-            })
-            .Build();
-        return new MaintenanceModeMiddleware(next, configuration);
-    }
+    private static MaintenanceModeMiddleware CreateMiddleware(RequestDelegate next) =>
+        new(next, new TestOptionsMonitor<MaintenanceOptions>(new MaintenanceOptions { Enabled = true }));
 }

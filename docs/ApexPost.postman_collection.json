@@ -1,0 +1,146 @@
+{
+  "info": {
+    "name": "ApexPost Counter Platform",
+    "description": "Sample requests. Set baseUrl and apiKey, turn off SSL verification for the local development certificate, and keep cookies enabled. Run Get login page before Sign in, and Get counter page before the form POSTs, so the antiforgery token is captured.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://localhost:7125" },
+    { "key": "apiKey", "value": "Choose-a-long-random-partner-key" },
+    { "key": "email", "value": "alice@apexpost.com" },
+    { "key": "password", "value": "Apex-Alice-2026!" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Observability",
+      "item": [
+        { "name": "Health check", "request": { "method": "GET", "url": "{{baseUrl}}/health" } },
+        {
+          "name": "Correlation ID is echoed",
+          "request": { "method": "GET", "header": [{ "key": "X-Correlation-Id", "value": "postman-demo-1" }], "url": "{{baseUrl}}/health" }
+        }
+      ]
+    },
+    {
+      "name": "Partner integration",
+      "item": [
+        {
+          "name": "Parcel status with key (200)",
+          "request": { "method": "GET", "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }], "url": "{{baseUrl}}/integration/parcel-status?trackingId=APX-2026-001" }
+        },
+        { "name": "Parcel status without key (401)", "request": { "method": "GET", "url": "{{baseUrl}}/integration/parcel-status" } },
+        {
+          "name": "Parcel status with wrong key (401)",
+          "request": { "method": "GET", "header": [{ "key": "X-Api-Key", "value": "wrong-key" }], "url": "{{baseUrl}}/integration/parcel-status" }
+        },
+        {
+          "name": "CORS from approved widget origin",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Api-Key", "value": "{{apiKey}}" },
+              { "key": "Origin", "value": "https://tracking-widget.apexpost.example" }
+            ],
+            "url": "{{baseUrl}}/integration/parcel-status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff session",
+      "item": [
+        {
+          "name": "Get login page",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const match = pm.response.text().match(/name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"/);", "pm.collectionVariables.set('token', match ? match[1] : '');"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/Account/Login" }
+        },
+        {
+          "name": "Sign in (302; 429 after the limit)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "Email", "value": "{{email}}" },
+                { "key": "Password", "value": "{{password}}" },
+                { "key": "__RequestVerificationToken", "value": "{{token}}" }
+              ]
+            },
+            "url": "{{baseUrl}}/Account/Login"
+          }
+        },
+        {
+          "name": "Get counter page",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const match = pm.response.text().match(/name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"/);", "pm.collectionVariables.set('token', match ? match[1] : '');"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/Counter" }
+        },
+        {
+          "name": "Mixed basket sale (302)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "CounterId", "value": "C01" },
+                { "key": "RetailItems[0].ProductSku", "value": "SKU-001" },
+                { "key": "RetailItems[0].Quantity", "value": "1" },
+                { "key": "Shipments[0].Include", "value": "true" },
+                { "key": "Shipments[0].IsParcel", "value": "true" },
+                { "key": "Shipments[0].WeightKg", "value": "2" },
+                { "key": "Shipments[0].LengthCm", "value": "30" },
+                { "key": "Shipments[0].WidthCm", "value": "20" },
+                { "key": "Shipments[0].HeightCm", "value": "10" },
+                { "key": "Shipments[0].DestinationZone", "value": "Zone 3" },
+                { "key": "Shipments[0].ServiceLevel", "value": "Express" },
+                { "key": "MoneyOrders[0].Amount", "value": "200" },
+                { "key": "MoneyOrders[0].Sender", "value": "Priya Nair" },
+                { "key": "MoneyOrders[0].Recipient", "value": "Sam Lee" },
+                { "key": "PaymentMethod", "value": "Card" },
+                { "key": "__RequestVerificationToken", "value": "{{token}}" }
+              ]
+            },
+            "url": "{{baseUrl}}/Counter/Create"
+          }
+        },
+        {
+          "name": "High-value money order with identity check (302)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "CounterId", "value": "C01" },
+                { "key": "Amount", "value": "1500" },
+                { "key": "Sender", "value": "Priya Nair" },
+                { "key": "Recipient", "value": "Sam Lee" },
+                { "key": "IncludeIdentityVerification", "value": "true" },
+                { "key": "DocumentType", "value": "Passport" },
+                { "key": "DocumentNumber", "value": "A123456789" },
+                { "key": "PaymentMethod", "value": "Cash" },
+                { "key": "__RequestVerificationToken", "value": "{{token}}" }
+              ]
+            },
+            "url": "{{baseUrl}}/Services/MoneyOrder"
+          }
+        },
+        {
+          "name": "Stock adjustment (302 manager, 403 clerk)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "productSku", "value": "SKU-002" },
+                { "key": "quantityDelta", "value": "3" },
+                { "key": "reasonCode", "value": "Replenishment" },
+                { "key": "__RequestVerificationToken", "value": "{{token}}" }
+              ]
+            },
+            "url": "{{baseUrl}}/Stock/Adjust"
+          }
+        }
+      ]
+    }
+  ]
+}

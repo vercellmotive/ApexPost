@@ -1,29 +1,27 @@
+using System.Globalization;
+using ApexPost.Web.Configuration;
+using Microsoft.Extensions.Options;
+
 namespace ApexPost.Web.Middleware;
 
 public sealed class MaintenanceModeMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly IConfiguration _configuration;
+    private readonly IOptionsMonitor<MaintenanceOptions> _options;
 
-    public MaintenanceModeMiddleware(RequestDelegate next, IConfiguration configuration)
+    public MaintenanceModeMiddleware(RequestDelegate next, IOptionsMonitor<MaintenanceOptions> options)
     {
         _next = next;
-        _configuration = configuration;
+        _options = options;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (context.Request.Path == "/health")
-        {
-            await _next(context);
-            return;
-        }
-
-        var maintenanceMode = _configuration.GetValue<bool>("MaintenanceMode:Enabled");
-        if (maintenanceMode)
+        var options = _options.CurrentValue;
+        if (options.Enabled && context.Request.Path != "/health")
         {
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-            context.Response.Headers["Retry-After"] = "120";
+            context.Response.Headers.RetryAfter = options.RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
             await context.Response.WriteAsJsonAsync(new { error = "ApexPost is temporarily in maintenance mode. Please retry shortly." });
             return;
         }

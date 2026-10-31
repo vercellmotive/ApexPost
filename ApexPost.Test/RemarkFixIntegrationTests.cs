@@ -7,6 +7,7 @@ using ApexPost.Domain.ValueObjects;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -226,6 +227,102 @@ public sealed class RemarkFixIntegrationTests : IClassFixture<ApexPostWebApplica
             message.StartsWith("HTTP GET /Catalog responded 500", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task InvalidForm_IsRedisplayedByTheFilterWithItsChoices()
+    {
+        var client = CreateClient(_factory);
+        Assert.Equal(HttpStatusCode.Redirect, await LoginAsync(client, "ella@apexpost.com", "Apex-Ella-2026!"));
+        var token = await GetTokenAsync(client, "/Services/MoneyOrder");
+
+        var response = await client.PostAsync("/Services/MoneyOrder", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["CounterId"] = "C01",
+            ["Amount"] = "0",
+            ["PaymentMethod"] = "Cash",
+            ["__RequestVerificationToken"] = token
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("The Sender field is required.", html);
+        Assert.Matches("<option[^>]*value=\"C[0-9]+\"", html);
+    }
+
+    [Fact]
+    public async Task NonFormEndpoint_ReturnsConsistentBadRequest()
+    {
+        var client = CreateClient(_factory);
+        Assert.Equal(HttpStatusCode.Redirect, await LoginAsync(client, "hugo@apexpost.com", "Apex-Hugo-2026!"));
+        var token = await GetTokenAsync(client, "/Catalog");
+
+        var response = await client.PostAsync("/Stock/Adjust", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["productSku"] = "SKU-001",
+            ["quantityDelta"] = "not-a-number",
+            ["reasonCode"] = "Replenishment",
+            ["__RequestVerificationToken"] = token
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task StandaloneIdentityCheck_ShowsTheMaskedResultAndIsAudited()
+    {
+        var client = CreateClient(_factory);
+        Assert.Equal(HttpStatusCode.Redirect, await LoginAsync(client, "noah@apexpost.com", "Apex-Noah-2026!"));
+        var branches = _factory.Services.GetRequiredService<IRepository<Branch, BranchCode>>();
+        var original = await branches.GetByIdAsync(new BranchCode("B005"));
+        await branches.SaveAsync(new Branch
+        {
+            Id = original!.Id,
+            Name = original.Name,
+            Region = original.Region,
+            TimeZoneId = "UTC",
+            OpenTime = TimeSpan.Zero,
+            CloseTime = new TimeSpan(23, 59, 59),
+            CounterTerminals = original.CounterTerminals
+        });
+        var token = await GetTokenAsync(client, "/Services/IdentityVerification");
+
+        var response = await client.PostAsync("/Services/IdentityVerification", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["CounterId"] = original.CounterTerminals[0],
+            ["DocumentType"] = "Passport",
+            ["DocumentNumber"] = "A123456789",
+            ["__RequestVerificationToken"] = token
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var page = await (await client.GetAsync("/Services/IdentityVerification")).Content.ReadAsStringAsync();
+        Assert.Contains("******6789", page);
+        Assert.DoesNotContain("A123456789", page);
+        var audit = await _factory.Services.GetRequiredService<IAuditStore>().GetAllAsync();
+        var entry = Assert.Single(audit, item => item.Action == "IdentityVerification" && item.StaffId == "STF014");
+        Assert.DoesNotContain("A123456789", entry.Parameters);
+    }
+
+    [Fact]
+    public async Task RateLimits_ComeFromConfiguration()
+    {
+        using var factory = new ConfiguredLoginLimitFactory();
+        var client = CreateClient(factory);
+        var token = await GetTokenAsync(client, "/Account/Login");
+        var form = new Dictionary<string, string>
+        {
+            ["Email"] = "nobody@apexpost.com",
+            ["Password"] = "wrong",
+            ["__RequestVerificationToken"] = token
+        };
+
+        var first = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(form));
+        var second = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+        Assert.True(second.Headers.Contains("Retry-After"));
+    }
+
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory, string? clientIp = null)
     {
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -269,6 +366,19 @@ public sealed class RemarkFixIntegrationTests : IClassFixture<ApexPostWebApplica
             {
                 builder.ConfigureLogging(logging => logging.AddProvider(loggerProvider));
             }
+        }
+    }
+
+    private sealed class ConfiguredLoginLimitFactory : ApexPostWebApplicationFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["RateLimiting:Login:PermitLimit"] = "1"
+                }));
         }
     }
 

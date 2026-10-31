@@ -1,6 +1,7 @@
 using ApexPost.Application.Services;
 using ApexPost.Domain.Common;
 using ApexPost.Web.Attributes;
+using ApexPost.Web.Filters;
 using ApexPost.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,7 @@ namespace ApexPost.Web.Controllers;
 
 [Authorize(Policy = "AdministratorOnly")]
 [IpRestricted]
-public sealed class BranchesController : Controller
+public sealed class BranchesController : Controller, IRepopulatesForm
 {
     private readonly BranchManagementService _branches;
 
@@ -32,14 +33,10 @@ public sealed class BranchesController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayOnInvalid("Form")]
     [AuditedAction("BranchCreate")]
     public async Task<IActionResult> Create(BranchFormViewModel model, CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-        {
-            return View("Form", model);
-        }
-
         try
         {
             await _branches.CreateAsync(ToInput(model), ct);
@@ -77,16 +74,12 @@ public sealed class BranchesController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayOnInvalid("Form")]
     [AuditedAction("BranchUpdate")]
     public async Task<IActionResult> Edit(string id, BranchFormViewModel model, CancellationToken ct)
     {
         model.IsExisting = true;
         model.Code = id;
-        if (!ModelState.IsValid)
-        {
-            return View("Form", model);
-        }
-
         try
         {
             await _branches.UpdateAsync(id, ToInput(model), ct);
@@ -119,6 +112,17 @@ public sealed class BranchesController : Controller
         {
             return NotFound();
         }
+    }
+
+    public Task RepopulateFormAsync(object model, CancellationToken ct)
+    {
+        if (model is BranchFormViewModel form && RouteData.Values["id"]?.ToString() is { } code)
+        {
+            form.IsExisting = true;
+            form.Code = code;
+        }
+
+        return Task.CompletedTask;
     }
 
     private static BranchRecordInput ToInput(BranchFormViewModel model) =>

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using ApexPost.Application.Services;
+using ApexPost.Web.Attributes;
 using ApexPost.Web.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -28,13 +29,9 @@ public class AccountController : Controller
     [HttpPost]
     [ValidateAntiForgeryToken]
     [EnableRateLimiting("login")]
+    [RedisplayOnInvalid]
     public async Task<IActionResult> Login(LoginViewModel model, CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
         var staff = await _authentication.AuthenticateAsync(model.Email, model.Password, ct);
         if (staff is null)
         {
