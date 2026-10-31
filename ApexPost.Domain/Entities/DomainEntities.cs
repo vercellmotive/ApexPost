@@ -41,6 +41,14 @@ public class Branch : AggregateRoot<BranchCode>
             throw new DomainValidationException($"Branch {Id.Value} is closed or inactive. Transactions are forbidden.");
         }
     }
+
+    public void EnsureHasCounter(string counterId)
+    {
+        if (!CounterTerminals.Contains(counterId, StringComparer.Ordinal))
+        {
+            throw new DomainValidationException($"Counter {counterId} does not belong to branch {Id.Value}.");
+        }
+    }
 }
 
 public class BranchStock : Entity<Guid>
@@ -122,6 +130,14 @@ public class Staff : Entity<string>
         }
 
         if(HomeBranchCode != currentBranch) throw new UnauthorizedDomainActionException($"Staff member {Id} belongs to branch {HomeBranchCode.Value}, not {currentBranch.Value}");
+    }
+
+    public void EnsureManages(BranchCode branch)
+    {
+        if (!IsActive || Role != StaffRole.BranchManager || HomeBranchCode != branch)
+        {
+            throw new UnauthorizedDomainActionException("An active Branch Manager assigned to this branch is required.");
+        }
     }
 }
 
@@ -304,6 +320,59 @@ public class Transaction : AggregateRoot<Guid>
         _lineItems.Add(item);
     }
 
+    public void AddRetailProduct(Product product, int quantity) =>
+        AddLineItem(new TransactionLineItem(
+            Guid.NewGuid(),
+            product.Name,
+            LineItemType.RetailProduct,
+            quantity,
+            product.UnitPrice,
+            product.TaxCategory,
+            product.Id));
+
+    public void AddShipping(ShippingDetails shipping, Money rate) =>
+        AddLineItem(new TransactionLineItem(
+            Guid.NewGuid(),
+            $"Shipping: {shipping.ServiceLevel}",
+            LineItemType.ParcelShipping,
+            1,
+            rate,
+            TaxCategory.Exempt,
+            Shipping: shipping));
+
+    public void AddMoneyOrder(Money amount, string sender, string recipient, Money fee)
+    {
+        if (amount.Amount <= 0 || string.IsNullOrWhiteSpace(sender) || string.IsNullOrWhiteSpace(recipient))
+        {
+            throw new DomainValidationException("A positive money order amount, sender, and recipient are required.");
+        }
+
+        AddLineItem(new TransactionLineItem(
+            Guid.NewGuid(),
+            "Money order",
+            LineItemType.MoneyOrder,
+            1,
+            amount + fee,
+            TaxCategory.Exempt,
+            MoneyOrder: new MoneyOrderDetails(amount, sender.Trim(), recipient.Trim(), fee)));
+    }
+
+    public void AddIdentityVerification(IdVerificationDetails verification) =>
+        AddLineItem(new TransactionLineItem(
+            Guid.NewGuid(),
+            "Identity verification",
+            LineItemType.IdentityVerification,
+            1,
+            Money.Zero,
+            TaxCategory.Exempt,
+            IdVerification: verification));
+
+    public IReadOnlyList<(Sku Sku, int Quantity)> RetailQuantities() =>
+        [.. LineItems
+            .Where(item => item.ItemType == LineItemType.RetailProduct && item.ProductSku is not null)
+            .GroupBy(item => item.ProductSku!.Value)
+            .Select(group => (group.Key, group.Sum(item => item.Quantity)))];
+
     public void Complete(string paymentMethod, Money highValueThreshold)
     {
         if (Status != TransactionStatus.Open) throw new DomainValidationException("Transaction is not open for completion.");
@@ -329,7 +398,7 @@ public class Transaction : AggregateRoot<Guid>
 
     public void Refund(Staff manager, string reason)
     {
-        EnsureManagerForTransaction(manager);
+        manager.EnsureManages(BranchCode);
         if (string.IsNullOrWhiteSpace(reason)) throw new DomainValidationException("A refund reason is required.");
         if (Status != TransactionStatus.Paid) throw new DomainValidationException("Only paid transactions can be refunded.");
 
@@ -351,7 +420,7 @@ public class Transaction : AggregateRoot<Guid>
 
     public void Void(Staff manager, string reason)
     {
-        EnsureManagerForTransaction(manager);
+        manager.EnsureManages(BranchCode);
         if (string.IsNullOrWhiteSpace(reason)) throw new DomainValidationException("A void reason is required.");
         if (Status != TransactionStatus.Paid) throw new DomainValidationException("Only paid transactions can be voided.");
 
@@ -359,14 +428,6 @@ public class Transaction : AggregateRoot<Guid>
         VoidReason = reason;
         VoidedByManagerId = manager.Id;
         AddDomainEvent(new TransactionVoidedEvent(Id, BranchCode, manager.Id, reason));
-    }
-
-    private void EnsureManagerForTransaction(Staff manager)
-    {
-        if (!manager.IsActive || manager.Role != StaffRole.BranchManager || manager.HomeBranchCode != BranchCode)
-        {
-            throw new UnauthorizedDomainActionException("An active Branch Manager assigned to this branch is required.");
-        }
     }
 }
 

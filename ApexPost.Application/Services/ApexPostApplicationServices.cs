@@ -225,12 +225,7 @@ public sealed class InventoryService
 
         var manager = await _staff.GetByIdAsync(managerId, ct)
             ?? throw new UnauthorizedDomainActionException("The signed-in staff member is not available.");
-        if (!manager.IsActive
-            || manager.Role != StaffRole.BranchManager
-            || manager.HomeBranchCode != branchCode)
-        {
-            throw new UnauthorizedDomainActionException("An active Branch Manager assigned to this branch is required.");
-        }
+        manager.EnsureManages(branchCode);
 
         var quantityOnHand = await _adjustStock.AdjustAsync(branchCode, sku, quantityDelta, reason, managerId, ct);
         if (_lowStockRule.IsLow(quantityOnHand))
@@ -433,7 +428,7 @@ public sealed class TransactionService
         clerk.EnsureCanTransact(selectedBranch.Id);
         var now = DateTimeOffset.UtcNow;
         selectedBranch.EnsureAcceptsTransaction(now);
-        EnsureCounterBelongsToBranch(selectedBranch, counterId);
+        selectedBranch.EnsureHasCounter(counterId);
 
         return new Transaction
         {
@@ -474,7 +469,7 @@ public sealed class TransactionService
             ?? throw new UnauthorizedDomainActionException("Staff not found.");
         clerk.EnsureCanTransact(branch.Id);
         branch.EnsureAcceptsTransaction(DateTimeOffset.UtcNow);
-        EnsureCounterBelongsToBranch(branch, transaction.CounterId);
+        branch.EnsureHasCounter(transaction.CounterId);
 
         foreach (var requestedItem in requestedItems)
         {
@@ -488,14 +483,7 @@ public sealed class TransactionService
             var stock = await _stocks.GetAsync(transaction.BranchCode, requestedItem.Sku, ct)
                 ?? throw new DomainValidationException($"Product {requestedItem.Sku.Value} is not stocked at this branch.");
             stock.ReduceStock(requestedItem.Quantity);
-            transaction.AddLineItem(new TransactionLineItem(
-                Guid.NewGuid(),
-                product.Name,
-                LineItemType.RetailProduct,
-                requestedItem.Quantity,
-                product.UnitPrice,
-                product.TaxCategory,
-                requestedItem.Sku));
+            transaction.AddRetailProduct(product, requestedItem.Quantity);
             if (_lowStockRule.IsLow(stock.QuantityOnHand))
             {
                 transaction.AddDomainEvent(new StockLowEvent(transaction.BranchCode, requestedItem.Sku, stock.QuantityOnHand));
@@ -511,45 +499,14 @@ public sealed class TransactionService
     public async Task AddShippingAsync(Transaction transaction, ShippingDetails shippingDetails, CancellationToken ct = default)
     {
         var rate = await _courierRates.GetEstimatedCourierRateAsync(shippingDetails, ct);
-        transaction.AddLineItem(new TransactionLineItem(
-            Guid.NewGuid(),
-            $"Shipping: {shippingDetails.ServiceLevel}",
-            LineItemType.ParcelShipping,
-            1,
-            rate,
-            TaxCategory.Exempt,
-            Shipping: shippingDetails));
+        transaction.AddShipping(shippingDetails, rate);
     }
 
-    public void AddMoneyOrder(Transaction transaction, Money amount, string sender, string recipient)
-    {
-        if (amount.Amount <= 0 || string.IsNullOrWhiteSpace(sender) || string.IsNullOrWhiteSpace(recipient))
-        {
-            throw new DomainValidationException("A positive money order amount, sender, and recipient are required.");
-        }
+    public void AddMoneyOrder(Transaction transaction, Money amount, string sender, string recipient) =>
+        transaction.AddMoneyOrder(amount, sender, recipient, new Money(_rules.MoneyOrderFee, amount.Currency));
 
-        var fee = new Money(_rules.MoneyOrderFee, amount.Currency);
-        transaction.AddLineItem(new TransactionLineItem(
-            Guid.NewGuid(),
-            "Money order",
-            LineItemType.MoneyOrder,
-            1,
-            amount + fee,
-            TaxCategory.Exempt,
-            MoneyOrder: new MoneyOrderDetails(amount, sender.Trim(), recipient.Trim(), fee)));
-    }
-
-    public void AddIdentityVerification(Transaction transaction, IdVerificationDetails verification)
-    {
-        transaction.AddLineItem(new TransactionLineItem(
-            Guid.NewGuid(),
-            "Identity verification",
-            LineItemType.IdentityVerification,
-            1,
-            Money.Zero,
-            TaxCategory.Exempt,
-            IdVerification: verification));
-    }
+    public void AddIdentityVerification(Transaction transaction, IdVerificationDetails verification) =>
+        transaction.AddIdentityVerification(verification);
 
     public Task VoidAsync(Guid transactionId, string managerId, string reason, CancellationToken ct = default) =>
         ReverseTransactionAsync(transactionId, managerId, reason, refund: false, ct);
@@ -583,11 +540,7 @@ public sealed class TransactionService
             transaction.Void(manager, reason);
         }
 
-        var retailQuantities = transaction.LineItems
-            .Where(item => item.ItemType == LineItemType.RetailProduct && item.ProductSku is not null)
-            .GroupBy(item => item.ProductSku!.Value)
-            .Select(group => (Sku: group.Key, Quantity: group.Sum(item => item.Quantity)));
-        foreach (var (sku, quantity) in retailQuantities)
+        foreach (var (sku, quantity) in transaction.RetailQuantities())
         {
             var stock = await _stocks.GetAsync(transaction.BranchCode, sku, ct)
                 ?? throw new KeyNotFoundException($"Stock for reversed product {sku.Value} was not found.");
@@ -598,14 +551,6 @@ public sealed class TransactionService
         _transactions.Update(transaction);
         await _unitOfWork.SaveChangesAsync(ct);
         await DispatchDomainEventsAsync(transaction, ct);
-    }
-
-    private static void EnsureCounterBelongsToBranch(Branch branch, string counterId)
-    {
-        if (!branch.CounterTerminals.Contains(counterId, StringComparer.Ordinal))
-        {
-            throw new DomainValidationException($"Counter {counterId} does not belong to branch {branch.Id.Value}.");
-        }
     }
 
     private async Task DispatchDomainEventsAsync(Transaction transaction, CancellationToken ct)

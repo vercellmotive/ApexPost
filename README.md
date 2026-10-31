@@ -2,6 +2,8 @@
 
 ApexPost is a .NET 10 / C# 14 ASP.NET Core MVC counter platform for branch retail sales, shipping, money orders, identity checks, inventory, reporting, and audit. The solution uses a layered domain/application/infrastructure/web architecture. Data is stored in Microsoft SQL Server through EF Core 10, behind repository and query interfaces.
 
+**Repository:** <https://github.com/vercellmotive/ApexPost>. A zip has no Git history, so [`docs/GIT-HISTORY.md`](docs/GIT-HISTORY.md) lists the commits and pull requests.
+
 ## Requirements and run
 
 You need the .NET 10 SDK and a SQL Server you control. Free options include SQL Server Developer or Express, LocalDB on Windows, or the Developer image in Docker, plus SSMS. Docker Desktop itself needs a paid plan at larger companies. Never use a shared training database.
@@ -52,7 +54,7 @@ dotnet ef migrations script --idempotent --project ApexPost.Infrastructure --sta
 dotnet test ApexPost.slnx
 ```
 
-This runs 148 tests with no database and reports 14 as skipped. To run those too, point this at a server you control. The tests create and drop their own disposable database and never touch `ApexPostDb`:
+This runs 160 tests with no database and reports 15 as skipped. To run those too, point this at a server you control. The tests create and drop their own disposable database and never touch `ApexPostDb`:
 
 ```bash
 APEXPOST_TEST_SQLSERVER="Server=localhost;User Id=<user>;Password=<password>;TrustServerCertificate=True" dotnet test ApexPost.slnx
@@ -197,6 +199,15 @@ git add README.md DESIGN.md
 git commit -m "docs: make audit evidence reproducible"
 git push -u origin feature/audit-sample-provenance
 ```
+
+## Repeating the blocking demo in SSMS
+
+The evidence in `PERFORMANCE.md` was captured with `sqlcmd`. To repeat it in SSMS on a demo database:
+
+1. Open `sql/transactions/blocking_session_1_writer.sql` and run only its `BEGIN TRANSACTION` and `UPDATE` statements.
+2. In a second window, run `sql/transactions/blocking_session_2_reader.sql`. The final query keeps waiting.
+3. In a third window, run the `sys.dm_exec_requests` query from step 3 of the first script, and take a screenshot.
+4. Run `ROLLBACK TRANSACTION` in the first window. The second window then finishes.
 
 ## Least-privilege login
 

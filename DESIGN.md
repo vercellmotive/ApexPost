@@ -4,7 +4,7 @@
 
 SQL Server, reached through EF Core 10, is now the system of record, behind interfaces in the Application layer. ADRs that Week 3 replaced say so at the top.
 
-**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 162 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It has not had a sustained load test.
+**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 175 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
 
 ### Layers and dependencies
 
@@ -87,6 +87,7 @@ erDiagram
 - **Index style:** `[Index]` can't express `INCLUDE` or filters and can't be placed on Domain classes, so some indexes combine it with Fluent, and `BranchStock` uses Fluent alone (ADR-26).
 - **Security pin:** `System.Security.Cryptography.Pkcs` isn't on the allowed list. It's pinned to fix a vulnerable version that SqlClient brings in. **This needs trainer approval** (ADR-32).
 - **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database also exist, and run when `APEXPOST_TEST_SQLSERVER` is set.
+- **Blocking demo tool:** the demo ran in `sqlcmd` sessions on a Mac, where SSMS isn't available. README has the steps to repeat it in SSMS.
 - **Seed loading:** seed files in `ApexPost.Infrastructure/Data` are JSON, read once by `DatabaseSeeder`. They aren't a persistence store.
 - **Not implemented:** the offline synchronization topics in the lab list aren't in this assignment's requirements.
 
@@ -584,7 +585,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Alternatives:** Suppress the warning (leaves the vulnerability in place); wait for an upstream fix (blocks the build).
 
-**Consequences:** The build is clean and the vulnerable version is gone. The package is outside the allowed list, so it **needs trainer approval**. Remove the pin once SqlClient carries the fix.
+**Consequences:** The build is clean and the vulnerable version is gone. The package is outside the allowed list, so it **needs trainer approval**. Removing the pin was retried on `Microsoft.EntityFrameworkCore.SqlServer` 10.0.14 and still fails the build with NU1902 and NU1903 on Pkcs 9.0.11. Remove the pin once SqlClient carries the fix.
 
 ### ADR-33: Store a business date for reports
 
@@ -644,9 +645,19 @@ Each decision records its context, the decision, the alternatives considered and
 | Error detail leakage / untraceable failures | Safe Problem Details with correlation trace ID; exception details stay in server logs. |
 | Audit tampering and excess PII | The application role can only add to `AuditEntries`, and entries hold no sensitive form data. Tested on SQL Server. |
 
+### ADR-36: The Domain builds its own line items
+
+**Context:** `TransactionService` built each line item itself and repeated the manager and counter checks, so those rules lived outside the Domain.
+
+**Decision:** Add `Transaction.AddRetailProduct`, `AddShipping`, `AddMoneyOrder`, `AddIdentityVerification` and `RetailQuantities`, plus `Staff.EnsureManages` and `Branch.EnsureHasCounter`. Services load data, call these methods and commit.
+
+**Alternatives:** Leave the code in services (rules stay scattered and need a service to test).
+
+**Consequences:** The rules have one home and are tested without fakes in `DomainBehaviourTests`. `AddLineItem` stays public because Week 2 tests use it.
+
 ## Validation
 
-`ApexPost.Test` has 162 tests, and all 162 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 148 run and 14 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
+`ApexPost.Test` has 175 tests, and all 175 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 160 run and 15 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are unchanged and pass.
 
 | Layer | Needs a database | What it covers |
 |---|---|---|
