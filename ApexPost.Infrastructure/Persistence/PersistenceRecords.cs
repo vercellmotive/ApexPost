@@ -14,7 +14,7 @@ public static class IndexNames
     public const string TransactionByBranchAndDate = "IX_CounterTransactions_Branch_Date";
     public const string ShipmentByRate = "IX_Shipments_Rate";
     public const string HighValueMoneyOrder = "IX_MoneyOrders_HighValue";
-    public const string LowStockByBranch = "IX_BranchStock_Branch_Quantity";
+    public const string LowStock = "IX_BranchStock_LowStock";
 }
 
 public sealed class RoleRecord

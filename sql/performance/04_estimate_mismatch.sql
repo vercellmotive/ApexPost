@@ -3,6 +3,11 @@ USE ApexPostDb;
 GO
 
 -- Parameter sensitivity: this plan is compiled for the first value it sees, and is reused for the other.
+-- SQL Server 2022's Parameter Sensitive Plan optimization (compatibility level 160) can hide this by caching
+-- a plan per value range, so it is switched off for the demo and restored at the end.
+ALTER DATABASE SCOPED CONFIGURATION SET PARAMETER_SENSITIVE_PLAN_OPTIMIZATION = OFF;
+GO
+
 CREATE OR ALTER PROCEDURE dbo.usp_Demo_TransactionsByStatus @Status varchar(20)
 AS
 BEGIN
@@ -26,4 +31,7 @@ WHERE s.object_id = OBJECT_ID(N'dbo.CounterTransactions');
 GO
 
 DROP PROCEDURE dbo.usp_Demo_TransactionsByStatus;
+GO
+
+ALTER DATABASE SCOPED CONFIGURATION SET PARAMETER_SENSITIVE_PLAN_OPTIMIZATION = ON;
 GO

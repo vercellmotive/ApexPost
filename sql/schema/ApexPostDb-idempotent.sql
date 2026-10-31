@@ -1113,3 +1113,32 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261031072657_ReplaceLowStockIndexWithFiltered'
+)
+BEGIN
+    DROP INDEX [IX_BranchStock_Branch_Quantity] ON [BranchStock];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261031072657_ReplaceLowStockIndexWithFiltered'
+)
+BEGIN
+    EXEC(N'CREATE INDEX [IX_BranchStock_LowStock] ON [BranchStock] ([BranchCode], [Sku]) INCLUDE ([QuantityOnHand]) WHERE [QuantityOnHand] <= 5');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261031072657_ReplaceLowStockIndexWithFiltered'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261031072657_ReplaceLowStockIndexWithFiltered', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

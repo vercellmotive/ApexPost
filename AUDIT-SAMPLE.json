@@ -1,98 +1,163 @@
 [
   {
-    "Id": "ae95fbfc-04ac-4337-96a0-6dfb518c862e",
-    "CorrelationId": "fd21a104448d4f3a9693abc3a469a93b",
-    "StaffId": "STF001",
-    "Role": "BranchManager",
-    "BranchCode": "B001",
-    "Controller": "StockController",
-    "Action": "Adjust",
-    "Parameters": "{\"controller\":\"Stock\",\"action\":\"Adjust\",\"productSku\":\"SKU-002\",\"quantityDelta\":\"3\",\"reasonCode\":\"Replenishment\",\"businessAction\":\"StockAdjustment\"}",
-    "StatusCode": 302,
-    "DurationMs": 11,
-    "TimestampUtc": "2026-10-31T05:38:59.720651+00:00"
-  },
-  {
-    "Id": "a7f5bec2-b363-4073-b46c-860154e782c1",
-    "CorrelationId": "8272bf788bf34b7b8750bcfa64b5c2f1",
+    "Id": "F2367E50-24A7-40FF-8B05-B9FD3CBDA9D6",
+    "CorrelationId": "7e5033386b34440ea76cbc841bd6f4c6",
     "StaffId": "STF001",
     "Role": "BranchManager",
     "BranchCode": "B001",
     "Controller": "CounterController",
     "Action": "Create",
-    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Create\",\"businessAction\":\"Sale\",\"transactionId\":\"75a6d44c-928d-406a-9bb4-434aefc86654\",\"counterId\":\"C01\",\"retailLines\":\"1\",\"shipments\":\"2\",\"moneyOrders\":\"2\",\"moneyOrderAmount\":\"350.00\",\"identityVerification\":\"False\",\"paymentMethod\":\"Card\"}",
+    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Create\",\"businessAction\":\"Sale\",\"transactionId\":\"5756e7d8-6943-4d9b-8281-7f3cbb713f7b\",\"counterId\":\"C01\",\"retailLines\":\"1\",\"shipments\":\"0\",\"moneyOrders\":\"0\",\"moneyOrderAmount\":\"0.00\",\"identityVerification\":\"False\",\"paymentMethod\":\"Cash\"}",
     "StatusCode": 302,
-    "DurationMs": 62,
-    "TimestampUtc": "2026-10-31T05:39:01.245419+00:00"
+    "DurationMs": 281,
+    "TimestampUtc": "2026-10-31T07:20:09.8860200"
   },
   {
-    "Id": "3e4cd12f-7929-4edd-bb9e-495abc8deddc",
-    "CorrelationId": "d7477294a7eb410abc55e10f7dfa3427",
+    "Id": "3C824941-5A5F-4D9C-BE4C-E4A5D84FDE8E",
+    "CorrelationId": "5bd77c88d2a044279e3151b656c9cbc5",
+    "StaffId": "STF001",
+    "Role": "BranchManager",
+    "BranchCode": "B001",
+    "Controller": "CounterController",
+    "Action": "Create",
+    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Create\",\"businessAction\":\"Sale\",\"transactionId\":\"e01eac30-e648-42fd-9dbb-4111c0f27839\",\"counterId\":\"C01\",\"retailLines\":\"1\",\"shipments\":\"0\",\"moneyOrders\":\"0\",\"moneyOrderAmount\":\"0.00\",\"identityVerification\":\"False\",\"paymentMethod\":\"Cash\"}",
+    "StatusCode": 409,
+    "DurationMs": 285,
+    "TimestampUtc": "2026-10-31T07:20:09.8939150"
+  },
+  {
+    "Id": "3FDED2AD-47B6-4117-9842-7B84DC03E4D3",
+    "CorrelationId": "74b699055f354e3d8580246f283e4174",
+    "StaffId": "STF001",
+    "Role": "BranchManager",
+    "BranchCode": "B001",
+    "Controller": "CounterController",
+    "Action": "Create",
+    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Create\",\"businessAction\":\"Sale\",\"transactionId\":\"7d25eee0-a0e9-4027-b0b4-be1008bdeed6\",\"counterId\":\"C01\",\"retailLines\":\"1\",\"shipments\":\"0\",\"moneyOrders\":\"0\",\"moneyOrderAmount\":\"0.00\",\"identityVerification\":\"False\",\"paymentMethod\":\"Cash\"}",
+    "StatusCode": 409,
+    "DurationMs": 285,
+    "TimestampUtc": "2026-10-31T07:20:09.8939150"
+  },
+  {
+    "Id": "ECF0485D-8B95-434E-A69F-78309EAEFEF1",
+    "CorrelationId": "44790a27dd3d4c328f77d2fa83f1108d",
+    "StaffId": "STF001",
+    "Role": "BranchManager",
+    "BranchCode": "B001",
+    "Controller": "CounterController",
+    "Action": "Create",
+    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Create\",\"businessAction\":\"Sale\",\"transactionId\":\"a5921ec2-c044-45ab-9c90-79412abc3ceb\",\"counterId\":\"C01\",\"retailLines\":\"1\",\"shipments\":\"0\",\"moneyOrders\":\"0\",\"moneyOrderAmount\":\"0.00\",\"identityVerification\":\"False\",\"paymentMethod\":\"Cash\"}",
+    "StatusCode": 302,
+    "DurationMs": 312,
+    "TimestampUtc": "2026-10-31T07:20:09.9234320"
+  },
+  {
+    "Id": "535705C2-2946-4F49-937F-15B422DE7BDF",
+    "CorrelationId": "cde9dc0a594948ba9e22f1a5a73f4122",
+    "StaffId": "STF001",
+    "Role": "BranchManager",
+    "BranchCode": "B001",
+    "Controller": "CounterController",
+    "Action": "Create",
+    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Create\",\"businessAction\":\"Sale\",\"transactionId\":\"255a631a-7651-4ff2-b914-58d3a64b94ea\",\"counterId\":\"C01\",\"retailLines\":\"1\",\"shipments\":\"0\",\"moneyOrders\":\"0\",\"moneyOrderAmount\":\"0.00\",\"identityVerification\":\"False\",\"paymentMethod\":\"Cash\"}",
+    "StatusCode": 200,
+    "DurationMs": 27,
+    "TimestampUtc": "2026-10-31T07:20:10.8258060"
+  },
+  {
+    "Id": "DE730869-2E4E-4DA1-BE40-476EE5EA8A2C",
+    "CorrelationId": "4b0b84b8b2d64b0ba7f1921cf56f2403",
+    "StaffId": "STF001",
+    "Role": "BranchManager",
+    "BranchCode": "B001",
+    "Controller": "CounterController",
+    "Action": "Create",
+    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Create\",\"businessAction\":\"Sale\",\"transactionId\":\"d33ddee6-1f64-402f-a4f4-ae99d563be7f\",\"counterId\":\"C01\",\"retailLines\":\"1\",\"shipments\":\"0\",\"moneyOrders\":\"0\",\"moneyOrderAmount\":\"0.00\",\"identityVerification\":\"False\",\"paymentMethod\":\"Cash\"}",
+    "StatusCode": 200,
+    "DurationMs": 36,
+    "TimestampUtc": "2026-10-31T07:20:10.8263040"
+  },
+  {
+    "Id": "86548FBD-0E5B-4170-A3F9-E10104F39912",
+    "CorrelationId": "fbdf3d8914834da5aebb2acf3f85019a",
+    "StaffId": "STF001",
+    "Role": "BranchManager",
+    "BranchCode": "B001",
+    "Controller": "StockController",
+    "Action": "Adjust",
+    "Parameters": "{\"controller\":\"Stock\",\"action\":\"Adjust\",\"businessAction\":\"StockAdjustment\",\"productSku\":\"SKU-002\",\"quantityDelta\":\"3\",\"reasonCode\":\"Replenishment\"}",
+    "StatusCode": 302,
+    "DurationMs": 156,
+    "TimestampUtc": "2026-10-31T07:20:17.8515650"
+  },
+  {
+    "Id": "43C0D8AF-6F58-44B7-931A-1B042C42462D",
+    "CorrelationId": "8dc3e655a9cc41518cbf3baa3287ac47",
     "StaffId": "STF001",
     "Role": "BranchManager",
     "BranchCode": "B001",
     "Controller": "ServicesController",
     "Action": "MoneyOrder",
-    "Parameters": "{\"controller\":\"Services\",\"action\":\"MoneyOrder\",\"businessAction\":\"MoneyOrder\",\"counterId\":\"C01\",\"moneyOrderAmount\":\"1500.00\",\"identityVerification\":\"True\",\"paymentMethod\":\"Cash\",\"transactionId\":\"8e1ef1d1-f98f-4047-ae23-748c74371550\"}",
+    "Parameters": "{\"controller\":\"Services\",\"action\":\"MoneyOrder\",\"businessAction\":\"MoneyOrder\",\"counterId\":\"C01\",\"moneyOrderAmount\":\"1500.00\",\"identityVerification\":\"True\",\"paymentMethod\":\"Cash\",\"transactionId\":\"16489065-f29f-437d-8577-6c206a42bd5b\"}",
     "StatusCode": 302,
-    "DurationMs": 11,
-    "TimestampUtc": "2026-10-31T05:39:01.503423+00:00"
+    "DurationMs": 47,
+    "TimestampUtc": "2026-10-31T07:20:19.9160800"
   },
   {
-    "Id": "ae55389f-9f09-47b0-b540-1c20948e34c3",
-    "CorrelationId": "6b9697ba570843a888922c4a631ad1b8",
+    "Id": "8F3C9678-B182-4B17-B1B0-6941CDAF98CA",
+    "CorrelationId": "a2d22babf21b4a109a653419c1bae635",
     "StaffId": "STF001",
     "Role": "BranchManager",
     "BranchCode": "B001",
     "Controller": "ServicesController",
     "Action": "IdentityVerification",
-    "Parameters": "{\"controller\":\"Services\",\"action\":\"IdentityVerification\",\"businessAction\":\"IdentityVerification\",\"counterId\":\"C01\",\"documentType\":\"Passport\",\"transactionId\":\"321bc351-5701-4f30-b1ae-581ffc22b75f\",\"verified\":\"True\"}",
+    "Parameters": "{\"controller\":\"Services\",\"action\":\"IdentityVerification\",\"businessAction\":\"IdentityVerification\",\"counterId\":\"C01\",\"documentType\":\"Passport\",\"transactionId\":\"6ee60720-bdc6-4468-a6c0-4aac667cd6ca\",\"verified\":\"True\"}",
     "StatusCode": 302,
-    "DurationMs": 9,
-    "TimestampUtc": "2026-10-31T05:39:01.633252+00:00"
+    "DurationMs": 35,
+    "TimestampUtc": "2026-10-31T07:20:20.1196950"
   },
   {
-    "Id": "156ffb60-89da-4e73-bcc4-dae92c1f4de2",
-    "CorrelationId": "57f45b70986a48819b05753da5623f5b",
+    "Id": "8C8813F5-8292-49F8-A3B4-A8CEAACB12A7",
+    "CorrelationId": "cfd6b3f362f6455990f2382504f2d1f9",
     "StaffId": "STF001",
     "Role": "BranchManager",
     "BranchCode": "B001",
     "Controller": "CounterController",
     "Action": "Void",
-    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Void\",\"transactionId\":\"321bc351-5701-4f30-b1ae-581ffc22b75f\",\"businessAction\":\"Void\"}",
+    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Void\",\"businessAction\":\"Void\",\"transactionId\":\"6ee60720-bdc6-4468-a6c0-4aac667cd6ca\"}",
     "StatusCode": 302,
-    "DurationMs": 15,
-    "TimestampUtc": "2026-10-31T05:39:02.074102+00:00"
+    "DurationMs": 143,
+    "TimestampUtc": "2026-10-31T07:20:20.7288060"
   },
   {
-    "Id": "56c42e73-8bf4-461b-9446-f02764bf477e",
-    "CorrelationId": "06ef6cd043c8442ea9404b1bf9a52886",
+    "Id": "565ED7AF-7DFF-4CF1-BF3E-9068958A8A6C",
+    "CorrelationId": "e61ca4425c7541578019a2946a6cd1bb",
     "StaffId": "STF001",
     "Role": "BranchManager",
     "BranchCode": "B001",
     "Controller": "CounterController",
     "Action": "Refund",
-    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Refund\",\"transactionId\":\"8e1ef1d1-f98f-4047-ae23-748c74371550\",\"businessAction\":\"Refund\"}",
+    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Refund\",\"businessAction\":\"Refund\",\"transactionId\":\"16489065-f29f-437d-8577-6c206a42bd5b\"}",
     "StatusCode": 302,
-    "DurationMs": 9,
-    "TimestampUtc": "2026-10-31T05:39:02.165411+00:00"
+    "DurationMs": 25,
+    "TimestampUtc": "2026-10-31T07:20:20.8592840"
   },
   {
-    "Id": "d399a3c3-8e84-472f-afa2-8af6c48f4286",
-    "CorrelationId": "4f45e411c81942c29952c603e0fa8fe3",
+    "Id": "E7EB45D4-9A29-4096-BBF3-98F5E364AF50",
+    "CorrelationId": "588b047313b445f0a43ab77e797e9e67",
     "StaffId": "STF002",
     "Role": "CounterClerk",
     "BranchCode": "B001",
     "Controller": "CounterController",
     "Action": "Void",
-    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Void\",\"transactionId\":\"00000000-0000-0000-0000-000000000001\",\"businessAction\":\"Void\"}",
+    "Parameters": "{\"controller\":\"Counter\",\"action\":\"Void\",\"businessAction\":\"Void\",\"transactionId\":\"00000000-0000-0000-0000-000000000001\"}",
     "StatusCode": 403,
     "DurationMs": 0,
-    "TimestampUtc": "2026-10-31T05:39:03.012934+00:00"
+    "TimestampUtc": "2026-10-31T07:20:22.2279720"
   },
   {
-    "Id": "1f885c7b-adb0-40ed-a7e6-e5dc7f557c34",
-    "CorrelationId": "dfc1cdde25a14101a5f170409776bf49",
+    "Id": "8A083C40-5F12-49B2-9177-E23EEDA057C9",
+    "CorrelationId": "033c1e0a542e4073a0232d82d2146352",
     "StaffId": "STF002",
     "Role": "CounterClerk",
     "BranchCode": "B001",
@@ -101,11 +166,11 @@
     "Parameters": "{\"businessAction\":\"StockAdjustment\",\"outcome\":\"AccessDenied\"}",
     "StatusCode": 403,
     "DurationMs": 0,
-    "TimestampUtc": "2026-10-31T05:39:03.01899+00:00"
+    "TimestampUtc": "2026-10-31T07:20:22.2493630"
   },
   {
-    "Id": "ddb27db7-1437-4984-b303-c2dadf6cbf36",
-    "CorrelationId": "0890eadfbdf9413cb1c404e2b533dbfb",
+    "Id": "75E5DF37-DD41-461B-A82E-4517CCA63541",
+    "CorrelationId": "fa85f68f4ffd4006ac9fec4e3d7bbcfe",
     "StaffId": "STF015",
     "Role": "Administrator",
     "BranchCode": "B001",
@@ -113,12 +178,12 @@
     "Action": "Create",
     "Parameters": "{\"controller\":\"Staff\",\"action\":\"Create\",\"businessAction\":\"StaffCreate\"}",
     "StatusCode": 302,
-    "DurationMs": 110,
-    "TimestampUtc": "2026-10-31T05:39:04.284009+00:00"
+    "DurationMs": 157,
+    "TimestampUtc": "2026-10-31T07:20:24.0834990"
   },
   {
-    "Id": "b7921eea-7c6d-41f6-80b7-fdd060502229",
-    "CorrelationId": "e45239fc330742cfb3b4b608bde670a1",
+    "Id": "18113B78-417D-43B7-9D78-AD022E463180",
+    "CorrelationId": "278e6c7f96af4cf1a8114d32d466578d",
     "StaffId": "STF015",
     "Role": "Administrator",
     "BranchCode": "B001",
@@ -126,12 +191,12 @@
     "Action": "Create",
     "Parameters": "{\"controller\":\"Branches\",\"action\":\"Create\",\"businessAction\":\"BranchCreate\"}",
     "StatusCode": 302,
-    "DurationMs": 30,
-    "TimestampUtc": "2026-10-31T05:39:04.460966+00:00"
+    "DurationMs": 82,
+    "TimestampUtc": "2026-10-31T07:20:24.3052270"
   },
   {
-    "Id": "202614c5-aa46-4ac2-9770-7f5a58c4ed42",
-    "CorrelationId": "0c409e343510468daec3ae204a5a7a14",
+    "Id": "15710D91-869D-4995-949E-31A4CFD54B81",
+    "CorrelationId": "db92b97437cf48359e1d3461fd8c1724",
     "StaffId": "STF015",
     "Role": "Administrator",
     "BranchCode": "B001",
@@ -139,12 +204,12 @@
     "Action": "SetStatus",
     "Parameters": "{\"controller\":\"Branches\",\"action\":\"SetStatus\",\"id\":\"B006\",\"businessAction\":\"BranchStatusChange\"}",
     "StatusCode": 302,
-    "DurationMs": 2,
-    "TimestampUtc": "2026-10-31T05:39:04.624713+00:00"
+    "DurationMs": 20,
+    "TimestampUtc": "2026-10-31T07:20:24.4605920"
   },
   {
-    "Id": "e1a64c16-abd0-4b0a-9953-bab75afc7a61",
-    "CorrelationId": "eb801be970bb4bd5a1349ac467fed40e",
+    "Id": "FA81FC74-B19B-4660-B934-A599310A8AA0",
+    "CorrelationId": "11a971d07fab4fecb9c2b2cd162a644a",
     "StaffId": "STF015",
     "Role": "Administrator",
     "BranchCode": "B001",
@@ -152,7 +217,7 @@
     "Action": "Create",
     "Parameters": "{\"controller\":\"Products\",\"action\":\"Create\",\"businessAction\":\"ProductCreate\"}",
     "StatusCode": 302,
-    "DurationMs": 11,
-    "TimestampUtc": "2026-10-31T05:39:04.768107+00:00"
+    "DurationMs": 73,
+    "TimestampUtc": "2026-10-31T07:20:24.6985710"
   }
 ]

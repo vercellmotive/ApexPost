@@ -68,9 +68,10 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("UQ_BranchStock_Branch_Sku");
 
-                    b.HasIndex(new[] { "BranchCode", "QuantityOnHand" }, "IX_BranchStock_Branch_Quantity");
+                    b.HasIndex(new[] { "BranchCode", "ProductSku" }, "IX_BranchStock_LowStock")
+                        .HasFilter("[QuantityOnHand] <= 5");
 
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex(new[] { "BranchCode", "QuantityOnHand" }, "IX_BranchStock_Branch_Quantity"), new[] { "ProductSku" });
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex(new[] { "BranchCode", "ProductSku" }, "IX_BranchStock_LowStock"), new[] { "QuantityOnHand" });
 
                     b.ToTable("BranchStock", null, t =>
                         {
