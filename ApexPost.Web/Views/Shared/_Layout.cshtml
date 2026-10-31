@@ -15,6 +15,7 @@
                 <a class="nav-link" asp-controller="Home" asp-action="Index">Dashboard</a>
                 <a class="nav-link" asp-controller="Catalog" asp-action="Index">Catalogue</a>
                 <a class="nav-link" asp-controller="Counter" asp-action="Index">Counter</a>
+                <a class="nav-link" asp-controller="Counter" asp-action="Transactions">Transactions</a>
                 <a class="nav-link" asp-controller="Shipping" asp-action="ShippingLabel">Shipping label</a>
                 <a class="nav-link" asp-controller="Reports" asp-action="Index">Reports</a>
                 @if (User.HasClaim("Role", "Auditor"))
@@ -24,6 +25,8 @@
                 @if (User.HasClaim("Role", "Administrator"))
                 {
                     <a class="nav-link" asp-controller="Staff" asp-action="Index">Staff</a>
+                    <a class="nav-link" asp-controller="Branches" asp-action="Index">Branches</a>
+                    <a class="nav-link" asp-controller="Products" asp-action="Index">Products</a>
                 }
                 @if (User.Identity?.IsAuthenticated == true)
                 {

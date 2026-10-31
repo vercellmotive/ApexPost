@@ -1,0 +1,29 @@
+@model IReadOnlyList<ApexPost.Domain.Entities.Product>
+@{
+    ViewData["Title"] = "Products";
+}
+
+<h2>Product management</h2>
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success" role="status">@success</div>
+}
+<p><a class="btn btn-primary" asp-action="Create">Add product</a></p>
+<table class="table table-striped">
+    <thead>
+        <tr><th>SKU</th><th>Name</th><th>Category</th><th>Unit price</th><th>Tax</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var product in Model)
+        {
+            <tr>
+                <td>@product.Id.Value</td>
+                <td>@product.Name</td>
+                <td>@product.Category</td>
+                <td>@product.UnitPrice.Amount.ToString("C")</td>
+                <td>@product.TaxCategory</td>
+                <td><a asp-action="Edit" asp-route-id="@product.Id.Value">Edit</a></td>
+            </tr>
+        }
+    </tbody>
+</table>

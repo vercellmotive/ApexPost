@@ -37,6 +37,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
     public async Task IntegrationEndpoint_RequiresApiKey()
     {
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", "127.0.0.25");
         var response = await client.GetAsync("/integration/parcel-status");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -155,7 +156,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
         var loginResponse = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("Email", "ben@apexpost.com"),
-            new KeyValuePair<string, string>("Password", "TestPassword123!"),
+            new KeyValuePair<string, string>("Password", "Apex-Ben-2026!"),
             new KeyValuePair<string, string>("ReturnUrl", "/"),
             new KeyValuePair<string, string>("__RequestVerificationToken", tokenMatch.Groups[1].Value)
         }));
@@ -219,13 +220,13 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
         var login = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("Email", "alice@apexpost.com"),
-            new KeyValuePair<string, string>("Password", "TestPassword123!"),
+            new KeyValuePair<string, string>("Password", "Apex-Alice-2026!"),
             new KeyValuePair<string, string>("ReturnUrl", "/"),
             new KeyValuePair<string, string>("__RequestVerificationToken", token.Groups[1].Value)
         }));
         Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
 
-        foreach (var path in new[] { "/Catalog", "/Counter", "/Reports", "/Counter/ShippingLabel" })
+        foreach (var path in new[] { "/Catalog", "/Counter", "/Reports", "/Shipping/ShippingLabel" })
         {
             var response = await client.GetAsync(path);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -242,15 +243,8 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
 
         var auditStore = _factory.Services.GetRequiredService<IAuditStore>();
         var auditEntries = await auditStore.GetAllAsync();
-        var loginAudit = auditEntries.FirstOrDefault(entry => entry.Action == "Login" && entry.StaffId == "anonymous");
-        Assert.NotNull(loginAudit);
-        Assert.Contains("\"action\":\"Login\"", loginAudit!.Parameters);
-        Assert.DoesNotContain("TestPassword123!", JsonSerializer.Serialize(loginAudit));
-        Assert.Contains(auditEntries, entry =>
-            entry.Controller == "CounterController"
-            && entry.Action == "Index"
-            && entry.StaffId == "STF001"
-            && entry.BranchCode == "B001");
+        Assert.DoesNotContain(auditEntries, entry => entry.Action == "Login");
+        Assert.DoesNotContain(auditEntries, entry => entry.Action == "Index");
     }
 
     [Fact]
@@ -270,13 +264,13 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
         var login = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("Email", "alice@apexpost.com"),
-            new KeyValuePair<string, string>("Password", "TestPassword123!"),
+            new KeyValuePair<string, string>("Password", "Apex-Alice-2026!"),
             new KeyValuePair<string, string>("ReturnUrl", "/"),
             new KeyValuePair<string, string>("__RequestVerificationToken", token.Groups[1].Success ? token.Groups[1].Value : token.Groups[2].Value)
         }));
         Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
 
-        var branchRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.Branch>>();
+        var branchRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.Branch, ApexPost.Domain.ValueObjects.BranchCode>>();
         var originalBranch = await branchRepository.GetByIdAsync(new ApexPost.Domain.ValueObjects.BranchCode("B001"))
             ?? throw new InvalidOperationException("The test branch was not seeded.");
         await branchRepository.SaveAsync(new ApexPost.Domain.Entities.Branch
@@ -297,7 +291,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
             var counterToken = FindAntiforgeryToken(await counterPage.Content.ReadAsStringAsync());
             Assert.True(counterToken.Success);
 
-            var stockRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.BranchStock>>();
+            var stockRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.BranchStock, Guid>>();
             var stockBefore = (await stockRepository.GetAllAsync())
                 .Single(item => item.BranchCode.Value == "B001" && item.ProductSku.Value == "SKU-001")
                 .QuantityOnHand;
@@ -312,7 +306,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
                 new KeyValuePair<string, string>("Recipient", "Recipient"),
                 new KeyValuePair<string, string>("IncludeIdentityVerification", "true"),
                 new KeyValuePair<string, string>("DocumentType", "Passport"),
-                new KeyValuePair<string, string>("DocumentNumber", "AB12"),
+                new KeyValuePair<string, string>("DocumentNumber", "AB123"),
                 new KeyValuePair<string, string>("PaymentMethod", "Cash"),
                 new KeyValuePair<string, string>("__RequestVerificationToken", counterToken.Groups[1].Success ? counterToken.Groups[1].Value : counterToken.Groups[2].Value)
             }));
@@ -359,6 +353,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
             new KeyValuePair<string, string>("Email", "alice@apexpost.com"),
             new KeyValuePair<string, string>("Role", "CounterClerk"),
             new KeyValuePair<string, string>("HomeBranchCode", "B001"),
+            new KeyValuePair<string, string>("Password", "A-long-enough-password"),
             new KeyValuePair<string, string>("__RequestVerificationToken", token.Groups[1].Success ? token.Groups[1].Value : token.Groups[2].Value)
         }));
 
@@ -375,7 +370,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
         var token = FindAntiforgeryToken(await catalog.Content.ReadAsStringAsync());
         Assert.True(token.Success);
 
-        var stockRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.BranchStock>>();
+        var stockRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.BranchStock, Guid>>();
         var before = (await stockRepository.GetAllAsync())
             .Single(item => item.BranchCode.Value == "B001" && item.ProductSku.Value == "SKU-001")
             .QuantityOnHand;
@@ -407,7 +402,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
     public async Task SuccessfulCounterSale_IsPersistedAndAudited()
     {
         var client = await CreateAuthenticatedClientAsync("alice@apexpost.com", "127.0.0.41");
-        var branches = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.Branch>>();
+        var branches = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.Branch, ApexPost.Domain.ValueObjects.BranchCode>>();
         var originalBranch = await branches.GetByIdAsync(new ApexPost.Domain.ValueObjects.BranchCode("B001"))
             ?? throw new InvalidOperationException("The test branch was not seeded.");
         await branches.SaveAsync(new ApexPost.Domain.Entities.Branch
@@ -422,8 +417,8 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
             CounterTerminals = originalBranch.CounterTerminals
         });
 
-        var stockRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.BranchStock>>();
-        var transactionRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.Transaction>>();
+        var stockRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.BranchStock, Guid>>();
+        var transactionRepository = _factory.Services.GetRequiredService<IRepository<ApexPost.Domain.Entities.Transaction, Guid>>();
         var auditStore = _factory.Services.GetRequiredService<IAuditStore>();
         ApexPost.Domain.Entities.BranchStock? stockBeforeSale = null;
         Guid? createdTransactionId = null;
@@ -500,7 +495,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
         var login = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new[]
         {
             new KeyValuePair<string, string>("Email", email),
-            new KeyValuePair<string, string>("Password", "TestPassword123!"),
+            new KeyValuePair<string, string>("Password", $"Apex-{char.ToUpperInvariant(email[0])}{email[1..email.IndexOf('@')]}-2026!"),
             new KeyValuePair<string, string>("ReturnUrl", "/"),
             new KeyValuePair<string, string>("__RequestVerificationToken", tokenValue)
         }));

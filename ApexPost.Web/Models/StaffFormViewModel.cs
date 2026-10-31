@@ -20,4 +20,8 @@ public sealed class StaffFormViewModel
 
     [Required]
     public string HomeBranchCode { get; set; } = string.Empty;
+
+    [DataType(DataType.Password)]
+    [StringLength(256, MinimumLength = 12)]
+    public string? Password { get; set; }
 }

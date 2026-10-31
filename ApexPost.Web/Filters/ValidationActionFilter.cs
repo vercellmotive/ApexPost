@@ -9,13 +9,7 @@ public sealed class ValidationActionFilter : IAsyncActionFilter
     {
         if (!context.ModelState.IsValid)
         {
-            if (context.HttpContext.Request.Method.Equals(HttpMethods.Get, StringComparison.OrdinalIgnoreCase))
-            {
-                context.Result = new BadRequestObjectResult(context.ModelState);
-                return;
-            }
-
-            context.Result = new BadRequestObjectResult(context.ModelState);
+            context.Result = new BadRequestObjectResult(new ValidationProblemDetails(context.ModelState));
             return;
         }
 

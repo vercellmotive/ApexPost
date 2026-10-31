@@ -1,0 +1,47 @@
+@model IReadOnlyList<ApexPost.Domain.Entities.Transaction>
+@using ApexPost.Domain.Enums
+@{
+    ViewData["Title"] = "Transactions";
+    var isManager = User.HasClaim("Role", "BranchManager");
+}
+
+<h2>Branch transactions</h2>
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success" role="status">@success</div>
+}
+<table class="table table-striped align-middle">
+    <thead>
+        <tr><th>Date</th><th>Counter</th><th>Clerk</th><th>Lines</th><th>Total</th><th>Payment</th><th>Status</th>@if (isManager) { <th>Void or refund</th> }</tr>
+    </thead>
+    <tbody>
+        @foreach (var transaction in Model)
+        {
+            <tr>
+                <td>@transaction.CreatedAt.ToString("d MMM yyyy HH:mm")</td>
+                <td>@transaction.CounterId</td>
+                <td>@transaction.ClerkStaffId</td>
+                <td>@transaction.LineItems.Count</td>
+                <td>@transaction.GrandTotal.Amount.ToString("C")</td>
+                <td>@transaction.PaymentMethod</td>
+                <td>@transaction.Status @if (transaction.VoidReason is not null) { <small class="text-muted d-block">@transaction.VoidReason</small> }</td>
+                @if (isManager)
+                {
+                    <td>
+                        @if (transaction.Status == TransactionStatus.Paid)
+                        {
+                            <form method="post" class="d-flex flex-wrap gap-2">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="transactionId" value="@transaction.Id" />
+                                <label class="visually-hidden" for="reason-@transaction.Id">Reason</label>
+                                <input id="reason-@transaction.Id" name="reason" class="form-control" placeholder="Reason" maxlength="200" required />
+                                <button type="submit" class="btn btn-outline-danger" asp-action="Void">Void</button>
+                                <button type="submit" class="btn btn-outline-secondary" asp-action="Refund">Refund</button>
+                            </form>
+                        }
+                    </td>
+                }
+            </tr>
+        }
+    </tbody>
+</table>

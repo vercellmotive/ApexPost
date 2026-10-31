@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ApexPost.Application.Interfaces;
@@ -9,15 +10,19 @@ using ApexPost.Domain.Entities;
 using ApexPost.Domain.Enums;
 using ApexPost.Domain.Events;
 using ApexPost.Domain.ValueObjects;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 
 namespace ApexPost.Infrastructure.Services;
 
-public class JsonFileRepository<T> : IRepository<T> where T : class
+public sealed record JsonStoreOptions(string DataDirectory, string SeedDirectory);
+
+public class JsonFileRepository<TEntity, TId> : IRepository<TEntity, TId>
+    where TEntity : Entity<TId>
+    where TId : notnull
 {
     private readonly string _filePath;
+    private readonly string _seedPath;
     private readonly SemaphoreSlim _fileLock = new(1, 1);
     private readonly JsonSerializerOptions _options = new()
     {
@@ -25,13 +30,14 @@ public class JsonFileRepository<T> : IRepository<T> where T : class
         WriteIndented = true
     };
 
-    public JsonFileRepository(IWebHostEnvironment environment)
+    public JsonFileRepository(JsonStoreOptions options)
     {
-        var dataDirectory = Path.Combine(AppContext.BaseDirectory, "Data");
-        _filePath = Path.Combine(dataDirectory, $"{typeof(T).Name.ToLowerInvariant()}.json");
+        var fileName = $"{typeof(TEntity).Name.ToLowerInvariant()}.json";
+        _filePath = Path.Combine(options.DataDirectory, fileName);
+        _seedPath = Path.Combine(options.SeedDirectory, fileName);
     }
 
-    public async Task<IReadOnlyList<T>> GetAllAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<TEntity>> GetAllAsync(CancellationToken ct = default)
     {
         await _fileLock.WaitAsync(ct);
         try
@@ -44,29 +50,20 @@ public class JsonFileRepository<T> : IRepository<T> where T : class
         }
     }
 
-    public async Task<T?> GetByIdAsync(object id, CancellationToken ct = default)
+    public async Task<TEntity?> GetByIdAsync(TId id, CancellationToken ct = default)
     {
         var items = await GetAllAsync(ct);
-        var idProperty = typeof(T).GetProperty("Id");
-        return idProperty is null
-            ? null
-            : items.FirstOrDefault(item => Equals(idProperty.GetValue(item), id));
+        return items.FirstOrDefault(item => EqualityComparer<TId>.Default.Equals(item.Id, id));
     }
 
-    public async Task<T?> UpdateAsync(object id, Action<T> update, CancellationToken ct = default)
+    public async Task<TEntity?> UpdateAsync(TId id, Action<TEntity> update, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(update);
         await _fileLock.WaitAsync(ct);
         try
         {
-            var items = (await ReadAllUnlockedAsync(ct)).ToList();
-            var idProperty = typeof(T).GetProperty("Id");
-            if (idProperty is null)
-            {
-                throw new InvalidOperationException($"{typeof(T).Name} does not expose an Id property.");
-            }
-
-            var entity = items.FirstOrDefault(item => Equals(idProperty.GetValue(item), id));
+            var items = await ReadAllUnlockedAsync(ct);
+            var entity = items.FirstOrDefault(item => EqualityComparer<TId>.Default.Equals(item.Id, id));
             if (entity is null)
             {
                 return null;
@@ -82,29 +79,20 @@ public class JsonFileRepository<T> : IRepository<T> where T : class
         }
     }
 
-    public async Task SaveAsync(T entity, CancellationToken ct = default)
+    public async Task SaveAsync(TEntity entity, CancellationToken ct = default)
     {
         await _fileLock.WaitAsync(ct);
         try
         {
-            var items = (await ReadAllUnlockedAsync(ct)).ToList();
-            var idProperty = typeof(T).GetProperty("Id");
-            if (idProperty is null)
+            var items = await ReadAllUnlockedAsync(ct);
+            var index = items.FindIndex(item => EqualityComparer<TId>.Default.Equals(item.Id, entity.Id));
+            if (index >= 0)
             {
-                items.Add(entity);
+                items[index] = entity;
             }
             else
             {
-                var idValue = idProperty.GetValue(entity);
-                var index = items.FindIndex(item => Equals(idProperty.GetValue(item), idValue));
-                if (index >= 0)
-                {
-                    items[index] = entity;
-                }
-                else
-                {
-                    items.Add(entity);
-                }
+                items.Add(entity);
             }
 
             await WriteAllUnlockedAsync(items, ct);
@@ -115,20 +103,14 @@ public class JsonFileRepository<T> : IRepository<T> where T : class
         }
     }
 
-    public async Task DeleteAsync(object id, CancellationToken ct = default)
+    public async Task DeleteAsync(TId id, CancellationToken ct = default)
     {
         await _fileLock.WaitAsync(ct);
         try
         {
-            var items = (await ReadAllUnlockedAsync(ct)).ToList();
-            var idProperty = typeof(T).GetProperty("Id");
-            if (idProperty is null)
-            {
-                return;
-            }
-
-            var filtered = items.Where(item => !Equals(idProperty.GetValue(item), id)).ToList();
-            await WriteAllUnlockedAsync(filtered, ct);
+            var items = await ReadAllUnlockedAsync(ct);
+            items.RemoveAll(item => EqualityComparer<TId>.Default.Equals(item.Id, id));
+            await WriteAllUnlockedAsync(items, ct);
         }
         finally
         {
@@ -136,18 +118,20 @@ public class JsonFileRepository<T> : IRepository<T> where T : class
         }
     }
 
-    private async Task<List<T>> ReadAllUnlockedAsync(CancellationToken ct)
+    private async Task<List<TEntity>> ReadAllUnlockedAsync(CancellationToken ct)
     {
-        if (!File.Exists(_filePath))
+        // Runtime data is created from the read-only seed on first use and is never overwritten by a build.
+        var path = File.Exists(_filePath) ? _filePath : _seedPath;
+        if (!File.Exists(path))
         {
             return [];
         }
 
-        await using var stream = File.OpenRead(_filePath);
-        return await JsonSerializer.DeserializeAsync<List<T>>(stream, _options, ct) ?? [];
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        return await JsonSerializer.DeserializeAsync<List<TEntity>>(stream, _options, ct) ?? [];
     }
 
-    private async Task WriteAllUnlockedAsync(List<T> items, CancellationToken ct)
+    private async Task WriteAllUnlockedAsync(List<TEntity> items, CancellationToken ct)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
         var temporaryPath = $"{_filePath}.{Guid.NewGuid():N}.tmp";
@@ -176,9 +160,9 @@ public class JsonAuditStore : IAuditStore
     private readonly string _path;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public JsonAuditStore(IWebHostEnvironment environment)
+    public JsonAuditStore(JsonStoreOptions options)
     {
-        _path = Path.Combine(environment.ContentRootPath, "Data", "audit-log.jsonl");
+        _path = Path.Combine(options.DataDirectory, "audit-log.jsonl");
     }
 
     public async Task AppendAsync(AuditEntry entry, CancellationToken ct = default)
@@ -236,9 +220,9 @@ public class SimulatedCourierRateService : ICourierRateService
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly IPricingStrategy _pricing;
-    private readonly IRepository<ShippingZone> _shippingZones;
+    private readonly IRepository<ShippingZone, string> _shippingZones;
 
-    public SimulatedCourierRateService(IPricingStrategy pricing, IRepository<ShippingZone> shippingZones)
+    public SimulatedCourierRateService(IPricingStrategy pricing, IRepository<ShippingZone, string> shippingZones)
     {
         _pricing = pricing;
         _shippingZones = shippingZones;
@@ -350,17 +334,17 @@ public class SimulatedNotificationService : INotificationService
         return Task.CompletedTask;
     }
 
-    public Task NotifyHighValueMoneyOrderAsync(Guid transactionId, Money amount, CancellationToken ct = default)
+    public Task NotifyHighValueMoneyOrderAsync(BranchCode branchCode, Guid transactionId, Money amount, CancellationToken ct = default)
     {
         var message = $"High-value money order {transactionId}: {amount.Amount:C}.";
-        AddAlert("finance", message);
+        AddAlert(branchCode.Value, message);
         return Task.CompletedTask;
     }
 
-    public Task NotifyTransactionVoidedAsync(Guid transactionId, string reason, CancellationToken ct = default)
+    public Task NotifyTransactionVoidedAsync(BranchCode branchCode, Guid transactionId, string reason, CancellationToken ct = default)
     {
         var message = $"Transaction {transactionId} was voided or refunded: {reason}";
-        AddAlert("ops", message);
+        AddAlert(branchCode.Value, message);
         return Task.CompletedTask;
     }
 
@@ -399,25 +383,27 @@ public sealed class DomainEventDispatcher : IDomainEventDispatcher
         {
             StockLowEvent stockLow => _notifications.NotifyStockLowAsync(stockLow.BranchCode, stockLow.Sku, stockLow.RemainingQuantity, ct),
             MoneyOrderIssuedEvent moneyOrder when moneyOrder.Amount > _rules.HighValueMoneyOrderThreshold =>
-                _notifications.NotifyHighValueMoneyOrderAsync(moneyOrder.TransactionId, moneyOrder.Amount, ct),
+                _notifications.NotifyHighValueMoneyOrderAsync(moneyOrder.BranchCode, moneyOrder.TransactionId, moneyOrder.Amount, ct),
             TransactionVoidedEvent voided =>
-                _notifications.NotifyTransactionVoidedAsync(voided.TransactionId, voided.Reason, ct),
+                _notifications.NotifyTransactionVoidedAsync(voided.BranchCode, voided.TransactionId, voided.Reason, ct),
             _ => Task.CompletedTask
         };
 }
 
-public sealed class ProductCatalogueService : ICatalogueService
+public sealed class ProductCatalogueService : ICatalogueService, ICatalogueCache
 {
-    private readonly IRepository<Product> _products;
+    private readonly IRepository<Product, Sku> _products;
     private readonly IMemoryCache _cache;
     private readonly TimeSpan _ttl = TimeSpan.FromMinutes(5);
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public ProductCatalogueService(IRepository<Product> products, IMemoryCache cache)
+    public ProductCatalogueService(IRepository<Product, Sku> products, IMemoryCache cache)
     {
         _products = products;
         _cache = cache;
     }
+
+    public void Invalidate() => _cache.Remove("apexpost-catalogue");
 
     public ValueTask<IReadOnlyList<Product>> GetProductsAsync(CancellationToken ct = default)
     {
@@ -453,5 +439,43 @@ public sealed class ProductCatalogueService : ICatalogueService
         {
             _gate.Release();
         }
+    }
+}
+
+public sealed class Pbkdf2PasswordHasher : IPasswordHasher
+{
+    private const int Iterations = 600_000;
+    private const int SaltSize = 16;
+    private const int KeySize = 32;
+    private static readonly byte[] UnknownAccountSalt = new byte[SaltSize];
+
+    public string Hash(string password)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(password);
+        var salt = RandomNumberGenerator.GetBytes(SaltSize);
+        var key = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256, KeySize);
+        return $"PBKDF2-SHA256${Iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(key)}";
+    }
+
+    public bool Verify(string password, string? passwordHash)
+    {
+        var parts = passwordHash?.Split('$');
+        if (parts is not ["PBKDF2-SHA256", var iterationText, var saltText, var keyText]
+            || !int.TryParse(iterationText, out var iterations)
+            || iterations <= 0)
+        {
+            // Spend the same effort as a real check so unknown accounts are not distinguishable by timing.
+            Rfc2898DeriveBytes.Pbkdf2(password, UnknownAccountSalt, Iterations, HashAlgorithmName.SHA256, KeySize);
+            return false;
+        }
+
+        var expected = Convert.FromBase64String(keyText);
+        var actual = Rfc2898DeriveBytes.Pbkdf2(
+            password,
+            Convert.FromBase64String(saltText),
+            iterations,
+            HashAlgorithmName.SHA256,
+            expected.Length);
+        return CryptographicOperations.FixedTimeEquals(actual, expected);
     }
 }

@@ -13,7 +13,7 @@ public sealed class StaffManagementServiceTests
     public async Task CreateNormalizesValuesAndAssignsNextStaffId()
     {
         var existing = CreateStaff("STF009", "existing@example.test");
-        var staff = new MemoryRepository<Staff>([existing]);
+        var staff = new MemoryRepository<Staff, string>([existing]);
         var service = CreateService(staff);
 
         var created = await service.CreateAsync(new StaffRecordInput(
@@ -31,7 +31,7 @@ public sealed class StaffManagementServiceTests
     [Fact]
     public async Task CreateRejectsDuplicateEmailIgnoringCase()
     {
-        var service = CreateService(new MemoryRepository<Staff>(
+        var service = CreateService(new MemoryRepository<Staff, string>(
             [CreateStaff("STF001", "clerk@example.test")]));
 
         await Assert.ThrowsAsync<DomainValidationException>(() =>
@@ -45,7 +45,7 @@ public sealed class StaffManagementServiceTests
     [Fact]
     public async Task ConcurrentCreatesDoNotAssignDuplicateIdsOrEmails()
     {
-        var staff = new MemoryRepository<Staff>([CreateStaff("STF001", "existing@example.test")]);
+        var staff = new MemoryRepository<Staff, string>([CreateStaff("STF001", "existing@example.test")]);
         var service = CreateService(staff);
         var input = new StaffRecordInput("New Clerk", "new@example.test", StaffRole.CounterClerk, "B001");
 
@@ -63,7 +63,7 @@ public sealed class StaffManagementServiceTests
     {
         var existing = CreateStaff("STF001", "old@example.test");
         existing.IsActive = false;
-        var staff = new MemoryRepository<Staff>([existing]);
+        var staff = new MemoryRepository<Staff, string>([existing]);
         var service = CreateService(staff);
 
         var updated = await service.UpdateAsync(
@@ -80,7 +80,7 @@ public sealed class StaffManagementServiceTests
     [Fact]
     public async Task CreateRejectsUnknownBranchAndUndefinedRole()
     {
-        var service = CreateService(new MemoryRepository<Staff>());
+        var service = CreateService(new MemoryRepository<Staff, string>());
 
         await Assert.ThrowsAsync<DomainValidationException>(() =>
             service.CreateAsync(new StaffRecordInput(
@@ -110,8 +110,8 @@ public sealed class StaffManagementServiceTests
         }
     }
 
-    private static StaffManagementService CreateService(MemoryRepository<Staff> staff) =>
-        new(staff, new MemoryRepository<Branch>(
+    private static StaffManagementService CreateService(MemoryRepository<Staff, string> staff) =>
+        new(staff, new MemoryRepository<Branch, BranchCode>(
         [
             new Branch
             {
@@ -121,7 +121,7 @@ public sealed class StaffManagementServiceTests
                 OpenTime = TimeSpan.Zero,
                 CloseTime = TimeSpan.FromHours(23)
             }
-        ]));
+        ]), new FakePasswordHasher());
 
     private static Staff CreateStaff(string id, string email) => new()
     {
@@ -132,8 +132,9 @@ public sealed class StaffManagementServiceTests
         HomeBranchCode = new BranchCode("B001")
     };
 
-    private sealed class MemoryRepository<T>(IEnumerable<T>? initial = null) : IRepository<T>
-        where T : class
+    private sealed class MemoryRepository<T, TId>(IEnumerable<T>? initial = null) : IRepository<T, TId>
+        where T : Entity<TId>
+        where TId : notnull
     {
         private readonly List<T> _items = initial?.ToList() ?? [];
 
@@ -143,20 +144,16 @@ public sealed class StaffManagementServiceTests
             return Task.FromResult<IReadOnlyList<T>>(_items.ToList());
         }
 
-        public Task<T?> GetByIdAsync(object id, CancellationToken ct = default)
+        public Task<T?> GetByIdAsync(TId id, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
-            var idProperty = typeof(T).GetProperty("Id")
-                ?? throw new InvalidOperationException($"{typeof(T).Name} does not define an Id.");
-            return Task.FromResult(_items.FirstOrDefault(item => Equals(idProperty.GetValue(item), id)));
+            return Task.FromResult(_items.FirstOrDefault(item => EqualityComparer<TId>.Default.Equals(item.Id, id)));
         }
 
-        public Task<T?> UpdateAsync(object id, Action<T> update, CancellationToken ct = default)
+        public Task<T?> UpdateAsync(TId id, Action<T> update, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
-            var idProperty = typeof(T).GetProperty("Id")
-                ?? throw new InvalidOperationException($"{typeof(T).Name} does not define an Id.");
-            var item = _items.FirstOrDefault(value => Equals(idProperty.GetValue(value), id));
+            var item = _items.FirstOrDefault(value => EqualityComparer<TId>.Default.Equals(value.Id, id));
             if (item is not null)
             {
                 update(item);
@@ -168,11 +165,7 @@ public sealed class StaffManagementServiceTests
         public Task SaveAsync(T entity, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
-            var idProperty = typeof(T).GetProperty("Id");
-            var entityId = idProperty?.GetValue(entity);
-            var existingIndex = idProperty is null
-                ? -1
-                : _items.FindIndex(item => Equals(idProperty.GetValue(item), entityId));
+            var existingIndex = _items.FindIndex(item => EqualityComparer<TId>.Default.Equals(item.Id, entity.Id));
             if (existingIndex < 0)
             {
                 _items.Add(entity);
@@ -185,13 +178,18 @@ public sealed class StaffManagementServiceTests
             return Task.CompletedTask;
         }
 
-        public Task DeleteAsync(object id, CancellationToken ct = default)
+        public Task DeleteAsync(TId id, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
-            var idProperty = typeof(T).GetProperty("Id")
-                ?? throw new InvalidOperationException($"{typeof(T).Name} does not define an Id.");
-            _items.RemoveAll(item => Equals(idProperty.GetValue(item), id));
+            _items.RemoveAll(item => EqualityComparer<TId>.Default.Equals(item.Id, id));
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakePasswordHasher : IPasswordHasher
+    {
+        public string Hash(string password) => $"hashed:{password}";
+
+        public bool Verify(string password, string? passwordHash) => passwordHash == Hash(password);
     }
 }

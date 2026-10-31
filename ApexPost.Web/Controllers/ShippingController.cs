@@ -19,7 +19,7 @@ public sealed class ShippingController : Controller
         _courierRates = courierRates;
     }
 
-    [HttpGet("/Counter/ShippingLabel")]
+    [HttpGet]
     public IActionResult ShippingLabel()
     {
         var preview = TempData["ShippingLabelPreview"] as string;
@@ -30,7 +30,7 @@ public sealed class ShippingController : Controller
         return View(model);
     }
 
-    [HttpPost("/Counter/ShippingLabel")]
+    [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ShippingLabel(ShippingLabelViewModel model, CancellationToken ct)
     {

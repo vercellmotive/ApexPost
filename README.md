@@ -5,31 +5,38 @@ ApexPost is a .NET 10 / C# 14 ASP.NET Core MVC counter platform for branch retai
 ## Requirements and run
 
 1. Install the .NET 10 SDK.
-2. From the solution directory, set local-only demo credentials:
+2. From the solution directory, set a partner API key (needed only for `/integration/parcel-status`):
 
-```powershell
-dotnet user-secrets set "Authentication:DemoPassword" "Choose-a-local-demo-password" --project ApexPost.Web
+```bash
 dotnet user-secrets set "Integration:ApiKey" "Choose-a-long-random-partner-key" --project ApexPost.Web
 ```
 
-3. Restore, build, test, and run:
+3. Build, test and run:
 
-```powershell
-dotnet restore
+```bash
 dotnet build ApexPost.slnx
-dotnet test ApexPost.Test/ApexPost.Test.csproj
-dotnet run --project ApexPost.Web
 ```
 
-Open the HTTPS URL printed by `dotnet run`. The demo sign-in uses one locally configured password for seeded staff accounts. A login is intentionally unavailable until `Authentication:DemoPassword` is configured.
+```bash
+dotnet test ApexPost.slnx
+```
+
+```bash
+dotnet run --project ApexPost.Web --launch-profile https
+```
+
+Open the HTTPS URL it prints and sign in with an account below. Warnings fail the build through `Directory.Build.props`.
+
+Runtime data is written to `ApexPost.Web/App_Data` (ignored by Git) and survives clean and rebuild. To reset the demo, stop the app and delete that folder; the seed data then loads again.
 
 ### Web configuration reference
 
-All settings read by `ApexPost.Web` are declared in `ApexPost.Web/appsettings.json`. Secret-valued keys are present as empty strings only to show the configuration shape; they are intentionally unusable until supplied through user-secrets or deployment secrets. Do not replace these placeholders with real credentials in the checked-in file.
+Most settings read by `ApexPost.Web` are declared in `ApexPost.Web/appsettings.json`. Secret-valued keys are present as empty strings only to show the configuration shape; they are intentionally unusable until supplied through user-secrets or deployment secrets. Do not replace these placeholders with real credentials in the checked-in file.
 
 | Key | Checked-in default | Purpose |
 |---|---|---|
-| `Authentication:DemoPassword` | Empty | Shared local demo login password; required to sign in. |
+| `Persistence:DataDirectory` | `App_Data` | Single folder for runtime JSON and the audit log, absolute or relative to the content root. |
+| `Inventory:LowStockThreshold` | `5` | Quantity at or below which a product counts as low stock. |
 | `Integration:ApiKey` | Empty | Optional legacy single-partner API key. |
 | `Integration:Partners:<PartnerId>:ApiKey` | `CourierA` shown with empty key | Per-partner API key; add one entry per integration partner. |
 | `ApiKeys:Courier` | Empty | Legacy alias for a single courier API key. |
@@ -49,29 +56,33 @@ The login and partner request quotas are intentionally code-defined policies (3 
 
 ## Demo staff accounts
 
-Use the configured demo password with these seeded identities:
+Every staff member has their own password, stored only as a salted PBKDF2-SHA256 hash in `staff.json`. These are fictional seed accounts for local demos and must not be used in production.
 
-| Role | Email | Staff ID |
-|---|---|---|
-| Branch Manager | `alice@apexpost.com` | STF001 |
-| Counter Clerk | `ben@apexpost.com` | STF002 |
-| Auditor | `frank@apexpost.com` | STF006 |
-| Administrator | `olive@apexpost.com` | STF015 |
+| Role | Email | Password | Staff ID | Branch |
+|---|---|---|---|---|
+| Branch Manager | `alice@apexpost.com` | `Apex-Alice-2026!` | STF001 | B001 |
+| Counter Clerk | `ben@apexpost.com` | `Apex-Ben-2026!` | STF002 | B001 |
+| Auditor | `frank@apexpost.com` | `Apex-Frank-2026!` | STF006 | B002 |
+| Administrator | `olive@apexpost.com` | `Apex-Olive-2026!` | STF015 | B001 |
 
-Seeded staff and branches are in `ApexPost.Infrastructure/Data/staff.json` and `branch.json`. The role-specific audit and staff pages enforce authorization policies.
+All 20 seeded accounts follow the same pattern, `Apex-<Name>-2026!`, using the capitalised name from the email address. Administrators can set a new password on the staff edit screen. Login allows 3 attempts per minute per IP address, so wait a minute after that.
+
+Branches enforce their real opening hours in their own time zone, so a sale outside those hours is rejected. An administrator can change the hours on the Branches screen to demonstrate sales at any time.
 
 ## Features
 
-- Branch terminals, branch operating hours, staff roles, and administrator staff add/edit/deactivate. Staff uniqueness/branch rules and ID allocation live in an application service with process-local write serialization.
+- Administrator screens to add and edit branches (hours, time zone, terminals), close or reopen them, and add and edit products. Stock rows and the catalogue cache stay in step automatically.
+- A transactions screen where Branch Managers void or refund a paid sale, with a required reason.
+- Branch terminals, branch operating hours, staff roles, and administrator staff add/edit/deactivate with per-staff passwords. Staff uniqueness/branch rules and ID allocation live in an application service with process-local write serialization.
 - A branch-scoped product catalogue and inventory view; stock is updated atomically per JSON repository and cannot go negative.
 - A multi-line retail/shipping/money-order/identity-verification counter basket with payment, parcel validation, shipping pricing, and an identity threshold rule. Checkout reserves stock, persists an open transaction marker, and compensates reservations if completion fails.
 - Identity verification uses a replaceable simulated format-check service; the clerk cannot mark a check successful. The interface retains only a masked document value and result, and the UI explains that no external identity provider is contacted.
 - Branch-manager stock adjustments require a quantity change and enumerated reason, enforce branch ownership and non-negative stock, and are included in the append-only audit log.
 - Voids and refunds restock retail items with per-stock-row idempotency markers so a partially completed reversal can resume without duplicating completed rows.
-- Shipping label preview, including ten data-backed destination zones and service levels.
-- Reports for daily retail/services sales, low stock, shipping volumes, and an auditor-only money-order/identity-verification summary.
-- Domain events for low stock, completed transactions, money orders, and void/refund notifications.
-- Append-only JSON Lines audit storage and `AUDIT-SAMPLE.json`. Full document numbers, passwords, API keys, and card data are not written to audit entries.
+- Shipping label preview with the recipient address, ten data-backed destination zones and service levels. Parcels need dimensions and have service-level weight limits; letters are limited to 0.5 kg.
+- Reports with a date picker for daily retail/services sales (opening on the latest day with sales), low stock, shipping volumes, and an auditor-only money-order/identity-verification summary.
+- Domain events for low stock, completed transactions, money orders, and void/refund notifications, shown on that branch's dashboard.
+- Append-only JSON Lines audit storage of business actions only (sales, money orders, identity checks, voids, refunds, stock, and staff, branch and product changes), including denied attempts, and `AUDIT-SAMPLE.json`. A failed audit write never fails the business action. Full document numbers, passwords, API keys, and card data are not written to audit entries.
 - Configurable shipping surcharge (`ShippingPricing:ParcelWeightSurchargePerKilogram`) and injectable shipping-pricing delegate; transaction status/payment state is verified to survive JSON reloads.
 - Cookie authentication with staff, role, and branch claims; antiforgery on state-changing form posts.
 - More than 13 active middleware stages for security, request handling, routing, compression, rate limiting, and observability. The exact order is documented in `DESIGN.md`.
@@ -80,22 +91,28 @@ Seeded staff and branches are in `ApexPost.Infrastructure/Data/staff.json` and `
 
 Partner API keys are read from user-secrets or deployment configuration. Configure a separate key per partner and do not place real keys in `appsettings*.json` or source control. The legacy `Integration:ApiKey` setting remains supported for a single partner:
 
-```powershell
+```bash
 dotnet user-secrets set "Integration:ApiKey" "Choose-a-long-random-partner-key" --project ApexPost.Web
 ```
 
 For multiple partners, use a unique secret for each configured partner ID:
 
-```powershell
+```bash
 dotnet user-secrets set "Integration:Partners:CourierA:ApiKey" "Courier-A-long-random-key" --project ApexPost.Web
+```
+
+```bash
 dotnet user-secrets set "Integration:Partners:CourierB:ApiKey" "Courier-B-long-random-key" --project ApexPost.Web
 ```
 
 Example request:
 
-```powershell
-curl.exe -H "X-Api-Key: <configured-key>" https://localhost:5001/integration/parcel-status
-curl.exe https://localhost:5001/health
+```bash
+curl -k -H "X-Api-Key: <configured-key>" https://localhost:7125/integration/parcel-status
+```
+
+```bash
+curl -k https://localhost:7125/health
 ```
 
 The integration endpoint and administrator staff routes also apply an IP allowlist; the integration endpoint applies a per-partner rate limit. For production behind a reverse proxy, configure `ForwardedHeaders:KnownProxies` with the proxy IP addresses, then configure `Security:AllowedIps` for the actual approved clients. Forwarded headers are accepted only from trusted proxies; trusting arbitrary `X-Forwarded-For` values lets a caller spoof its address. Set `Cors:PartnerTrackingWidgetOrigin` to the approved widget origin. CORS is a browser policy, not authentication or an API security boundary.
@@ -106,13 +123,13 @@ Shipping rates use configured zone multipliers and a tiered service-level base r
 
 ## Audit sample provenance
 
-`AUDIT-SAMPLE.json` is generated from actual JSON Lines audit records, not hand-authored examples. Run the app and perform audited counter or stock actions, then export only those events and a strict allowlist of safe audit fields:
+`AUDIT-SAMPLE.json` holds real entries produced by the running app (sale, money order with identity check, stock adjustment, void, and denied attempts), passed through the safe-field allowlist. To refresh it on Windows, run the app, perform audited actions, then:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Export-AuditSample.ps1
 ```
 
-The default input is `ApexPost.Web\Data\audit-log.jsonl`. The checked-in sample includes a successfully completed and persisted sale (HTTP 302 PRG result) as well as a stock adjustment and representative counter requests; rerun the exporter after creating new actions to refresh it. The exporter fails clearly if the file or eligible audit entries are missing. It does not export request bodies or free-form form values.
+The default input is `ApexPost.Web\App_Data\audit-log.jsonl`. The exporter does not copy request bodies or free-form values.
 
 ## Git workflow
 
@@ -129,7 +146,7 @@ git push -u origin feature/audit-sample-provenance
 
 ## Seed data
 
-The included seed set contains five branches, twenty staff, thirty products, 150 branch/product stock records, ten shipping-zone rates, and forty paid historical transactions. JSON files live in `ApexPost.Infrastructure/Data` and are copied to the application output. Branch opening hours use the branch's configured timezone. Grant the running process write access to its output `Data` directory for mutable JSON and audit files. Repository locks and staff-write serialization are process-local: they prevent concurrent writes within one running instance, but do not provide cross-process coordination or multi-file crash atomicity. Run one instance for this JSON-persistence assignment; replace it with transactional storage before scaling writers.
+The included seed set contains five branches, twenty staff, thirty products, 150 branch/product stock records, ten shipping-zone rates, and forty paid historical transactions. Seed JSON files live in `ApexPost.Infrastructure/Data` and are copied read-only to the application output. Branch opening hours use the branch's configured timezone. Grant the running process write access to the data folder (`App_Data` by default). Repository locks and staff-write serialization are process-local: they prevent concurrent writes within one running instance, but do not provide cross-process coordination or multi-file crash atomicity. Run one instance for this JSON-persistence assignment; replace it with transactional storage before scaling writers.
 
 ## Solution layout
 
@@ -137,6 +154,6 @@ The included seed set contains five branches, twenty staff, thirty products, 150
 - `ApexPost.Application`: repository contracts, use cases, reports, pricing abstractions.
 - `ApexPost.Infrastructure`: asynchronous JSON stores, simulated courier service, cache, notifications, event dispatch.
 - `ApexPost.Web`: MVC controllers/views, authentication, middleware, filters, composition root.
-- `ApexPost.Test`: domain unit tests and WebApplicationFactory integration tests.
+- `ApexPost.Test`: 86 domain unit tests and WebApplicationFactory integration tests, run against a temporary data folder.
 
 See `DESIGN.md` for the architecture/domain diagrams, middleware sequence, filters, ADRs, security decisions, and C# 14 feature rationale.

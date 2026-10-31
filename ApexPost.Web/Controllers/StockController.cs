@@ -4,6 +4,7 @@ using ApexPost.Domain.Enums;
 using ApexPost.Domain.ValueObjects;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ApexPost.Web.Attributes;
 using ApexPost.Web.Filters;
 using System.Security.Claims;
 
@@ -20,7 +21,8 @@ public sealed class StockController : Controller
         _inventory = inventory;
     }
 
-    [HttpPost("/Stock/Adjust")]
+    [HttpPost]
+    [AuditedAction("StockAdjustment")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Adjust(
         string productSku,

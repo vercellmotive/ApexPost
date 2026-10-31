@@ -1,5 +1,5 @@
 using ApexPost.Application.Interfaces;
-using ApexPost.Domain.Entities;
+using ApexPost.Application.Services;
 using ApexPost.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,26 +11,24 @@ namespace ApexPost.Web.Controllers;
 public class CatalogController : Controller
 {
     private readonly ICatalogueService _catalogue;
-    private readonly IRepository<BranchStock> _stocks;
+    private readonly InventoryService _inventory;
 
-    public CatalogController(ICatalogueService catalogue, IRepository<BranchStock> stocks)
+    public CatalogController(ICatalogueService catalogue, InventoryService inventory)
     {
         _catalogue = catalogue;
-        _stocks = stocks;
+        _inventory = inventory;
     }
 
-    [HttpGet("/Catalog")]
+    [HttpGet]
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        var products = await _catalogue.GetProductsAsync(ct);
         var branchCode = User.FindFirstValue("BranchCode");
-        IReadOnlyList<BranchStock> stock = branchCode is null
-            ? Array.Empty<BranchStock>()
-            : await _stocks.GetAllAsync(ct);
-        var model = products.Select(product => new ProductStockViewModel(
-            product,
-            stock.FirstOrDefault(item => item.BranchCode.Value == branchCode && item.ProductSku == product.Id)?.QuantityOnHand ?? 0))
-            .ToList();
-        return View(model);
+        if (branchCode is null)
+        {
+            return Forbid();
+        }
+
+        var catalogue = await _inventory.GetBranchCatalogueAsync(_catalogue, branchCode, ct);
+        return View(catalogue.Select(item => new ProductStockViewModel(item.Product, item.QuantityOnHand)).ToList());
     }
 }

@@ -1,5 +1,5 @@
 param(
-    [string]$AuditLogPath = "ApexPost.Web\Data\audit-log.jsonl",
+    [string]$AuditLogPath = "ApexPost.Web\App_Data\audit-log.jsonl",
     [string]$OutputPath = "AUDIT-SAMPLE.json"
 )
 
@@ -18,7 +18,15 @@ $allowedParameters = @(
     "counterId",
     "productSku",
     "quantityDelta",
-    "reasonCode"
+    "reasonCode",
+    "businessAction",
+    "outcome",
+    "retailLines",
+    "includesShipping",
+    "moneyOrderAmount",
+    "identityVerification",
+    "paymentMethod",
+    "id"
 )
 
 foreach ($line in Get-Content -LiteralPath $AuditLogPath) {
@@ -27,16 +35,12 @@ foreach ($line in Get-Content -LiteralPath $AuditLogPath) {
     }
 
     $entry = $line | ConvertFrom-Json
-    if ($entry.Controller -notin @("CounterController", "StockController")) {
-        continue
-    }
-
     $parameters = @{}
     if (-not [string]::IsNullOrWhiteSpace($entry.Parameters)) {
         $rawParameters = $entry.Parameters | ConvertFrom-Json
         foreach ($name in $allowedParameters) {
             $property = $rawParameters.PSObject.Properties[$name]
-            if ($null -ne $property -and "$($property.Value)" -match '^[A-Za-z0-9_-]{1,128}$') {
+            if ($null -ne $property -and "$($property.Value)" -match '^[A-Za-z0-9_.-]{1,128}$') {
                 $parameters[$name] = "$($property.Value)"
             }
         }
@@ -58,7 +62,7 @@ foreach ($line in Get-Content -LiteralPath $AuditLogPath) {
 }
 
 if ($safeEntries.Count -eq 0) {
-    throw "No counter or stock-adjustment audit entries were found in $AuditLogPath."
+    throw "No audit entries were found in $AuditLogPath."
 }
 
 $destination = [System.IO.Path]::GetFullPath($OutputPath)

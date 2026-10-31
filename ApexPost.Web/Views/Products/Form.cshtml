@@ -1,0 +1,38 @@
+@model ApexPost.Web.Models.ProductFormViewModel
+@using ApexPost.Domain.Entities
+@{
+    ViewData["Title"] = Model.IsExisting ? "Edit product" : "Add product";
+}
+
+<h2>@ViewData["Title"]</h2>
+<form asp-action="@(Model.IsExisting ? "Edit" : "Create")" asp-route-id="@(Model.IsExisting ? Model.Sku : null)" method="post">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <div class="mb-3">
+        <label asp-for="Sku" class="form-label">SKU</label>
+        <input asp-for="Sku" class="form-control" readonly="@Model.IsExisting" />
+    </div>
+    <div class="mb-3">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label asp-for="Category" class="form-label"></label>
+        <select asp-for="Category" class="form-select">
+            @foreach (var category in ProductCategories.All)
+            {
+                <option value="@category">@category</option>
+            }
+        </select>
+    </div>
+    <div class="mb-3">
+        <label asp-for="UnitPrice" class="form-label">Unit price (AUD)</label>
+        <input asp-for="UnitPrice" class="form-control" min="0.01" step="0.01" />
+    </div>
+    <div class="mb-3">
+        <label asp-for="TaxCategory" class="form-label">Tax category</label>
+        <select asp-for="TaxCategory" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Enums.TaxCategory>()" class="form-select"></select>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a asp-action="Index" class="btn btn-secondary">Cancel</a>
+</form>

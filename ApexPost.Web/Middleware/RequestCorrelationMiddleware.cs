@@ -21,17 +21,19 @@ public sealed class RequestCorrelationMiddleware
                 : Guid.NewGuid().ToString("N");
         context.TraceIdentifier = correlationId;
         context.Items["CorrelationId"] = correlationId;
-        context.Response.Headers["X-Correlation-Id"] = correlationId;
+
+        // OnStarting survives Response.Clear(), so error responses keep the header too.
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers["X-Correlation-Id"] = correlationId;
+            return Task.CompletedTask;
+        });
 
         using var scope = _logger.BeginScope(new Dictionary<string, object>
         {
-            ["CorrelationId"] = correlationId,
-            ["Path"] = context.Request.Path.Value ?? string.Empty,
-            ["Method"] = context.Request.Method
+            ["CorrelationId"] = correlationId
         });
 
-        _logger.LogInformation("Request started: {Method} {Path}", context.Request.Method, context.Request.Path.Value);
         await _next(context);
-        _logger.LogInformation("Request completed: {Method} {Path} with status {StatusCode}", context.Request.Method, context.Request.Path.Value, context.Response.StatusCode);
     }
 }

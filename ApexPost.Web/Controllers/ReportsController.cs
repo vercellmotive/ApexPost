@@ -1,5 +1,6 @@
 using ApexPost.Application.Interfaces;
 using ApexPost.Application.Services;
+using ApexPost.Domain.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -11,37 +12,47 @@ public class ReportsController : Controller
 {
     private readonly ReportingService _reportingService;
     private readonly IAuthorizationService _authorizationService;
+    private readonly LowStockRule _lowStockRule;
 
     public ReportsController(
         ReportingService reportingService,
-        IAuthorizationService authorizationService)
+        IAuthorizationService authorizationService,
+        LowStockRule lowStockRule)
     {
         _reportingService = reportingService;
         _authorizationService = authorizationService;
+        _lowStockRule = lowStockRule;
     }
 
-    [HttpGet("/Reports")]
+    [HttpGet]
     [Authorize(Policy = "SameBranchOnly")]
-    public async Task<IActionResult> Index(CancellationToken ct)
+    public async Task<IActionResult> Index(string? branchCode, DateOnly? date, CancellationToken ct)
     {
-        var canViewAllBranches = User.IsInRole("Auditor");
-        var branchCode = User.FindFirstValue("BranchCode");
-        if (branchCode is null)
+        var assignedBranch = User.FindFirstValue("BranchCode");
+        if (assignedBranch is null)
         {
             return Forbid();
         }
 
-        var reportBranch = canViewAllBranches ? null : branchCode;
-        var sales = await _reportingService.GetDailyBranchSalesAsync(reportBranch, ct);
-        var stock = await _reportingService.GetLowStockReportAsync(5, reportBranch, ct);
-        var shipping = await _reportingService.GetShippingVolumeByZoneAsync(reportBranch, ct);
-        ViewBag.Sales = sales;
-        ViewBag.Stock = stock;
-        ViewBag.Shipping = shipping;
+        var reportBranch = !string.IsNullOrWhiteSpace(branchCode)
+            ? branchCode
+            : User.IsInRole("Auditor") ? null : assignedBranch;
+        var reportDate = date
+            ?? await _reportingService.GetLatestSalesDateAsync(reportBranch, ct)
+            ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var salesTask = _reportingService.GetDailyBranchSalesAsync(reportBranch, ct, reportDate);
+        var stockTask = _reportingService.GetLowStockReportAsync(_lowStockRule.Threshold, reportBranch, ct);
+        var shippingTask = _reportingService.GetShippingVolumeByZoneAsync(reportBranch, ct);
+        await Task.WhenAll(salesTask, stockTask, shippingTask);
+        ViewBag.ReportDate = reportDate;
+        ViewBag.Sales = await salesTask;
+        ViewBag.Stock = await stockTask;
+        ViewBag.LowStockThreshold = _lowStockRule.Threshold;
+        ViewBag.Shipping = await shippingTask;
         return View();
     }
 
-    [HttpGet("/Reports/Audit")]
+    [HttpGet]
     public async Task<IActionResult> Audit(CancellationToken ct)
     {
         if (!(await _authorizationService.AuthorizeAsync(User, "AuditorOnly")).Succeeded)

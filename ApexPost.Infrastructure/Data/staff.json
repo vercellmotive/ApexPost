@@ -1,22 +1,222 @@
 [
-  { "Id": "STF001", "Name": "Alice Turner", "Email": "alice@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B001" }, "IsActive": true },
-  { "Id": "STF002", "Name": "Ben Price", "Email": "ben@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B001" }, "IsActive": true },
-  { "Id": "STF003", "Name": "Cara Patel", "Email": "cara@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B001" }, "IsActive": true },
-  { "Id": "STF004", "Name": "Dom Hsu", "Email": "dom@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B002" }, "IsActive": true },
-  { "Id": "STF005", "Name": "Ella Stone", "Email": "ella@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B002" }, "IsActive": true },
-  { "Id": "STF006", "Name": "Frank Lin", "Email": "frank@apexpost.com", "Role": 2, "HomeBranchCode": { "Value": "B002" }, "IsActive": true },
-  { "Id": "STF007", "Name": "Grace Maio", "Email": "grace@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B003" }, "IsActive": true },
-  { "Id": "STF008", "Name": "Hugo Ross", "Email": "hugo@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B003" }, "IsActive": true },
-  { "Id": "STF009", "Name": "Iris Chen", "Email": "iris@apexpost.com", "Role": 2, "HomeBranchCode": { "Value": "B003" }, "IsActive": true },
-  { "Id": "STF010", "Name": "Jake Davis", "Email": "jake@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B004" }, "IsActive": true },
-  { "Id": "STF011", "Name": "Kara Moss", "Email": "kara@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B004" }, "IsActive": true },
-  { "Id": "STF012", "Name": "Leo Moss", "Email": "leo@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B004" }, "IsActive": true },
-  { "Id": "STF013", "Name": "Mia North", "Email": "mia@apexpost.com", "Role": 2, "HomeBranchCode": { "Value": "B005" }, "IsActive": true },
-  { "Id": "STF014", "Name": "Noah Bell", "Email": "noah@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B005" }, "IsActive": true },
-  { "Id": "STF015", "Name": "Olive Ford", "Email": "olive@apexpost.com", "Role": 3, "HomeBranchCode": { "Value": "B001" }, "IsActive": true },
-  { "Id": "STF016", "Name": "Parker Quinn", "Email": "parker@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B002" }, "IsActive": true },
-  { "Id": "STF017", "Name": "Quinn West", "Email": "quinn@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B003" }, "IsActive": true },
-  { "Id": "STF018", "Name": "Rae Holt", "Email": "rae@apexpost.com", "Role": 1, "HomeBranchCode": { "Value": "B005" }, "IsActive": true },
-  { "Id": "STF019", "Name": "Sam Reed", "Email": "sam@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B004" }, "IsActive": true },
-  { "Id": "STF020", "Name": "Tara Cain", "Email": "tara@apexpost.com", "Role": 0, "HomeBranchCode": { "Value": "B005" }, "IsActive": true }
+  {
+    "Id": "STF001",
+    "Name": "Alice Turner",
+    "Email": "alice@apexpost.com",
+    "Role": 1,
+    "HomeBranchCode": {
+      "Value": "B001"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$3poeCQFsFuIv/cahhZ0oxg==$qMUBu2vXsKMdKhV7AyJ1QkTssA3o/Pw3bfYetpSsQOM="
+  },
+  {
+    "Id": "STF002",
+    "Name": "Ben Price",
+    "Email": "ben@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B001"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$EN/bWCqwiXQEwoxi63L3zQ==$EgcjNWP7Fl7xLQn3AubuQrw78jgf2u0Roe1MVBT/I9s="
+  },
+  {
+    "Id": "STF003",
+    "Name": "Cara Patel",
+    "Email": "cara@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B001"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$RjH21wC6LjrcdDmvVWkkCg==$SgQ+kB/GRSSeuIJJpad+zdeKGg4CBKJY9RqbU7vSqgc="
+  },
+  {
+    "Id": "STF004",
+    "Name": "Dom Hsu",
+    "Email": "dom@apexpost.com",
+    "Role": 1,
+    "HomeBranchCode": {
+      "Value": "B002"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$sotlF5cafHl4Rtvrv+xF7A==$bcschdmHZSt9leWYi4R4Ss887Nio5G2vp0H6XdVdi9s="
+  },
+  {
+    "Id": "STF005",
+    "Name": "Ella Stone",
+    "Email": "ella@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B002"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$vndNtrsJbQRmaLKkfmMAeg==$EgPxlqFZZKk972zMppgTm/uCwKu1rPtEdcDxaxk+ZNg="
+  },
+  {
+    "Id": "STF006",
+    "Name": "Frank Lin",
+    "Email": "frank@apexpost.com",
+    "Role": 2,
+    "HomeBranchCode": {
+      "Value": "B002"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$/Vs+opvjCcby5pgQD+9rxg==$5ryerNjl5x2MZLWVd4yeVjKZjzdKf7CNnPWQEuzMgaw="
+  },
+  {
+    "Id": "STF007",
+    "Name": "Grace Maio",
+    "Email": "grace@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B003"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$+OZhAHJIcm4fEa10JDWr1Q==$WXi2dLSo0FC0kMBPC3NlnmNGSAf4O3eSvuhIwj2qeeo="
+  },
+  {
+    "Id": "STF008",
+    "Name": "Hugo Ross",
+    "Email": "hugo@apexpost.com",
+    "Role": 1,
+    "HomeBranchCode": {
+      "Value": "B003"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$qFSyk4/YD1LF01BEiOxgeg==$gfloaaQ7wDi5yWFyMFBBY1fleynDA4/fSIxQP6fYpGU="
+  },
+  {
+    "Id": "STF009",
+    "Name": "Iris Chen",
+    "Email": "iris@apexpost.com",
+    "Role": 2,
+    "HomeBranchCode": {
+      "Value": "B003"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$Qo+Plm5uMlsoeP6hmVrqOw==$SQFKEG7sGwsPymS0IxzpqrKU2eeSEl7UyaNyJrW3Fn4="
+  },
+  {
+    "Id": "STF010",
+    "Name": "Jake Davis",
+    "Email": "jake@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B004"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$TDe/Zfui1pTsYjUf00sXZg==$GQiprISi0sO52FEzwmp7oMybhvfqL9217wJr9EU0yaI="
+  },
+  {
+    "Id": "STF011",
+    "Name": "Kara Moss",
+    "Email": "kara@apexpost.com",
+    "Role": 1,
+    "HomeBranchCode": {
+      "Value": "B004"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$ixW2cBdj6plPaM8+LlRFvQ==$GmgmB8JFSTyr2TiwV9IfpuvvqLzUbTX52mRUGiyEN2c="
+  },
+  {
+    "Id": "STF012",
+    "Name": "Leo Moss",
+    "Email": "leo@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B004"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$a+XY9vTICrs1NAl3rGBopA==$Z8L5RU9nrQ6K0wRrba8j97DOMfUCwlr7v7fu1+d0GDY="
+  },
+  {
+    "Id": "STF013",
+    "Name": "Mia North",
+    "Email": "mia@apexpost.com",
+    "Role": 2,
+    "HomeBranchCode": {
+      "Value": "B005"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$o5PPv2iql4nLRzo2BFu3pw==$npZBQ0STUEYclMBqfM7Xyi/9k6JCVFSIk28d5FJbr9A="
+  },
+  {
+    "Id": "STF014",
+    "Name": "Noah Bell",
+    "Email": "noah@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B005"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$Ogp8xQgOeXL40iOb3FIbdQ==$79u84W3vVa783eaALrlg/h4Ry0EknIS1a3g3wxBtD+A="
+  },
+  {
+    "Id": "STF015",
+    "Name": "Olive Ford",
+    "Email": "olive@apexpost.com",
+    "Role": 3,
+    "HomeBranchCode": {
+      "Value": "B001"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$o7JF1QHX1av4CRxJVsEInw==$w/FpOufye+XzEnpFBUwhNLnD+5C9tSM1M9eMOC8f0Pg="
+  },
+  {
+    "Id": "STF016",
+    "Name": "Parker Quinn",
+    "Email": "parker@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B002"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$LuQYrJNe76X82apJ4SEXkw==$TLTvV9RfhvH1nL8eoELap2nSfDkiv58BrfMZ/Ef3GJQ="
+  },
+  {
+    "Id": "STF017",
+    "Name": "Quinn West",
+    "Email": "quinn@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B003"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$Pus3KavN+zBfBiFdLM1f8g==$8wwZRx4JOOVjxgsQlAjGZQdQhWiJLONDnQhP7zMUtmY="
+  },
+  {
+    "Id": "STF018",
+    "Name": "Rae Holt",
+    "Email": "rae@apexpost.com",
+    "Role": 1,
+    "HomeBranchCode": {
+      "Value": "B005"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$ULfpWE2ij850hxE9XEZQIQ==$FtmcFbwniG9zdYyS529CHwJ5L4GwvxdH4+Cp2ORPJNs="
+  },
+  {
+    "Id": "STF019",
+    "Name": "Sam Reed",
+    "Email": "sam@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B004"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$oEfzKFh+yDmK0js9CRgnxA==$VYzYtFOqHykAC8RG38Yn2VWNKYRo2d0B6LI7gYVBtcg="
+  },
+  {
+    "Id": "STF020",
+    "Name": "Tara Cain",
+    "Email": "tara@apexpost.com",
+    "Role": 0,
+    "HomeBranchCode": {
+      "Value": "B005"
+    },
+    "IsActive": true,
+    "PasswordHash": "PBKDF2-SHA256$600000$sb0zhWk7tmofYcNwUgWBWw==$sdOyoQjidR4W5cfU5UFBQBrC/xi0MUXQFuc+h9EZR4w="
+  }
 ]

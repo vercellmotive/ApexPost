@@ -2,7 +2,7 @@ using System.Security.Claims;
 using ApexPost.Application.Interfaces;
 using ApexPost.Application.Pricing;
 using ApexPost.Application.Services;
-using ApexPost.Domain.Entities;
+using ApexPost.Domain.Common;
 using ApexPost.Infrastructure.Services;
 using ApexPost.Web.Attributes;
 using ApexPost.Web.Authorization;
@@ -11,6 +11,7 @@ using ApexPost.Web.Middleware;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using System.Net;
@@ -19,6 +20,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews(options =>
 {
+    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
     options.Filters.AddService<PerformanceActionFilter>();
     options.Filters.AddService<AuditActionFilter>();
 });
@@ -31,10 +33,15 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     .AddCookie(options =>
     {
         options.LoginPath = "/Account/Login";
-        options.AccessDeniedPath = "/Account/Login";
         options.Cookie.HttpOnly = true;
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Strict;
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            // A signed-in user without permission gets 403, not a redirect back to the login page.
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
     });
 
 builder.Services.AddAuthorization(options =>
@@ -45,6 +52,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("SameBranchOnly", policy => policy.AddRequirements(new SameBranchRequirement()));
 });
 builder.Services.AddSingleton<IAuthorizationHandler, SameBranchAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, AuditingAuthorizationResultHandler>();
 
 builder.Services.AddHealthChecks();
 builder.Services.AddMemoryCache();
@@ -62,8 +70,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("PartnerWidget", policy =>
     {
         policy.WithOrigins(partnerOrigin)
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+            .WithHeaders("X-Api-Key")
+            .WithMethods(HttpMethods.Get);
     });
 });
 builder.Services.AddRateLimiter(options =>
@@ -104,14 +112,8 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-builder.Services.AddSingleton<IRepository<Branch>>(sp => new JsonFileRepository<Branch>(sp.GetRequiredService<IWebHostEnvironment>()));
-builder.Services.AddSingleton<IRepository<Staff>>(sp => new JsonFileRepository<Staff>(sp.GetRequiredService<IWebHostEnvironment>()));
-builder.Services.AddSingleton<IRepository<Product>>(sp => new JsonFileRepository<Product>(sp.GetRequiredService<IWebHostEnvironment>()));
-builder.Services.AddSingleton<IRepository<Transaction>>(sp => new JsonFileRepository<Transaction>(sp.GetRequiredService<IWebHostEnvironment>()));
-builder.Services.AddSingleton<IRepository<BranchStock>>(sp => new JsonFileRepository<BranchStock>(sp.GetRequiredService<IWebHostEnvironment>()));
-builder.Services.AddSingleton<IRepository<ShippingZone>>(sp => new JsonFileRepository<ShippingZone>(sp.GetRequiredService<IWebHostEnvironment>()));
-
-builder.Services.AddSingleton<IAuditStore, JsonAuditStore>();
+builder.Services.AddJsonPersistence(builder.Environment.ContentRootPath);
+builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddSingleton<PartnerApiKeyValidator>();
 builder.Services.AddSingleton<INotificationService, SimulatedNotificationService>();
 builder.Services.AddSingleton<IIdentityVerificationService, SimulatedIdentityVerificationService>();
@@ -126,14 +128,20 @@ builder.Services.AddSingleton<ICourierTrackingService>(_ => new SimulatedCourier
     TimeSpan.FromMilliseconds(builder.Configuration.GetValue<int>("CourierTracking:TimeoutMs", 1500)),
     TimeSpan.FromMilliseconds(builder.Configuration.GetValue<int>("CourierTracking:SimulatedDelayMs", 50))));
 
+builder.Services.AddSingleton(provider =>
+    new LowStockRule(provider.GetRequiredService<IConfiguration>().GetValue("Inventory:LowStockThreshold", 5)));
 builder.Services.AddSingleton<ProductCatalogueService>();
 builder.Services.AddSingleton<ICatalogueService>(sp => sp.GetRequiredService<ProductCatalogueService>());
+builder.Services.AddSingleton<ICatalogueCache>(sp => sp.GetRequiredService<ProductCatalogueService>());
 
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<ReportingService>();
 builder.Services.AddScoped<TransactionService>();
 builder.Services.AddScoped<InventoryService>();
+builder.Services.AddScoped<StaffAuthenticationService>();
 builder.Services.AddSingleton<StaffManagementService>();
+builder.Services.AddSingleton<BranchManagementService>();
+builder.Services.AddSingleton<ProductManagementService>();
 var parcelWeightSurcharge = builder.Configuration.GetValue<decimal>(
     "ShippingPricing:ParcelWeightSurchargePerKilogram",
     1.50m);
@@ -174,9 +182,9 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<RequestCorrelationMiddleware>();
-app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<RequestTimingMiddleware>();
+app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<MaintenanceModeMiddleware>();
 app.UseRequestLocalization(new RequestLocalizationOptions()
@@ -190,9 +198,9 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseCors();
+app.UseMiddleware<IpRestrictionMiddleware>();
 app.UseRateLimiter();
 app.UseMiddleware<ApiKeyAuthenticationMiddleware>();
-app.UseMiddleware<IpRestrictionMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();

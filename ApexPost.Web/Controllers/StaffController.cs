@@ -18,23 +18,29 @@ public sealed class StaffController : Controller
         _staff = staff;
     }
 
-    [HttpGet("/Staff")]
+    [HttpGet]
     public async Task<IActionResult> Index(CancellationToken ct)
     {
         return View(await _staff.GetAllAsync(ct));
     }
 
-    [HttpGet("/Staff/Create")]
+    [HttpGet]
     public async Task<IActionResult> Create(CancellationToken ct)
     {
         await PopulateBranchesAsync(ct);
         return View("Form", new StaffFormViewModel());
     }
 
-    [HttpPost("/Staff/Create")]
+    [HttpPost]
     [ValidateAntiForgeryToken]
+    [AuditedAction("StaffCreate")]
     public async Task<IActionResult> Create(StaffFormViewModel model, CancellationToken ct)
     {
+        if (string.IsNullOrEmpty(model.Password))
+        {
+            ModelState.AddModelError(nameof(model.Password), "A password is required for a new staff member.");
+        }
+
         if (!ModelState.IsValid)
         {
             await PopulateBranchesAsync(ct);
@@ -55,7 +61,7 @@ public sealed class StaffController : Controller
         }
     }
 
-    [HttpGet("/Staff/Edit/{id}")]
+    [HttpGet]
     public async Task<IActionResult> Edit(string id, CancellationToken ct)
     {
         var person = await _staff.GetByIdAsync(id, ct);
@@ -75,8 +81,9 @@ public sealed class StaffController : Controller
         });
     }
 
-    [HttpPost("/Staff/Edit/{id}")]
+    [HttpPost]
     [ValidateAntiForgeryToken]
+    [AuditedAction("StaffUpdate")]
     public async Task<IActionResult> Edit(string id, StaffFormViewModel model, CancellationToken ct)
     {
         if (!ModelState.IsValid)
@@ -104,8 +111,9 @@ public sealed class StaffController : Controller
         }
     }
 
-    [HttpPost("/Staff/Deactivate/{id}")]
+    [HttpPost]
     [ValidateAntiForgeryToken]
+    [AuditedAction("StaffDeactivate")]
     public async Task<IActionResult> Deactivate(string id, CancellationToken ct)
     {
         try
@@ -126,5 +134,5 @@ public sealed class StaffController : Controller
     }
 
     private static StaffRecordInput ToInput(StaffFormViewModel model) =>
-        new(model.Name, model.Email, model.Role, model.HomeBranchCode);
+        new(model.Name, model.Email, model.Role, model.HomeBranchCode, model.Password);
 }

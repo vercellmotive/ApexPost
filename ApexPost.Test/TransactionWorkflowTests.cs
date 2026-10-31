@@ -13,7 +13,7 @@ public sealed class TransactionWorkflowTests
     public async Task FailedBusinessValidation_RestoresAllReservedStock()
     {
         var stock = CreateStock(10);
-        var transactionRepository = new MemoryRepository<Transaction>();
+        var transactionRepository = new MemoryRepository<Transaction, Guid>();
         var service = CreateService(stock, transactionRepository: transactionRepository);
         var transaction = CreateTransaction();
         service.AddMoneyOrder(transaction, new Money(1500m), "Sender", "Recipient");
@@ -32,7 +32,7 @@ public sealed class TransactionWorkflowTests
     public async Task LaterReservationFailure_RestoresEarlierReservations()
     {
         var stock = CreateStock(10);
-        var transactionRepository = new MemoryRepository<Transaction>();
+        var transactionRepository = new MemoryRepository<Transaction, Guid>();
         var service = CreateService(stock, transactionRepository: transactionRepository);
         var transaction = CreateTransaction();
 
@@ -53,7 +53,7 @@ public sealed class TransactionWorkflowTests
     public async Task FailedTransactionPersistence_RestoresReservedStock()
     {
         var stock = CreateStock(10);
-        var transactionRepository = new MemoryRepository<Transaction>(failSaveOnCall: 2);
+        var transactionRepository = new MemoryRepository<Transaction, Guid>(failSaveOnCall: 2);
         var service = CreateService(stock, transactionRepository: transactionRepository);
         var transaction = CreateTransaction();
 
@@ -71,7 +71,7 @@ public sealed class TransactionWorkflowTests
     public async Task SuccessfulMultiLineSale_CombinesDuplicateSkusAndPersistsPaidTransaction()
     {
         var stock = CreateStock(10);
-        var transactionRepository = new MemoryRepository<Transaction>();
+        var transactionRepository = new MemoryRepository<Transaction, Guid>();
         var service = CreateService(stock, transactionRepository: transactionRepository);
         var transaction = CreateTransaction();
 
@@ -102,7 +102,7 @@ public sealed class TransactionWorkflowTests
             Role = StaffRole.BranchManager,
             HomeBranchCode = new BranchCode("B001")
         };
-        var service = CreateService(stock, staffRepository: new MemoryRepository<Staff>([manager]));
+        var service = CreateService(stock, staffRepository: new MemoryRepository<Staff, string>([manager]));
         var transaction = CreateTransaction();
         await service.CompleteWithRetailItemsAsync(
             transaction,
@@ -134,7 +134,7 @@ public sealed class TransactionWorkflowTests
             Role = StaffRole.BranchManager,
             HomeBranchCode = new BranchCode("B001")
         };
-        var service = CreateService(stock, staffRepository: new MemoryRepository<Staff>([manager]));
+        var service = CreateService(stock, staffRepository: new MemoryRepository<Staff, string>([manager]));
         var transaction = CreateTransaction();
         await service.CompleteWithRetailItemsAsync(
             transaction,
@@ -168,8 +168,8 @@ public sealed class TransactionWorkflowTests
             HomeBranchCode = new BranchCode("B001")
         };
         var inventory = new InventoryService(
-            new MemoryRepository<Staff>([manager, clerk]),
-            new MemoryRepository<BranchStock>([stock]),
+            new MemoryRepository<Staff, string>([manager, clerk]),
+            new MemoryRepository<BranchStock, Guid>([stock]),
             new StubEventDispatcher());
 
         var updated = await inventory.AdjustStockAsync(
@@ -206,8 +206,8 @@ public sealed class TransactionWorkflowTests
 
     private static TransactionService CreateService(
         BranchStock stock,
-        MemoryRepository<Transaction>? transactionRepository = null,
-        MemoryRepository<Staff>? staffRepository = null)
+        MemoryRepository<Transaction, Guid>? transactionRepository = null,
+        MemoryRepository<Staff, string>? staffRepository = null)
     {
         var product = new Product
         {
@@ -219,8 +219,8 @@ public sealed class TransactionWorkflowTests
         };
 
         return new TransactionService(
-            transactionRepository ?? new MemoryRepository<Transaction>(),
-            new MemoryRepository<Branch>(
+            transactionRepository ?? new MemoryRepository<Transaction, Guid>(),
+            new MemoryRepository<Branch, BranchCode>(
             [
                 new Branch
                 {
@@ -233,7 +233,7 @@ public sealed class TransactionWorkflowTests
                     CounterTerminals = ["C01"]
                 }
             ]),
-            staffRepository ?? new MemoryRepository<Staff>(
+            staffRepository ?? new MemoryRepository<Staff, string>(
             [
                 new Staff
                 {
@@ -244,7 +244,7 @@ public sealed class TransactionWorkflowTests
                     HomeBranchCode = new BranchCode("B001")
                 }
             ]),
-            new MemoryRepository<BranchStock>([stock]),
+            new MemoryRepository<BranchStock, Guid>([stock]),
             new StubCourierRateService(),
             new StubCatalogueService(product),
             new StubIdentityVerificationService(),
@@ -272,7 +272,9 @@ public sealed class TransactionWorkflowTests
         ClerkStaffId = "STF001"
     };
 
-    private sealed class MemoryRepository<T> : IRepository<T> where T : class
+    private sealed class MemoryRepository<T, TId> : IRepository<T, TId>
+        where T : Entity<TId>
+        where TId : notnull
     {
         private readonly List<T> _items;
         private readonly int _failSaveOnCall;
@@ -287,18 +289,12 @@ public sealed class TransactionWorkflowTests
         public Task<IReadOnlyList<T>> GetAllAsync(CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<T>>(_items);
 
-        public Task<T?> GetByIdAsync(object id, CancellationToken ct = default)
-        {
-            var idProperty = typeof(T).GetProperty("Id")
-                ?? throw new InvalidOperationException($"{typeof(T).Name} has no Id property.");
-            return Task.FromResult(_items.FirstOrDefault(item => Equals(idProperty.GetValue(item), id)));
-        }
+        public Task<T?> GetByIdAsync(TId id, CancellationToken ct = default) =>
+            Task.FromResult(_items.FirstOrDefault(item => EqualityComparer<TId>.Default.Equals(item.Id, id)));
 
-        public Task<T?> UpdateAsync(object id, Action<T> update, CancellationToken ct = default)
+        public Task<T?> UpdateAsync(TId id, Action<T> update, CancellationToken ct = default)
         {
-            var idProperty = typeof(T).GetProperty("Id")
-                ?? throw new InvalidOperationException($"{typeof(T).Name} has no Id property.");
-            var item = _items.FirstOrDefault(value => Equals(idProperty.GetValue(value), id));
+            var item = _items.FirstOrDefault(value => EqualityComparer<TId>.Default.Equals(value.Id, id));
             if (item is not null)
             {
                 update(item);
@@ -314,11 +310,7 @@ public sealed class TransactionWorkflowTests
                 throw new IOException("Simulated transaction persistence failure.");
             }
 
-            var idProperty = typeof(T).GetProperty("Id");
-            var id = idProperty?.GetValue(entity);
-            var existingIndex = idProperty is null
-                ? -1
-                : _items.FindIndex(item => Equals(idProperty.GetValue(item), id));
+            var existingIndex = _items.FindIndex(item => EqualityComparer<TId>.Default.Equals(item.Id, entity.Id));
             if (existingIndex >= 0)
             {
                 _items[existingIndex] = entity;
@@ -331,11 +323,9 @@ public sealed class TransactionWorkflowTests
             return Task.CompletedTask;
         }
 
-        public Task DeleteAsync(object id, CancellationToken ct = default)
+        public Task DeleteAsync(TId id, CancellationToken ct = default)
         {
-            var idProperty = typeof(T).GetProperty("Id")
-                ?? throw new InvalidOperationException($"{typeof(T).Name} has no Id property.");
-            _items.RemoveAll(item => Equals(idProperty.GetValue(item), id));
+            _items.RemoveAll(item => EqualityComparer<TId>.Default.Equals(item.Id, id));
             return Task.CompletedTask;
         }
     }
