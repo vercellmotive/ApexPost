@@ -1,15 +1,17 @@
 using System.Security.Cryptography;
 using System.Text;
+using ApexPost.Web.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace ApexPost.Web.Middleware;
 
 public sealed class PartnerApiKeyValidator
 {
-    private readonly IConfiguration _configuration;
+    private readonly IOptionsMonitor<IntegrationOptions> _options;
 
-    public PartnerApiKeyValidator(IConfiguration configuration)
+    public PartnerApiKeyValidator(IOptionsMonitor<IntegrationOptions> options)
     {
-        _configuration = configuration;
+        _options = options;
     }
 
     public bool HasConfiguredKeys => GetCredentials().Count > 0;
@@ -38,16 +40,15 @@ public sealed class PartnerApiKeyValidator
 
     private List<PartnerCredential> GetCredentials()
     {
-        var credentials = _configuration.GetSection("Integration:Partners")
-            .GetChildren()
-            .Where(section => !string.IsNullOrWhiteSpace(section["ApiKey"]))
-            .Select(section => new PartnerCredential(section.Key, section["ApiKey"]!))
+        var options = _options.CurrentValue;
+        var credentials = options.Partners
+            .Where(partner => !string.IsNullOrWhiteSpace(partner.Value.ApiKey))
+            .Select(partner => new PartnerCredential(partner.Key, partner.Value.ApiKey!))
             .ToList();
 
-        var fallbackKey = _configuration["Integration:ApiKey"] ?? _configuration["ApiKeys:Courier"];
-        if (!string.IsNullOrWhiteSpace(fallbackKey))
+        if (!string.IsNullOrWhiteSpace(options.ApiKey))
         {
-            credentials.Add(new PartnerCredential("default", fallbackKey));
+            credentials.Add(new PartnerCredential("default", options.ApiKey));
         }
 
         return credentials;

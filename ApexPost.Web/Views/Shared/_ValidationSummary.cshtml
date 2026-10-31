@@ -1,0 +1,5 @@
+@* The summary helper renders an inline-styled placeholder when there are no errors, which the CSP blocks. *@
+@if (!ViewData.ModelState.IsValid)
+{
+    <div asp-validation-summary="All" class="text-danger"></div>
+}

@@ -7,7 +7,7 @@
 <h2>@ViewData["Title"]</h2>
 <form asp-action="@(Model.IsExisting ? "Edit" : "Create")" asp-route-id="@(Model.IsExisting ? Model.Sku : null)" method="post">
     @Html.AntiForgeryToken()
-    <div asp-validation-summary="All" class="text-danger"></div>
+    <partial name="_ValidationSummary" />
     <div class="mb-3">
         <label asp-for="Sku" class="form-label">SKU</label>
         <input asp-for="Sku" class="form-control" readonly="@Model.IsExisting" />

@@ -14,12 +14,12 @@
 }
 <form asp-action="Create" asp-controller="Counter" method="post">
     @Html.AntiForgeryToken()
-    <div asp-validation-summary="All" class="text-danger"></div>
+    <partial name="_ValidationSummary" />
     <fieldset class="mb-4">
         <legend>Counter and retail items</legend>
         <div class="row g-3">
             <div class="col-md-4">
-                <label asp-for="CounterId" class="form-label"></label>
+                <label asp-for="CounterId" class="form-label">Counter</label>
                 <select asp-for="CounterId" class="form-select">
                     @foreach (var branch in branches)
                     {
@@ -59,73 +59,82 @@
     </fieldset>
 
     <fieldset class="mb-4">
-        <legend>Shipping service (optional)</legend>
-        <div class="form-check mb-3">
-            <input asp-for="IncludeShipping" class="form-check-input" />
-            <label asp-for="IncludeShipping" class="form-check-label">Add shipping to this basket</label>
-        </div>
-        <div class="row g-3">
-            <div class="col-md-3">
-                <label asp-for="IsParcel" class="form-label">Item type</label>
-                <select asp-for="IsParcel" class="form-select">
-                    <option value="true">Parcel</option>
-                    <option value="false">Letter</option>
-                </select>
+        <legend>Shipping (optional)</legend>
+        <p class="text-muted">Tick each shipment to include. Dimensions are ignored for letters.</p>
+        @for (var index = 0; index < Model.Shipments.Count; index++)
+        {
+            <div class="row g-2 mb-3 align-items-end border-bottom pb-3">
+                <div class="col-12 form-check ms-2">
+                    <input asp-for="Shipments[index].Include" class="form-check-input" />
+                    <label asp-for="Shipments[index].Include" class="form-check-label">Shipment @(index + 1)</label>
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="Shipments[index].IsParcel" class="form-label">Item type</label>
+                    <select asp-for="Shipments[index].IsParcel" class="form-select">
+                        <option value="true">Parcel</option>
+                        <option value="false">Letter</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <label asp-for="Shipments[index].WeightKg" class="form-label">Kg</label>
+                    <input asp-for="Shipments[index].WeightKg" class="form-control" />
+                </div>
+                <div class="col-md-1">
+                    <label asp-for="Shipments[index].LengthCm" class="form-label">L (cm)</label>
+                    <input asp-for="Shipments[index].LengthCm" class="form-control" />
+                </div>
+                <div class="col-md-1">
+                    <label asp-for="Shipments[index].WidthCm" class="form-label">W (cm)</label>
+                    <input asp-for="Shipments[index].WidthCm" class="form-control" />
+                </div>
+                <div class="col-md-1">
+                    <label asp-for="Shipments[index].HeightCm" class="form-label">H (cm)</label>
+                    <input asp-for="Shipments[index].HeightCm" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="Shipments[index].DestinationZone" class="form-label">Zone</label>
+                    <select asp-for="Shipments[index].DestinationZone" class="form-select">
+                        @for (var zone = 1; zone <= 10; zone++)
+                        {
+                            <option value="Zone @zone">Zone @zone</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="Shipments[index].ServiceLevel" class="form-label">Service</label>
+                    <select asp-for="Shipments[index].ServiceLevel" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Enums.ServiceLevel>()" class="form-select"></select>
+                </div>
             </div>
-            <div class="col-md-3">
-                <label asp-for="ShippingWeightKg" class="form-label">Weight (kg)</label>
-                <input asp-for="ShippingWeightKg" class="form-control" />
-            </div>
-            <div class="col-md-2">
-                <label asp-for="LengthCm" class="form-label">Length (cm)</label>
-                <input asp-for="LengthCm" class="form-control" />
-            </div>
-            <div class="col-md-2">
-                <label asp-for="WidthCm" class="form-label">Width (cm)</label>
-                <input asp-for="WidthCm" class="form-control" />
-            </div>
-            <div class="col-md-2">
-                <label asp-for="HeightCm" class="form-label">Height (cm)</label>
-                <input asp-for="HeightCm" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label asp-for="DestinationZone" class="form-label">Destination zone</label>
-                <select asp-for="DestinationZone" class="form-select">
-                    @for (var zone = 1; zone <= 10; zone++)
-                    {
-                        <option value="Zone @zone">Zone @zone</option>
-                    }
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label asp-for="ServiceLevel" class="form-label"></label>
-                <select asp-for="ServiceLevel" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Enums.ServiceLevel>()" class="form-select"></select>
-            </div>
-        </div>
+        }
     </fieldset>
 
     <fieldset class="mb-4">
-        <legend>Money order and identity verification (optional)</legend>
-        <p class="text-muted">Identity verification is simulated by validating document format only; no external identity provider is contacted. The full number is not persisted.</p>
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label asp-for="MoneyOrderAmount" class="form-label">Money order amount (AUD)</label>
-                <input asp-for="MoneyOrderAmount" class="form-control" min="0" max="20000" step="0.01" />
+        <legend>Money orders and identity verification (optional)</legend>
+        <p class="text-muted">Identity verification is simulated by validating document format only; no external identity provider is contacted. The full number is not persisted. Leave unused money order rows empty.</p>
+        @for (var index = 0; index < Model.MoneyOrders.Count; index++)
+        {
+            <div class="row g-3 mb-2">
+                <div class="col-md-4">
+                    <label asp-for="MoneyOrders[index].Amount" class="form-label">Money order @(index + 1) amount (AUD)</label>
+                    <input asp-for="MoneyOrders[index].Amount" class="form-control" min="0" max="20000" step="0.01" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="MoneyOrders[index].Sender" class="form-label">Sender</label>
+                    <input asp-for="MoneyOrders[index].Sender" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="MoneyOrders[index].Recipient" class="form-label">Recipient</label>
+                    <input asp-for="MoneyOrders[index].Recipient" class="form-control" />
+                </div>
             </div>
-            <div class="col-md-4">
-                <label asp-for="Sender" class="form-label"></label>
-                <input asp-for="Sender" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label asp-for="Recipient" class="form-label"></label>
-                <input asp-for="Recipient" class="form-control" />
-            </div>
+        }
+        <div class="row g-3 mt-1">
             <div class="col-md-4 form-check ms-2">
                 <input asp-for="IncludeIdentityVerification" class="form-check-input" />
                 <label asp-for="IncludeIdentityVerification" class="form-check-label">Perform identity verification</label>
             </div>
             <div class="col-md-4">
-                <label asp-for="DocumentType" class="form-label"></label>
+                <label asp-for="DocumentType" class="form-label">Document type</label>
                 <select asp-for="DocumentType" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Enums.DocumentType>()" class="form-select"></select>
             </div>
             <div class="col-md-4">
@@ -137,7 +146,7 @@
 
     <div class="row g-3">
         <div class="col-md-4">
-            <label asp-for="PaymentMethod" class="form-label"></label>
+            <label asp-for="PaymentMethod" class="form-label">Payment method</label>
             <select asp-for="PaymentMethod" class="form-select">
                 <option>Cash</option>
                 <option>Card</option>

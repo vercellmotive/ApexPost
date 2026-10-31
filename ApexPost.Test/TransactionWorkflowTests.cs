@@ -252,6 +252,53 @@ public sealed class TransactionWorkflowTests
             new TransactionRules(new Money(1000m), new Money(20000m)));
     }
 
+    [Fact]
+    public async Task Checkout_SupportsSeveralShipmentsAndMoneyOrdersInOneBasket()
+    {
+        var stock = CreateStock(10);
+        var service = CreateService(stock);
+        var parcel = new ShippingDetails(true, Weight.FromKilograms(1m), new Dimensions(10, 10, 10), "Zone 1", ServiceLevel.Standard);
+        var letter = new ShippingDetails(false, Weight.FromKilograms(0.1m), default, "Zone 2", ServiceLevel.Express);
+
+        var transaction = await service.CheckoutAsync(
+            "B001",
+            "STF001",
+            new CounterCheckoutRequest(
+                "C01",
+                [new RetailItemRequest(new Sku("SKU-001"), 1)],
+                [parcel, letter],
+                [new MoneyOrderRequest(100m, "A", "B"), new MoneyOrderRequest(50m, "C", "D")],
+                false,
+                DocumentType.Passport,
+                null,
+                "Card"),
+            Guid.NewGuid());
+
+        Assert.Equal(2, transaction.LineItems.Count(item => item.ItemType == LineItemType.ParcelShipping));
+        Assert.Equal(2, transaction.LineItems.Count(item => item.ItemType == LineItemType.MoneyOrder));
+        Assert.Equal(new Money(40m), transaction.ServicesTotal);
+    }
+
+    [Fact]
+    public async Task Checkout_RequiresIdentityWhenAnyMoneyOrderIsHighValue()
+    {
+        var service = CreateService(CreateStock(10));
+
+        await Assert.ThrowsAsync<DomainValidationException>(() => service.CheckoutAsync(
+            "B001",
+            "STF001",
+            new CounterCheckoutRequest(
+                "C01",
+                [],
+                [],
+                [new MoneyOrderRequest(100m, "A", "B"), new MoneyOrderRequest(1500m, "C", "D")],
+                false,
+                DocumentType.Passport,
+                null,
+                "Cash"),
+            Guid.NewGuid()));
+    }
+
     private static BranchStock CreateStock(int quantity)
     {
         var stock = new BranchStock

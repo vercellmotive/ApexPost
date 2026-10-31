@@ -1,8 +1,8 @@
 using System.Net;
 using ApexPost.Web.Attributes;
+using ApexPost.Web.Configuration;
 using ApexPost.Web.Middleware;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
 
 namespace ApexPost.Test;
 
@@ -17,18 +17,12 @@ public sealed class IpRestrictionMiddlewareTests
             _ => Task.CompletedTask,
             new EndpointMetadataCollection(new IpRestrictedAttribute()),
             "staff"));
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Security:AllowedIps:0"] = "127.0.0.1"
-            })
-            .Build();
         var nextCalled = false;
         var middleware = new IpRestrictionMiddleware(_ =>
         {
             nextCalled = true;
             return Task.CompletedTask;
-        }, configuration);
+        }, new TestOptionsMonitor<SecurityOptions>(new SecurityOptions { AllowedIps = ["127.0.0.1"] }));
 
         await middleware.InvokeAsync(context);
 
@@ -41,18 +35,12 @@ public sealed class IpRestrictionMiddlewareTests
     {
         var context = new DefaultHttpContext();
         context.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.9");
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Security:AllowedIps:0"] = "127.0.0.1"
-            })
-            .Build();
         var nextCalled = false;
         var middleware = new IpRestrictionMiddleware(_ =>
         {
             nextCalled = true;
             return Task.CompletedTask;
-        }, configuration);
+        }, new TestOptionsMonitor<SecurityOptions>(new SecurityOptions { AllowedIps = ["127.0.0.1"] }));
 
         await middleware.InvokeAsync(context);
 

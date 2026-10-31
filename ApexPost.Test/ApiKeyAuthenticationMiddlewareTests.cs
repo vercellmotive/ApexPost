@@ -1,7 +1,7 @@
 using ApexPost.Web.Attributes;
 using ApexPost.Web.Middleware;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
+using ApexPost.Web.Configuration;
 
 namespace ApexPost.Test;
 
@@ -11,7 +11,7 @@ public sealed class ApiKeyAuthenticationMiddlewareTests
     public async Task ProtectedEndpointReturnsServerErrorWhenKeyIsNotConfigured()
     {
         var context = CreateProtectedContext();
-        var middleware = CreateMiddleware(new ConfigurationBuilder().Build(), _ => Task.CompletedTask);
+        var middleware = CreateMiddleware(new IntegrationOptions(), _ => Task.CompletedTask);
 
         await middleware.InvokeAsync(context);
 
@@ -53,14 +53,14 @@ public sealed class ApiKeyAuthenticationMiddlewareTests
     [Fact]
     public void ApiKeysResolveIndependentPartnerIdentities()
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
+        var validator = new PartnerApiKeyValidator(new TestOptionsMonitor<IntegrationOptions>(new IntegrationOptions
+        {
+            Partners = new Dictionary<string, PartnerCredentialOptions>
             {
-                ["Integration:Partners:CourierA:ApiKey"] = "courier-a-key",
-                ["Integration:Partners:CourierB:ApiKey"] = "courier-b-key"
-            })
-            .Build();
-        var validator = new PartnerApiKeyValidator(configuration);
+                ["CourierA"] = new() { ApiKey = "courier-a-key" },
+                ["CourierB"] = new() { ApiKey = "courier-b-key" }
+            }
+        }));
 
         Assert.Equal("CourierA", validator.FindPartnerId("courier-a-key"));
         Assert.Equal("CourierB", validator.FindPartnerId("courier-b-key"));
@@ -78,14 +78,8 @@ public sealed class ApiKeyAuthenticationMiddlewareTests
         return context;
     }
 
-    private static IConfiguration CreateConfiguration() =>
-        new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Integration:ApiKey"] = "test-key"
-            })
-            .Build();
+    private static IntegrationOptions CreateConfiguration() => new() { ApiKey = "test-key" };
 
-    private static ApiKeyAuthenticationMiddleware CreateMiddleware(IConfiguration configuration, RequestDelegate next) =>
-        new(next, new PartnerApiKeyValidator(configuration));
+    private static ApiKeyAuthenticationMiddleware CreateMiddleware(IntegrationOptions options, RequestDelegate next) =>
+        new(next, new PartnerApiKeyValidator(new TestOptionsMonitor<IntegrationOptions>(options)));
 }

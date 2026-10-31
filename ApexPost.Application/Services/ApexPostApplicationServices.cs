@@ -17,15 +17,15 @@ public sealed record DashboardSnapshot(
 
 public sealed record TransactionRules(
     Money HighValueMoneyOrderThreshold,
-    Money MaximumMoneyOrderAmount);
+    Money MaximumMoneyOrderAmount,
+    decimal MoneyOrderFee = 10m);
 public sealed record RetailItemRequest(Sku Sku, int Quantity);
+public sealed record MoneyOrderRequest(decimal Amount, string? Sender, string? Recipient);
 public sealed record CounterCheckoutRequest(
     string CounterId,
     IReadOnlyCollection<RetailItemRequest> RetailItems,
-    ShippingDetails? Shipping,
-    decimal? MoneyOrderAmount,
-    string? Sender,
-    string? Recipient,
+    IReadOnlyCollection<ShippingDetails> Shipments,
+    IReadOnlyCollection<MoneyOrderRequest> MoneyOrders,
     bool IncludeIdentityVerification,
     DocumentType DocumentType,
     string? DocumentNumber,
@@ -499,6 +499,8 @@ public sealed class ReportingService
 
 public sealed class TransactionService
 {
+    private const int MaximumServiceLinesPerKind = 10;
+
     private readonly IRepository<Transaction, Guid> _transactions;
     private readonly IRepository<Branch, BranchCode> _branches;
     private readonly IRepository<Staff, string> _staff;
@@ -563,20 +565,27 @@ public sealed class TransactionService
             throw new DomainValidationException("A basket can contain at most 20 distinct retail items.");
         }
 
-        var moneyOrderAmount = request.MoneyOrderAmount ?? 0m;
-        if (moneyOrderAmount < 0 || moneyOrderAmount > _rules.MaximumMoneyOrderAmount.Amount)
+        if (request.Shipments.Count > MaximumServiceLinesPerKind || request.MoneyOrders.Count > MaximumServiceLinesPerKind)
         {
             throw new DomainValidationException(
-                $"Money order amount must be between zero and {_rules.MaximumMoneyOrderAmount.Amount}.");
+                $"A basket can contain at most {MaximumServiceLinesPerKind} shipments and {MaximumServiceLinesPerKind} money orders.");
         }
 
-        if (moneyOrderAmount > 0
-            && (string.IsNullOrWhiteSpace(request.Sender) || string.IsNullOrWhiteSpace(request.Recipient)))
+        foreach (var moneyOrder in request.MoneyOrders)
         {
-            throw new DomainValidationException("Sender and recipient are required for a money order.");
+            if (moneyOrder.Amount <= 0 || moneyOrder.Amount > _rules.MaximumMoneyOrderAmount.Amount)
+            {
+                throw new DomainValidationException(
+                    $"Money order amount must be above zero and at most {_rules.MaximumMoneyOrderAmount.Amount}.");
+            }
+
+            if (string.IsNullOrWhiteSpace(moneyOrder.Sender) || string.IsNullOrWhiteSpace(moneyOrder.Recipient))
+            {
+                throw new DomainValidationException("Sender and recipient are required for a money order.");
+            }
         }
 
-        if (moneyOrderAmount > _rules.HighValueMoneyOrderThreshold.Amount
+        if (request.MoneyOrders.Any(moneyOrder => moneyOrder.Amount > _rules.HighValueMoneyOrderThreshold.Amount)
             && !request.IncludeIdentityVerification)
         {
             throw new DomainValidationException(
@@ -589,26 +598,26 @@ public sealed class TransactionService
         }
 
         if (request.RetailItems.Count == 0
-            && request.Shipping is null
-            && moneyOrderAmount == 0
+            && request.Shipments.Count == 0
+            && request.MoneyOrders.Count == 0
             && !request.IncludeIdentityVerification)
         {
             throw new DomainValidationException("Add at least one retail item or service to the transaction.");
         }
 
         var transaction = await CreateAsync(branchCode, request.CounterId, clerkId, ct, transactionId);
-        if (request.Shipping is not null)
+
+        // Rate lookups are independent, and the courier service bounds how many run at once.
+        var rates = await Task.WhenAll(
+            request.Shipments.Select(shipment => _courierRates.GetEstimatedCourierRateAsync(shipment, ct)));
+        foreach (var (shipment, rate) in request.Shipments.Zip(rates))
         {
-            await AddShippingAsync(transaction, request.Shipping, ct);
+            AddShipping(transaction, shipment, rate);
         }
 
-        if (moneyOrderAmount > 0)
+        foreach (var moneyOrder in request.MoneyOrders)
         {
-            AddMoneyOrder(
-                transaction,
-                new Money(moneyOrderAmount),
-                request.Sender!,
-                request.Recipient!);
+            AddMoneyOrder(transaction, new Money(moneyOrder.Amount), moneyOrder.Sender!, moneyOrder.Recipient!);
         }
 
         if (request.IncludeIdentityVerification)
@@ -778,9 +787,18 @@ public sealed class TransactionService
     public async Task AddShippingAsync(Transaction transaction, ShippingDetails shippingDetails, CancellationToken ct = default)
     {
         var rate = await _courierRates.GetEstimatedCourierRateAsync(shippingDetails, ct);
-        var lineItem = new TransactionLineItem(Guid.NewGuid(), $"Shipping: {shippingDetails.ServiceLevel}", LineItemType.ParcelShipping, 1, rate, TaxCategory.Exempt, Shipping: shippingDetails);
-        transaction.AddLineItem(lineItem);
+        AddShipping(transaction, shippingDetails, rate);
     }
+
+    private static void AddShipping(Transaction transaction, ShippingDetails shippingDetails, Money rate) =>
+        transaction.AddLineItem(new TransactionLineItem(
+            Guid.NewGuid(),
+            $"Shipping: {shippingDetails.ServiceLevel}",
+            LineItemType.ParcelShipping,
+            1,
+            rate,
+            TaxCategory.Exempt,
+            Shipping: shippingDetails));
 
     public void AddMoneyOrder(Transaction transaction, Money amount, string sender, string recipient)
     {
@@ -789,7 +807,7 @@ public sealed class TransactionService
             throw new DomainValidationException("A positive money order amount, sender, and recipient are required.");
         }
 
-        var fee = new Money(10m, amount.Currency);
+        var fee = new Money(_rules.MoneyOrderFee, amount.Currency);
         transaction.AddLineItem(new TransactionLineItem(
             Guid.NewGuid(),
             "Money order",

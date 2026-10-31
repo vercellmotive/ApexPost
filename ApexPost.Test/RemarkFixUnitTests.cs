@@ -152,4 +152,27 @@ public sealed class RemarkFixUnitTests
         Assert.Equal(new Money(22m), transaction.RetailTotal);
         Assert.Equal(new Money(5m), transaction.ServicesTotal);
     }
+
+    [Fact]
+    public void ServicesTotal_CountsOnlyTheMoneyOrderFeeAsRevenue()
+    {
+        var transaction = new Transaction
+        {
+            Id = Guid.NewGuid(),
+            BranchCode = new BranchCode("B001"),
+            CounterId = "C01",
+            ClerkStaffId = "STF001"
+        };
+        transaction.AddLineItem(new TransactionLineItem(
+            Guid.NewGuid(),
+            "Money order",
+            LineItemType.MoneyOrder,
+            1,
+            new Money(510m),
+            TaxCategory.Exempt,
+            MoneyOrder: new MoneyOrderDetails(new Money(500m), "A", "B", new Money(10m))));
+
+        Assert.Equal(new Money(10m), transaction.ServicesTotal);
+        Assert.Equal(new Money(510m), transaction.GrandTotal);
+    }
 }

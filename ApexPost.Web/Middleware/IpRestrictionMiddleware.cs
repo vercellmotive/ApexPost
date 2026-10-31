@@ -1,17 +1,19 @@
 using System.Net;
 using ApexPost.Web.Attributes;
+using ApexPost.Web.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace ApexPost.Web.Middleware;
 
 public sealed class IpRestrictionMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly IConfiguration _configuration;
+    private readonly IOptionsMonitor<SecurityOptions> _options;
 
-    public IpRestrictionMiddleware(RequestDelegate next, IConfiguration configuration)
+    public IpRestrictionMiddleware(RequestDelegate next, IOptionsMonitor<SecurityOptions> options)
     {
         _next = next;
-        _configuration = configuration;
+        _options = options;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -22,7 +24,7 @@ public sealed class IpRestrictionMiddleware
             return;
         }
 
-        var allowedIps = _configuration.GetSection("Security:AllowedIps").Get<string[]>() ?? [];
+        var allowedIps = _options.CurrentValue.AllowedIps;
         var remoteIp = context.Connection.RemoteIpAddress;
         if (remoteIp is null || !allowedIps.Any(ip => IPAddress.TryParse(ip, out var parsed) && parsed.Equals(remoteIp)))
         {

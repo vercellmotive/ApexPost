@@ -37,12 +37,17 @@ Most settings read by `ApexPost.Web` are declared in `ApexPost.Web/appsettings.j
 |---|---|---|
 | `Persistence:DataDirectory` | `App_Data` | Single folder for runtime JSON and the audit log, absolute or relative to the content root. |
 | `Inventory:LowStockThreshold` | `5` | Quantity at or below which a product counts as low stock. |
-| `Integration:ApiKey` | Empty | Optional legacy single-partner API key. |
+| `Integration:ApiKey` | Empty | Single-partner API key, reported as partner `default`. |
 | `Integration:Partners:<PartnerId>:ApiKey` | `CourierA` shown with empty key | Per-partner API key; add one entry per integration partner. |
-| `ApiKeys:Courier` | Empty | Legacy alias for a single courier API key. |
 | `Security:AllowedIps` | Loopback addresses | Client IP allowlist for integration and administrator routes. |
 | `ForwardedHeaders:KnownProxies` | Empty | Explicit trusted reverse-proxy addresses; configure when deployed behind a proxy. |
 | `MaintenanceMode:Enabled` | `false` | Enables the maintenance response while leaving `/health` available. |
+| `MaintenanceMode:RetryAfterSeconds` | `120` | `Retry-After` value during maintenance. |
+| `RateLimiting:Login` | 3 per 60 s | `PermitLimit` and `WindowSeconds` per client IP. |
+| `RateLimiting:Partner` | 60 per 60 s | `PermitLimit` and `WindowSeconds` per partner. |
+| `CourierRates:MaxConcurrentRequests` | `4` | Concurrent calls allowed to the simulated courier rate service. |
+| `CourierRates:SimulatedDelayMs` | `20` | Simulated courier rate latency. |
+| `Transactions:MoneyOrderFee` | `10` | Fee per money order in AUD. |
 | `Cors:PartnerTrackingWidgetOrigin` | Example HTTPS origin | Browser origin permitted for the partner tracking widget. |
 | `Transactions:HighValueMoneyOrderThreshold` | `1000` | Identity-verification threshold in AUD. |
 | `Transactions:MaximumMoneyOrderAmount` | `20000` | Maximum money-order principal in AUD. |
@@ -52,7 +57,7 @@ Most settings read by `ApexPost.Web` are declared in `ApexPost.Web/appsettings.j
 | `Performance:SlowActionThresholdMs` | `500` | Action filter warning threshold. |
 | `Performance:SlowRequestThresholdMs` | `500` | Request timing warning threshold. |
 
-The login and partner request quotas are intentionally code-defined policies (3 login attempts/minute per IP and 60 requests/minute per partner), not configuration values.
+Settings are validated at startup, so an invalid value stops the app with a clear error.
 
 ## Demo staff accounts
 
@@ -75,7 +80,7 @@ Branches enforce their real opening hours in their own time zone, so a sale outs
 - A transactions screen where Branch Managers void or refund a paid sale, with a required reason.
 - Branch terminals, branch operating hours, staff roles, and administrator staff add/edit/deactivate with per-staff passwords. Staff uniqueness/branch rules and ID allocation live in an application service with process-local write serialization.
 - A branch-scoped product catalogue and inventory view; stock is updated atomically per JSON repository and cannot go negative.
-- A multi-line retail/shipping/money-order/identity-verification counter basket with payment, parcel validation, shipping pricing, and an identity threshold rule. Checkout reserves stock, persists an open transaction marker, and compensates reservations if completion fails.
+- A counter basket mixing retail lines, several shipments and several money orders with an identity check and payment, plus dedicated money order and identity verification screens. Parcel validation, shipping pricing and the identity threshold rule all apply. Checkout reserves stock, persists an open transaction marker, and compensates reservations if completion fails.
 - Identity verification uses a replaceable simulated format-check service; the clerk cannot mark a check successful. The interface retains only a masked document value and result, and the UI explains that no external identity provider is contacted.
 - Branch-manager stock adjustments require a quantity change and enumerated reason, enforce branch ownership and non-negative stock, and are included in the append-only audit log.
 - Voids and refunds restock retail items with per-stock-row idempotency markers so a partially completed reversal can resume without duplicating completed rows.
@@ -87,9 +92,29 @@ Branches enforce their real opening hours in their own time zone, so a sale outs
 - Cookie authentication with staff, role, and branch claims; antiforgery on state-changing form posts.
 - More than 13 active middleware stages for security, request handling, routing, compression, rate limiting, and observability. The exact order is documented in `DESIGN.md`.
 
+## Screenshots and sample requests
+
+Screens captured from the running app are in [`docs/screenshots`](docs/screenshots):
+
+| Screen | File |
+|---|---|
+| Login | [01-login.png](docs/screenshots/01-login.png) |
+| Branch dashboard | [02-branch-dashboard.png](docs/screenshots/02-branch-dashboard.png) |
+| Catalogue and stock | [03-catalogue-and-stock.png](docs/screenshots/03-catalogue-and-stock.png) |
+| Counter transaction | [04-counter-transaction.png](docs/screenshots/04-counter-transaction.png) |
+| Money order | [05-money-order.png](docs/screenshots/05-money-order.png) |
+| Identity verification | [06-identity-verification.png](docs/screenshots/06-identity-verification.png) |
+| Shipping label | [07-shipping-label.png](docs/screenshots/07-shipping-label.png) |
+| Transactions, void and refund | [08-transactions-void-refund.png](docs/screenshots/08-transactions-void-refund.png) |
+| Reports | [09-reports.png](docs/screenshots/09-reports.png) |
+| Auditor report | [10-auditor-report.png](docs/screenshots/10-auditor-report.png) |
+| Staff, branch and product management | [11](docs/screenshots/11-staff-management.png), [12](docs/screenshots/12-branch-management.png), [13](docs/screenshots/13-product-management.png) |
+
+Import [`docs/ApexPost.postman_collection.json`](docs/ApexPost.postman_collection.json) into Postman for sample requests.
+
 ## API key and network configuration
 
-Partner API keys are read from user-secrets or deployment configuration. Configure a separate key per partner and do not place real keys in `appsettings*.json` or source control. The legacy `Integration:ApiKey` setting remains supported for a single partner:
+Partner API keys are read from user-secrets or deployment configuration. Configure a separate key per partner and do not place real keys in `appsettings*.json` or source control. `Integration:ApiKey` is the simplest option for a single partner:
 
 ```bash
 dotnet user-secrets set "Integration:ApiKey" "Choose-a-long-random-partner-key" --project ApexPost.Web
@@ -123,7 +148,7 @@ Shipping rates use configured zone multipliers and a tiered service-level base r
 
 ## Audit sample provenance
 
-`AUDIT-SAMPLE.json` holds real entries produced by the running app (sale, money order with identity check, stock adjustment, void, and denied attempts), passed through the safe-field allowlist. To refresh it on Windows, run the app, perform audited actions, then:
+`AUDIT-SAMPLE.json` holds real entries produced by the running app (a mixed sale, money order, identity check, stock adjustment, void, refund, staff, branch and product changes, and denied attempts), passed through the safe-field allowlist. To refresh it on Windows, run the app, perform audited actions, then:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Export-AuditSample.ps1
@@ -154,6 +179,6 @@ The included seed set contains five branches, twenty staff, thirty products, 150
 - `ApexPost.Application`: repository contracts, use cases, reports, pricing abstractions.
 - `ApexPost.Infrastructure`: asynchronous JSON stores, simulated courier service, cache, notifications, event dispatch.
 - `ApexPost.Web`: MVC controllers/views, authentication, middleware, filters, composition root.
-- `ApexPost.Test`: 86 domain unit tests and WebApplicationFactory integration tests, run against a temporary data folder.
+- `ApexPost.Test`: 95 domain unit tests and WebApplicationFactory integration tests, run against a temporary data folder.
 
 See `DESIGN.md` for the architecture/domain diagrams, middleware sequence, filters, ADRs, security decisions, and C# 14 feature rationale.

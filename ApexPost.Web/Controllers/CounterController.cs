@@ -14,7 +14,7 @@ using System.Security.Claims;
 namespace ApexPost.Web.Controllers;
 
 [Authorize]
-public class CounterController : Controller
+public class CounterController : Controller, IRepopulatesForm
 {
     private readonly TransactionService _transactionService;
     private readonly IAuthorizationService _authorizationService;
@@ -54,21 +54,10 @@ public class CounterController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayOnInvalid("Index")]
     [AuditedAction("Sale")]
     public async Task<IActionResult> Create(TransactionFormViewModel model, CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-        {
-            var requestedBranchCode = User.FindFirstValue("BranchCode");
-            if (requestedBranchCode is null)
-            {
-                return Forbid();
-            }
-
-            await PopulateCheckoutViewAsync(requestedBranchCode, ct);
-            return View("Index", model);
-        }
-
         var branchCode = User.FindFirstValue("BranchCode");
         var clerkId = User.FindFirstValue("StaffId");
         if (branchCode is null || clerkId is null)
@@ -88,34 +77,41 @@ public class CounterController : Controller
             .Select(item => new RetailItemRequest(new Sku(item.ProductSku!.Trim()), item.Quantity!.Value))
             .ToList();
 
+        var shipments = model.Shipments
+            .Where(shipment => shipment.Include)
+            .Select(shipment => new ShippingDetails(
+                shipment.IsParcel,
+                Weight.FromKilograms(shipment.WeightKg),
+                new Dimensions(shipment.LengthCm, shipment.WidthCm, shipment.HeightCm),
+                shipment.DestinationZone,
+                shipment.ServiceLevel))
+            .ToList();
+        var moneyOrders = model.MoneyOrders
+            .Where(order => order.Amount is not null
+                || !string.IsNullOrWhiteSpace(order.Sender)
+                || !string.IsNullOrWhiteSpace(order.Recipient))
+            .Select(order => new MoneyOrderRequest(order.Amount ?? 0m, order.Sender, order.Recipient))
+            .ToList();
+
         try
         {
             var transactionId = Guid.NewGuid();
             HttpContext.AddAuditDetail("transactionId", transactionId.ToString("D"));
             HttpContext.AddAuditDetail("counterId", model.CounterId);
             HttpContext.AddAuditDetail("retailLines", retailItems.Count.ToString(CultureInfo.InvariantCulture));
-            HttpContext.AddAuditDetail("includesShipping", model.IncludeShipping.ToString());
-            HttpContext.AddAuditDetail("moneyOrderAmount", (model.MoneyOrderAmount ?? 0m).ToString("0.00", CultureInfo.InvariantCulture));
+            HttpContext.AddAuditDetail("shipments", shipments.Count.ToString(CultureInfo.InvariantCulture));
+            HttpContext.AddAuditDetail("moneyOrders", moneyOrders.Count.ToString(CultureInfo.InvariantCulture));
+            HttpContext.AddAuditDetail("moneyOrderAmount", moneyOrders.Sum(order => order.Amount).ToString("0.00", CultureInfo.InvariantCulture));
             HttpContext.AddAuditDetail("identityVerification", model.IncludeIdentityVerification.ToString());
             HttpContext.AddAuditDetail("paymentMethod", model.PaymentMethod);
-            var shipping = model.IncludeShipping
-                ? new ShippingDetails(
-                    model.IsParcel,
-                    Weight.FromKilograms(model.ShippingWeightKg),
-                    new Dimensions(model.LengthCm, model.WidthCm, model.HeightCm),
-                    model.DestinationZone,
-                    model.ServiceLevel)
-                : null;
             await _transactionService.CheckoutAsync(
                 branchCode,
                 clerkId,
                 new CounterCheckoutRequest(
                     model.CounterId,
                     retailItems,
-                    shipping,
-                    model.MoneyOrderAmount,
-                    model.Sender,
-                    model.Recipient,
+                    shipments,
+                    moneyOrders,
                     model.IncludeIdentityVerification,
                     model.DocumentType,
                     model.DocumentNumber,
@@ -212,6 +208,11 @@ public class CounterController : Controller
             return NotFound();
         }
     }
+
+    public Task RepopulateFormAsync(object model, CancellationToken ct) =>
+        User.FindFirstValue("BranchCode") is { } branchCode
+            ? PopulateCheckoutViewAsync(branchCode, ct)
+            : Task.CompletedTask;
 
     private async Task PopulateCheckoutViewAsync(string branchCode, CancellationToken ct)
     {

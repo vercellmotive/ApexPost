@@ -10,7 +10,7 @@
             <form asp-action="Login" asp-controller="Account" method="post">
                 <input type="hidden" asp-for="ReturnUrl" />
                 @Html.AntiForgeryToken()
-                <div asp-validation-summary="All" class="text-danger"></div>
+                <partial name="_ValidationSummary" />
                 <div class="mb-3">
                     <label asp-for="Email" class="form-label"></label>
                     <input asp-for="Email" class="form-control" />

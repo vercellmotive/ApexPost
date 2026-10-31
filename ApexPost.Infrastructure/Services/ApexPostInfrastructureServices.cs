@@ -216,32 +216,85 @@ public class JsonAuditStore : IAuditStore
     }
 }
 
-public class SimulatedCourierRateService : ICourierRateService
+public sealed class CachedShippingZoneLookup : IShippingZoneLookup
 {
+    private const string CacheKey = "apexpost-shipping-zones";
+    private readonly IRepository<ShippingZone, string> _zones;
+    private readonly IMemoryCache _cache;
+    private readonly TimeSpan _ttl = TimeSpan.FromMinutes(5);
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly IPricingStrategy _pricing;
-    private readonly IRepository<ShippingZone, string> _shippingZones;
 
-    public SimulatedCourierRateService(IPricingStrategy pricing, IRepository<ShippingZone, string> shippingZones)
+    public CachedShippingZoneLookup(IRepository<ShippingZone, string> zones, IMemoryCache cache)
     {
-        _pricing = pricing;
-        _shippingZones = shippingZones;
+        _zones = zones;
+        _cache = cache;
     }
 
-    public async Task<Money> GetEstimatedCourierRateAsync(ShippingDetails details, CancellationToken ct = default)
+    public ValueTask<ShippingZone?> FindByNameAsync(string name, CancellationToken ct = default) =>
+        _cache.TryGetValue(CacheKey, out Dictionary<string, ShippingZone>? zones)
+            ? ValueTask.FromResult(zones!.GetValueOrDefault(name))
+            : LoadAndFindAsync(name, ct);
+
+    private async ValueTask<ShippingZone?> LoadAndFindAsync(string name, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
         try
         {
-            var rates = await _shippingZones.GetAllAsync(ct);
-            var zone = rates.FirstOrDefault(rate => rate.Name.Equals(details.DestinationZone, StringComparison.OrdinalIgnoreCase))
-                ?? throw new DomainValidationException($"Shipping destination {details.DestinationZone} is not configured.");
-            return _pricing.CalculateShippingPrice(details, zone.Multiplier);
+            if (!_cache.TryGetValue(CacheKey, out Dictionary<string, ShippingZone>? zones))
+            {
+                zones = (await _zones.GetAllAsync(ct)).ToDictionary(
+                    zone => zone.Name,
+                    StringComparer.OrdinalIgnoreCase);
+                _cache.Set(CacheKey, zones, _ttl);
+            }
+
+            return zones!.GetValueOrDefault(name);
         }
         finally
         {
             _gate.Release();
         }
+    }
+}
+
+public class SimulatedCourierRateService : ICourierRateService
+{
+    private readonly SemaphoreSlim _gate;
+    private readonly IPricingStrategy _pricing;
+    private readonly IShippingZoneLookup _zones;
+    private readonly TimeSpan _simulatedDelay;
+
+    public SimulatedCourierRateService(
+        IPricingStrategy pricing,
+        IShippingZoneLookup zones,
+        int maxConcurrentRequests,
+        TimeSpan simulatedDelay)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrentRequests);
+        ArgumentOutOfRangeException.ThrowIfLessThan(simulatedDelay, TimeSpan.Zero);
+        _pricing = pricing;
+        _zones = zones;
+        _gate = new SemaphoreSlim(maxConcurrentRequests, maxConcurrentRequests);
+        _simulatedDelay = simulatedDelay;
+    }
+
+    public async Task<Money> GetEstimatedCourierRateAsync(ShippingDetails details, CancellationToken ct = default)
+    {
+        await _gate.WaitAsync(ct);
+        ShippingZone zone;
+        try
+        {
+            // The gate protects the slow partner call; pricing below is pure CPU and needs no slot.
+            await Task.Delay(_simulatedDelay, ct);
+            zone = await _zones.FindByNameAsync(details.DestinationZone, ct)
+                ?? throw new DomainValidationException($"Shipping destination {details.DestinationZone} is not configured.");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        return _pricing.CalculateShippingPrice(details, zone.Multiplier);
     }
 }
 

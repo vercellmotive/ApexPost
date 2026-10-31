@@ -5,13 +5,11 @@ using ApexPost.Domain.ValueObjects;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ApexPost.Web.Attributes;
-using ApexPost.Web.Filters;
 using System.Security.Claims;
 
 namespace ApexPost.Web.Controllers;
 
 [Authorize(Policy = "BranchManagerOnly")]
-[ServiceFilter(typeof(ValidationActionFilter))]
 public sealed class StockController : Controller
 {
     private readonly InventoryService _inventory;

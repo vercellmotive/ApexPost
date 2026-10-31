@@ -3,7 +3,7 @@ using ApexPost.Domain.Enums;
 
 namespace ApexPost.Web.Models;
 
-public sealed class StaffFormViewModel
+public sealed class StaffFormViewModel : IValidatableObject
 {
     public string? Id { get; set; }
 
@@ -24,4 +24,12 @@ public sealed class StaffFormViewModel
     [DataType(DataType.Password)]
     [StringLength(256, MinimumLength = 12)]
     public string? Password { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Id is null && string.IsNullOrEmpty(Password))
+        {
+            yield return new ValidationResult("A password is required for a new staff member.", [nameof(Password)]);
+        }
+    }
 }

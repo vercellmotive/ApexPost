@@ -1,6 +1,7 @@
 using ApexPost.Application.Services;
 using ApexPost.Domain.Common;
 using ApexPost.Web.Attributes;
+using ApexPost.Web.Filters;
 using ApexPost.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,7 @@ namespace ApexPost.Web.Controllers;
 
 [Authorize(Policy = "AdministratorOnly")]
 [IpRestricted]
-public sealed class ProductsController : Controller
+public sealed class ProductsController : Controller, IRepopulatesForm
 {
     private readonly ProductManagementService _products;
 
@@ -32,14 +33,10 @@ public sealed class ProductsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayOnInvalid("Form")]
     [AuditedAction("ProductCreate")]
     public async Task<IActionResult> Create(ProductFormViewModel model, CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-        {
-            return View("Form", model);
-        }
-
         try
         {
             await _products.CreateAsync(ToInput(model), ct);
@@ -75,16 +72,12 @@ public sealed class ProductsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RedisplayOnInvalid("Form")]
     [AuditedAction("ProductUpdate")]
     public async Task<IActionResult> Edit(string id, ProductFormViewModel model, CancellationToken ct)
     {
         model.IsExisting = true;
         model.Sku = id;
-        if (!ModelState.IsValid)
-        {
-            return View("Form", model);
-        }
-
         try
         {
             await _products.UpdateAsync(id, ToInput(model), ct);
@@ -100,6 +93,17 @@ public sealed class ProductsController : Controller
             ModelState.AddModelError(string.Empty, exception.Message);
             return View("Form", model);
         }
+    }
+
+    public Task RepopulateFormAsync(object model, CancellationToken ct)
+    {
+        if (model is ProductFormViewModel form && RouteData.Values["id"]?.ToString() is { } sku)
+        {
+            form.IsExisting = true;
+            form.Sku = sku;
+        }
+
+        return Task.CompletedTask;
     }
 
     private static ProductRecordInput ToInput(ProductFormViewModel model) =>

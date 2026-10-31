@@ -95,16 +95,19 @@ The default forwarded-header trust list is deliberately not cleared. A deploymen
 | Maintenance, API key, IP restriction, rate limiting | Middleware | Rejects requests before controller work; API-key middleware uses endpoint metadata after routing. |
 | Audit trail | `AuditActionFilter` (`IAsyncActionFilter`), only for actions marked `[AuditedAction]` | Needs MVC action metadata, arguments and the action result. Limiting it to business actions keeps the log meaningful. |
 | Denied business actions | `AuditingAuthorizationResultHandler` | Authorization rejects before MVC filters run, so a filter cannot see these attempts. |
-| Model-state consistency | `ValidationActionFilter` on stock adjustment; explicit MVC checks on form controllers | Stock is a request endpoint with a consistent BadRequest response; staff, counter, and shipping forms redisplay with validation errors and repopulated choices. |
+| Model-state consistency | Global `ValidationActionFilter` | Needs model state, action arguments and the controller to redisplay a view, none of which exist in middleware. |
 | Slow-action warning | `PerformanceActionFilter` | Measures MVC action execution and uses the configurable action threshold. |
 
 Audit and performance filters are globally registered through DI. The audit filter acts only on actions marked `[AuditedAction("...")]`: sales (including money orders and identity checks), voids, refunds, stock adjustments, and staff, branch and product changes. GET pages and anonymous pages are not audited. Each entry holds the business action, a small allowlist of safe arguments, and non-sensitive details the controller adds explicitly (transaction ID, counter, line count, money order amount, whether an identity check ran, payment method). It never serialises models, request bodies, reasons, sender or recipient names, document numbers or passwords. A failed audit write is logged as an error and never changes the outcome of the completed business action.
 
-The validation filter is applied with `ServiceFilter` to stock adjustment, where a Problem Details BadRequest is the right response. Staff, branch, product, counter and shipping forms redisplay themselves with their errors, because they must also repopulate choices.
+`ValidationActionFilter` is global, so no controller repeats a model-state check. An action marked `[RedisplayOnInvalid]` redisplays its view, and a controller implementing `IRepopulatesForm` reloads the form's choices first. Any other action, such as stock adjustment, gets a consistent Problem Details BadRequest.
 
 ## Data, async work, and lifetimes
 
 - All runtime data lives in one folder, `Persistence:DataDirectory` (default `App_Data` under the content root, ignored by Git). Repositories read the read-only seed from the output `Data` folder until their first write creates the runtime file, so a clean or rebuild cannot wipe data. The audit log is in the same folder. Next week's database can replace this through `AddJsonPersistence` alone.
+- Settings are bound to validated `IOptions` classes in `ApexPost.Web/Configuration`, and a bad value stops startup. Middleware uses `IOptionsMonitor` so maintenance mode and the allowlist can change without a restart. `Program.cs` is now only the composition root; registration and pipeline order live in `ServiceRegistration` and `PipelineConfiguration`.
+- A basket can hold up to 10 shipments and 10 money orders; the counter screen offers three of each, and money orders and identity checks also have their own screens. Daily sales count only a money order's fee as service revenue, while the customer's total still includes the principal.
+- Shipping rates run through `Task.WhenAll`; `SimulatedCourierRateService` allows `CourierRates:MaxConcurrentRequests` calls around its simulated partner delay. Zone rates come from `CachedShippingZoneLookup` (`ValueTask` plus `IMemoryCache`). Tests measure both: 20 parallel lookups with a limit of 3 never exceed 3 in flight, and 200 parallel zone lookups cause one repository load.
 - `IRepository<TEntity, TId>` provides JSON persistence and locked `UpdateAsync` operations. Stock decrement is performed under the repository's `SemaphoreSlim`, preventing concurrent requests in this app process from taking the same last unit. JSON replacement is written to a same-directory temporary file and then renamed so an interrupted write does not truncate the previous file.
 - Checkout persists an open transaction marker, reserves stock atomically, validates/completes the transaction, and then persists it as paid. Failures before the paid save compensate stock reservations and remove the open marker; failures during compensation are surfaced as an aggregate error for reconciliation. This is a single-process JSON workflow, not a cross-process database transaction.
 - Stock adjustments are limited to active branch managers, require a signed quantity and a reason code, use the locked stock repository update, and emit low-stock events. The audit filter records SKU, quantity delta, and reason code without free-form reason text.
@@ -113,7 +116,7 @@ The validation filter is applied with `ServiceFilter` to stock adjustment, where
 - Transaction status, payment method, and reversal metadata have explicit `JsonInclude` annotations so private setters are restored during JSON deserialization. This is required for historical paid transactions to remain paid in reports and for reversal authorization/state checks to work after reload.
 - Identity checks use an explicitly simulated format validator, not an external or government identity provider. The clerk no longer supplies the success result. Only masked last-four details and the result are added to the transaction.
 - Reads/writes use asynchronous stream APIs and propagate `CancellationToken`; repository locks and simulated courier concurrency are bounded with `SemaphoreSlim`.
-- Dashboard branch/product/transaction/stock reads are independent, so `Task.WhenAll` overlaps them.
+- Dashboard reads and the three report queries are independent, so `Task.WhenAll` overlaps them.
 - The product catalogue uses `IMemoryCache` with a five-minute TTL, `ValueTask`, and a single-flight semaphore. `ProductCataloguePerformanceTests` issues 10,000 reads against 30 products and deterministically observes one cached backing load versus 10,000 uncached loads. Elapsed time is diagnostic only; this in-memory test is not a disk-throughput benchmark.
 - The low-stock threshold has one home: the `LowStockRule` object, configured by `Inventory:LowStockThreshold`.
 - Notifications are stored per branch, so low-stock, high-value and void/refund alerts all reach that branch's dashboard, which reads them alongside its other data.
@@ -137,8 +140,8 @@ The validation filter is applied with `ServiceFilter` to stock adjustment, where
 | Domain events | Transaction completion, money-order issue, stock-low, and void/refund events are dispatched to notification handlers after persistence. |
 | Async/await and cancellation | MVC, application, repository, audit, cache, and rate lookups pass cancellation through asynchronous I/O. |
 | `Task.WhenAll` | Independent dashboard reads are awaited together. |
-| `SemaphoreSlim` | Bounds JSON writes/updates, audit appends, catalogue cache fills, and simulated courier quote concurrency. |
-| `ValueTask` and cache | Hot catalogue reads return synchronously from memory; cache fills remain asynchronous and coalesced. |
+| `SemaphoreSlim` | Bounds JSON writes/updates, audit appends, cache fills, and concurrent calls to the simulated courier around its delay. |
+| `ValueTask` and cache | Hot catalogue and zone-rate reads return synchronously from memory; cache fills remain asynchronous and coalesced. |
 | Cancellation versus timeout | Simulated courier tracking uses a linked timeout token and returns a distinct timeout failure; caller cancellation remains cancellation and is not reported as a timeout. |
 
 There is intentionally no `Thread.Sleep`, `.Wait()`, or `.Result` in the solution.
@@ -356,6 +359,46 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Consequences:** The log is short and useful, and denied attempts are visible. A lost audit entry is possible during a disk failure, but it raises an error log for follow-up.
 
+### ADR-21: Bind configuration to validated options
+
+**Context:** Settings were read from raw `IConfiguration` in many places, rate limits were fixed in code, and setup logic made `Program.cs` over 200 lines.
+
+**Decision:** Use one options class per section with data annotations and `ValidateOnStart`, and move registration and pipeline order into extension methods.
+
+**Alternatives:** Keep raw configuration (typos fail silently at runtime); read values once at startup (maintenance mode and allowlists would need a restart).
+
+**Consequences:** A bad setting stops startup, limits can differ per environment, and `Program.cs` reads as a composition root. Each new setting needs an options property.
+
+### ADR-22: Centralise model validation in a global filter
+
+**Context:** Six controllers repeated the same model-state check, while the filter only served stock adjustment.
+
+**Decision:** Register `ValidationActionFilter` globally. `[RedisplayOnInvalid]` selects a view and `IRepopulatesForm` reloads choices; everything else returns a BadRequest.
+
+**Alternatives:** Keep checks in each action (easy to forget); a filter per form (a lot of near-identical classes).
+
+**Consequences:** Invalid input is handled the same way everywhere and actions only contain the valid path. Domain failures found later are still redisplayed by the action, because they need a service call to detect.
+
+### ADR-23: Count only money order fees as revenue and allow several services per basket
+
+**Context:** Daily sales counted a money order's principal as service revenue, inflating the figure, and a basket could hold only one shipment and one money order.
+
+**Decision:** `TransactionLineItem.Revenue` returns the fee for a money order and the grand total otherwise. Baskets take lists of shipments and money orders, each high-value order triggers the identity rule, and dedicated forms cover the common money order and identity tasks.
+
+**Alternatives:** A session-based basket with add and remove steps (more state to protect, with little benefit for a counter form); separate transactions per service (breaks the same-transaction identity rule).
+
+**Consequences:** Reports reflect real income while the customer's total stays correct. The counter form has a fixed number of rows, though the service accepts up to 10 of each.
+
+### ADR-24: Keep the strict CSP and render the validation summary only when needed
+
+**Context:** ASP.NET's validation summary renders a hidden placeholder with an inline style when there are no errors. The CSP blocked it, which logged a console error and showed a stray bullet on every form.
+
+**Decision:** Render the summary through `_ValidationSummary` only when model state is invalid, and keep `style-src 'self'`.
+
+**Alternatives:** Allow `unsafe-inline` for styles (weakens the policy for one placeholder); drop client-side validation (a worse experience, and it was not the cause).
+
+**Consequences:** Pages load without CSP errors and the policy stays strict. A browser's client-side errors appear beside each field rather than in the summary.
+
 ## SOLID mapping
 
 - **Single Responsibility:** Domain rules, orchestration, JSON I/O, MVC transport, and audit each live in their own layer/service.
@@ -370,7 +413,7 @@ Each decision records its context, the decision, the alternatives considered and
 |---|---|
 | Password/API-key disclosure | No passwords or keys in configuration files; partner keys come from user-secrets or a secret store. Staff passwords are stored only as salted PBKDF2 hashes, and hashes are never shown or audited. |
 | Account enumeration | The same failure message and the same hashing work for unknown emails, inactive staff and wrong passwords. |
-| Brute-force login / partner overload | Per-IP login fixed window (3/minute); authenticated partner partition limit (60/minute); 429 and `Retry-After`. |
+| Brute-force login / partner overload | Configurable per-IP login window (default 3/minute) and per-partner window (default 60/minute); 429 and `Retry-After`. |
 | Forged state-changing form requests | Antiforgery token validation for every MVC POST; strict, Secure, HttpOnly auth cookies. |
 | Unauthorized counter/financial actions | Staff role/branch claims, manager/auditor/admin policies, a 403 for denied users, `SameBranchOnly` on branch-scoped reports, domain-side active staff and branch checks, and audit entries for denied attempts. |
 | Stock race or negative balance | Locked atomic repository update and domain guard. |
@@ -383,6 +426,6 @@ Each decision records its context, the decision, the alternatives considered and
 
 ## Validation
 
-`ApexPost.Test` has 86 tests. Unit tests cover stock, identity verification and masking, parcel and letter weight limits, pricing, currency consistency, branch hours, JSON round trips, checkout compensation, idempotent reversals, password hashing, the low-stock rule, read-only line items and seed handling. WebApplicationFactory tests cover every required scenario (security headers, API key 401, blocked IP 403, login 429, login redirect, clerk 403 on void, correlation ID) plus per-staff login, conventional routes, branch and product management, void through the UI with its dashboard notification, audit narrowing, denied-action auditing, failed audit writes, and failed requests logged as 500 with Problem Details and their correlation ID. Tests use a temporary data folder and leave the repository unchanged.
+`ApexPost.Test` has 95 tests. Unit tests cover stock, identity verification and masking, parcel and letter weight limits, pricing, currency consistency, branch hours, JSON round trips, checkout compensation, idempotent reversals, password hashing, the low-stock rule, read-only line items and seed handling. WebApplicationFactory tests cover every required scenario (security headers, API key 401, blocked IP 403, login 429, login redirect, clerk 403 on void, correlation ID) plus per-staff login, conventional routes, branch and product management, void through the UI with its dashboard notification, mixed baskets with several services, fee-only revenue, filter-driven form redisplay, configured rate limits, courier concurrency and zone caching, audit narrowing, denied-action auditing, failed audit writes, and failed requests logged as 500 with Problem Details and their correlation ID. Tests use a temporary data folder and leave the repository unchanged.
 
 `Directory.Build.props` sets `TreatWarningsAsErrors`, so the build itself enforces zero warnings. Run `dotnet build ApexPost.slnx` and `dotnet test ApexPost.slnx`.

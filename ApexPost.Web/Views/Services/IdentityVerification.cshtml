@@ -1,0 +1,37 @@
+@model ApexPost.Web.Models.IdentityVerificationFormViewModel
+@{
+    ViewData["Title"] = "Identity verification";
+    var counters = ViewBag.Counters as IEnumerable<string> ?? [];
+}
+
+<h2>Identity verification</h2>
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-info" role="status">@success</div>
+}
+<p class="text-muted">Simulated format check only; no external identity provider is contacted. Only the last four characters are retained.</p>
+<form asp-action="IdentityVerification" method="post">
+    @Html.AntiForgeryToken()
+    <partial name="_ValidationSummary" />
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <label asp-for="CounterId" class="form-label">Counter</label>
+            <select asp-for="CounterId" class="form-select">
+                @foreach (var counter in counters)
+                {
+                    <option value="@counter">@counter</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="DocumentType" class="form-label">Document type</label>
+            <select asp-for="DocumentType" asp-items="Html.GetEnumSelectList<ApexPost.Domain.Enums.DocumentType>()" class="form-select"></select>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="DocumentNumber" class="form-label">Document number</label>
+            <input asp-for="DocumentNumber" class="form-control" autocomplete="off" />
+            <span asp-validation-for="DocumentNumber" class="text-danger"></span>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Verify identity</button>
+</form>
