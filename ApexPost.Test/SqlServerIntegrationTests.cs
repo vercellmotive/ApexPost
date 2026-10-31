@@ -115,10 +115,34 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
     }
 
     [SqlServerFact]
+    public async Task Shipment_WithNoDestination_LoadsNoAddress_AndOneWithADestinationKeepsIt()
+    {
+        var id = Guid.NewGuid();
+        var address = new Address("1 Test St", "Sydney", "NSW", "2000", "Australia");
+        await using (var db = database.CreateContext())
+        {
+            var transaction = new Transaction { Id = id, BranchCode = B001, CounterId = "C01", ClerkStaffId = "STF002", BusinessDate = new DateOnly(2026, 10, 2) };
+            transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "No address", LineItemType.ParcelShipping, 1, new Money(5m), TaxCategory.Exempt, Shipping: new ShippingDetails(true, Weight.FromKilograms(2m), new Dimensions(3, 4, 5), "Zone 3", ServiceLevel.Express)));
+            transaction.AddLineItem(new TransactionLineItem(Guid.NewGuid(), "Address", LineItemType.ParcelShipping, 1, new Money(5m), TaxCategory.Exempt, Shipping: new ShippingDetails(true, Weight.FromKilograms(2m), new Dimensions(3, 4, 5), "Zone 3", ServiceLevel.Express, address)));
+            transaction.Complete("Card", new Money(1000m));
+            new CounterTransactionRepository(db).Add(transaction);
+            await new UnitOfWork(db).SaveChangesAsync();
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            var restored = await new CounterTransactionRepository(db).GetByIdAsync(id);
+
+            Assert.Null(restored!.LineItems[0].Shipping!.Destination);
+            Assert.Equal(address, restored.LineItems[1].Shipping!.Destination);
+        }
+    }
+
+    [SqlServerFact]
     public async Task FailedSale_RollsBackStockAndTransactionTogether()
     {
         await using var db = database.CreateContext();
-        var stock = await new StockRepository(db).GetAsync(B001, Sku1);
+        var stock = (await new StockRepository(db).GetManyAsync(B001, [Sku1])).Single();
         var before = stock!.QuantityOnHand;
         stock.AddStock(1);
         var transaction = new Transaction { Id = Guid.NewGuid(), BranchCode = B001, CounterId = "NOT-A-COUNTER", ClerkStaffId = "STF002", BusinessDate = new DateOnly(2026, 10, 1) };
@@ -138,8 +162,8 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
     {
         await using var first = database.CreateContext();
         await using var second = database.CreateContext();
-        var firstStock = await new StockRepository(first).GetAsync(B001, new Sku("SKU-002"));
-        var secondStock = await new StockRepository(second).GetAsync(B001, new Sku("SKU-002"));
+        var firstStock = (await new StockRepository(first).GetManyAsync(B001, [new Sku("SKU-002")])).Single();
+        var secondStock = (await new StockRepository(second).GetManyAsync(B001, [new Sku("SKU-002")])).Single();
 
         firstStock!.AddStock(1);
         await new UnitOfWork(first).SaveChangesAsync();
@@ -255,6 +279,49 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
             {
                 var denied = await Assert.ThrowsAsync<SqlException>(() => RunAsync(connection, forbidden));
                 Assert.Contains(denied.Number, new[] { 229, 262, 1088, 15151, 3701 });
+            }
+        }
+        finally
+        {
+            await RunAsync(connection, "REVERT;");
+        }
+    }
+
+    [SqlServerFact]
+    public async Task ReportingRole_CanRunTheReportProceduresButCannotReadTablesOrChangeStock()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (!File.Exists(Path.Combine(directory!.FullName, "ApexPost.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        var script = await File.ReadAllTextAsync(Path.Combine(directory.FullName, "sql", "security", "reporting_role.sql"));
+        await using var connection = new SqlConnection(database.ConnectionString);
+        await connection.OpenAsync();
+        foreach (var batch in Regex.Split(script, @"^\s*GO\s*$", RegexOptions.Multiline).Where(batch => !string.IsNullOrWhiteSpace(batch)))
+        {
+            await RunAsync(connection, batch);
+        }
+
+        await RunAsync(connection, "IF DATABASE_PRINCIPAL_ID('apexpost_report_test') IS NULL CREATE USER apexpost_report_test WITHOUT LOGIN; ALTER ROLE apexpost_reports ADD MEMBER apexpost_report_test;");
+        await RunAsync(connection, "EXECUTE AS USER = 'apexpost_report_test';");
+        try
+        {
+            await RunAsync(connection, "EXEC dbo.usp_LowStockReport @BranchCode = 'B001', @Threshold = 5;");
+            await RunAsync(connection, "EXEC dbo.usp_DailyBranchSales @BranchCode = 'B001', @Date = '20260101';");
+
+            foreach (var forbidden in new[]
+            {
+                "SELECT TOP (1) Sender FROM dbo.MoneyOrders;",
+                "SELECT TOP (1) Email FROM dbo.Staff;",
+                "SELECT TOP (1) MaskedDocumentNumber FROM dbo.IdentityVerifications;",
+                "SELECT TOP (1) LineTotal FROM dbo.TransactionLines;",
+                "EXEC dbo.usp_AdjustStock @BranchCode = 'B001', @Sku = 'SKU-001', @Delta = 1, @Reason = 'Damage', @ChangedBy = 'STF001';"
+            })
+            {
+                var denied = await Assert.ThrowsAsync<SqlException>(() => RunAsync(connection, forbidden));
+                Assert.Contains(denied.Number, new[] { 229, 230 });
             }
         }
         finally
@@ -452,6 +519,43 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
         Assert.Equal("application/problem+json", unknownProduct.Content.Headers.ContentType?.MediaType);
 
         Assert.Equal(quantityBefore, await StockQuantityAsync(sku));
+    }
+
+    [SqlServerFact]
+    public async Task Mvc_SaleOfSeveralProducts_ReadsStockInOneQuery()
+    {
+        var counter = new CommandCounter();
+        using var factory = new SqlServerWebFactory(database.ConnectionString, counter);
+        await OpenAllBranchesAsync();
+        var skus = new[] { new Sku("SKU-010"), new Sku("SKU-011"), new Sku("SKU-012") };
+        var before = new List<int>();
+        foreach (var sku in skus)
+        {
+            before.Add(await StockQuantityAsync(sku));
+        }
+
+        var (client, token) = await SignInManagerAsync(factory, "127.0.3.6");
+        var form = new Dictionary<string, string>
+        {
+            ["CounterId"] = "C01",
+            ["PaymentMethod"] = "Card",
+            ["__RequestVerificationToken"] = token
+        };
+        for (var line = 0; line < skus.Length; line++)
+        {
+            form[$"RetailItems[{line}].ProductSku"] = skus[line].Value;
+            form[$"RetailItems[{line}].Quantity"] = "1";
+        }
+
+        counter.Reset();
+        var sale = await client.PostAsync("/Counter/Create", new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, sale.StatusCode);
+        Assert.Equal(1, counter.StockReads);
+        for (var line = 0; line < skus.Length; line++)
+        {
+            Assert.Equal(before[line] - 1, await StockQuantityAsync(skus[line]));
+        }
     }
 
     [SqlServerFact]
@@ -715,14 +819,25 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
     private sealed class CommandCounter : DbCommandInterceptor
     {
         private int _commands;
+        private int _stockReads;
 
         public int Commands => Volatile.Read(ref _commands);
+        public int StockReads => Volatile.Read(ref _stockReads);
 
-        public void Reset() => Interlocked.Exchange(ref _commands, 0);
+        public void Reset()
+        {
+            Interlocked.Exchange(ref _commands, 0);
+            Interlocked.Exchange(ref _stockReads, 0);
+        }
 
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _commands);
+            if (command.CommandText.Contains("FROM [BranchStock]", StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref _stockReads);
+            }
+
             return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
 

@@ -135,7 +135,7 @@ public sealed class InMemoryDatabase
         {
             var key = (new BranchCode(branchCode), new Sku(sku));
             var stock = Deserialize<BranchStock>(Stock[key].Json);
-            stock.ApplyAdjustment(newQuantity - stock.QuantityOnHand);
+            ApplyDelta(stock, newQuantity - stock.QuantityOnHand);
             Stock[key] = new StockRow(Serialize(stock), Stock[key].Version + 1);
         }
     }
@@ -157,6 +157,24 @@ public sealed class InMemoryDatabase
     }
 
     internal static T Clone<T>(T value) => Deserialize<T>(Serialize(value));
+    // Stands in for usp_AdjustStock, which holds this rule in production.
+    internal static void ApplyDelta(BranchStock stock, int delta)
+    {
+        if (delta == 0)
+        {
+            throw new DomainValidationException("A stock adjustment must change inventory.");
+        }
+
+        if (delta > 0)
+        {
+            stock.AddStock(delta);
+        }
+        else
+        {
+            stock.ReduceStock(-delta);
+        }
+    }
+
     internal static string Serialize<T>(T value) => JsonSerializer.Serialize(value);
     internal static T Deserialize<T>(string json) => JsonSerializer.Deserialize<T>(json)!;
 
@@ -298,7 +316,21 @@ public sealed class InMemoryPersistence(InMemoryDatabase database) :
     void IProductRepository.Add(Product product) => _staged.Add(() => database.Products[product.Id] = InMemoryDatabase.Clone(product));
     void IProductRepository.Update(Product product) => _staged.Add(() => database.Products[product.Id] = InMemoryDatabase.Clone(product));
 
-    Task<BranchStock?> IStockRepository.GetAsync(BranchCode branchCode, Sku sku, CancellationToken ct)
+    async Task<IReadOnlyList<BranchStock>> IStockRepository.GetManyAsync(BranchCode branchCode, IReadOnlyCollection<Sku> skus, CancellationToken ct)
+    {
+        var stocks = new List<BranchStock>();
+        foreach (var sku in skus)
+        {
+            if (await GetStockAsync(branchCode, sku) is { } stock)
+            {
+                stocks.Add(stock);
+            }
+        }
+
+        return stocks;
+    }
+
+    private Task<BranchStock?> GetStockAsync(BranchCode branchCode, Sku sku)
     {
         var key = (branchCode, sku);
         if (_trackedStock.TryGetValue(key, out var tracked))
@@ -361,7 +393,7 @@ public sealed class InMemoryPersistence(InMemoryDatabase database) :
             }
 
             var stock = InMemoryDatabase.Deserialize<BranchStock>(row.Json);
-            stock.ApplyAdjustment(delta);
+            InMemoryDatabase.ApplyDelta(stock, delta);
             database.Stock[key] = new InMemoryDatabase.StockRow(InMemoryDatabase.Serialize(stock), row.Version + 1);
             return stock.QuantityOnHand;
         }));

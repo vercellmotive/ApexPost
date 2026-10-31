@@ -34,7 +34,7 @@ public interface IProductRepository
 
 public interface IStockRepository
 {
-    Task<BranchStock?> GetAsync(BranchCode branchCode, Sku sku, CancellationToken ct = default);
+    Task<IReadOnlyList<BranchStock>> GetManyAsync(BranchCode branchCode, IReadOnlyCollection<Sku> skus, CancellationToken ct = default);
     void Add(BranchStock stock);
 }
 

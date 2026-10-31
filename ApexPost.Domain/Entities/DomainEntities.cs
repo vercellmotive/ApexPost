@@ -73,27 +73,7 @@ public class BranchStock : Entity<Guid>
         QuantityOnHand -= quantity;
     }
 
-    public void ApplyAdjustment(int quantityDelta)
-    {
-        if (quantityDelta == 0)
-        {
-            throw new DomainValidationException("A stock adjustment must change inventory.");
-        }
-
-        if (quantityDelta > 0)
-        {
-            AddStock(quantityDelta);
-            return;
-        }
-
-        if (quantityDelta == int.MinValue)
-        {
-            throw new DomainValidationException("The stock adjustment quantity is out of range.");
-        }
-
-        ReduceStock(-quantityDelta);
-    }
-
+    // Reversals restock through usp_AdjustStock (ADR-37). This stays because the Week 2 rule tests must pass unchanged (ADR-39).
     public void RestockForReversal(Guid transactionId, int quantity)
     {
         if (quantity <= 0)
@@ -159,12 +139,56 @@ public class Product : Entity<Sku>
     public required string Category { get; init; }
     public required Money UnitPrice { get; init; }
     public required TaxCategory TaxCategory { get; init; }
+
+    public static Product Create(Sku sku, string? name, string? category, decimal unitPrice, TaxCategory taxCategory)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new DomainValidationException("A product name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(category) || !ProductCategories.IsSupported(category))
+        {
+            throw new DomainValidationException("Select a valid product category.");
+        }
+
+        if (unitPrice <= 0)
+        {
+            throw new DomainValidationException("The unit price must be greater than zero.");
+        }
+
+        if (!Enum.IsDefined(taxCategory))
+        {
+            throw new DomainValidationException("Select a valid tax category.");
+        }
+
+        return new Product
+        {
+            Id = sku,
+            Name = name.Trim(),
+            Category = ProductCategories.All.First(known => known.Equals(category, StringComparison.OrdinalIgnoreCase)),
+            UnitPrice = new Money(unitPrice),
+            TaxCategory = taxCategory
+        };
+    }
+
+    public void EnsureSellable()
+    {
+        if (!ProductCategories.IsSupported(Category))
+        {
+            throw new DomainValidationException($"Product {Id.Value} has an unsupported category and cannot be sold.");
+        }
+    }
 }
 
 public class ShippingZone : Entity<string>
 {
     public required string Name { get; init; }
     public decimal Multiplier { get; init; }
+
+    public decimal UsableMultiplier() => Multiplier > 0
+        ? Multiplier
+        : throw new DomainValidationException($"Shipping zone {Name} has no usable price multiplier.");
 }
 
 public record ShippingDetails(bool IsParcel, Weight Weight, Dimensions Dimensions, string DestinationZone, ServiceLevel ServiceLevel, Address? Destination = null);

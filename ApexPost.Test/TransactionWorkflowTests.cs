@@ -97,7 +97,7 @@ public sealed class TransactionWorkflowTests
             stockRepository, stockRepository, stockRepository, stockRepository, stockRepository, stockRepository,
             new StubCourierRateService(), new StubCatalogueService(TestProduct()), new StubIdentityVerificationService(),
             new StubEventDispatcher(), new TransactionRules(new Money(1000m), new Money(20000m)));
-        await ((IStockRepository)stockRepository).GetAsync(new BranchCode(Branch), new Sku(Sku1));
+        await ((IStockRepository)stockRepository).GetManyAsync(new BranchCode(Branch), [new Sku(Sku1)]);
 
         // A second clerk takes the last unit after the first clerk has read it.
         await service.CompleteWithRetailItemsAsync(CreateTransaction(), [new RetailItemRequest(new Sku(Sku1), 1)], "Cash");
@@ -112,7 +112,7 @@ public sealed class TransactionWorkflowTests
     public async Task StaleStockAtSave_RaisesConcurrencyConflict()
     {
         var (database, persistence, service) = Arrange(stock: 5);
-        await ((IStockRepository)persistence).GetAsync(new BranchCode(Branch), new Sku(Sku1));
+        await ((IStockRepository)persistence).GetManyAsync(new BranchCode(Branch), [new Sku(Sku1)]);
         database.SimulateConcurrentStockChange(Branch, Sku1, 4);
 
         await Assert.ThrowsAsync<ConcurrencyConflictException>(() =>
