@@ -200,9 +200,31 @@ I expected reusing a plan compiled for rare `Refunded` to hurt common `Paid`. **
 
 **Conclusion:** on this server, PSP handled the problem automatically at compatibility level 160. It would return on a lower compatibility level, or where PSP doesn't apply. `OPTION (RECOMPILE)` in the two report procedures avoids it regardless.
 
-**Also seen, not investigated:** W2's seek estimated 1 row against 71 actual. It didn't hurt the plan, so I left it, and I don't have a verified explanation.
-
 Plans: [`refunded`](docs/plans/M2-psp-off-refunded-compiles.sqlplan), [`paid reusing`](docs/plans/M2-psp-off-paid-reuses.sqlplan), [`paid fresh`](docs/plans/M2-psp-off-paid-fresh.sqlplan), [`with PSP`](docs/plans/M1-mismatch-paid-reuses.sqlplan).
+
+### W2's estimate: 1 row against 71 actual
+
+The saved W2 plan estimates 1 row and returns 71. It's a different problem from the one above, because it comes from a sampled statistic, not from plan reuse.
+
+**Cause:** the `BusinessDate` statistic is sampled from `IX_CounterTransactions_Branch_Date`, the smallest index holding that column. That index sorts by branch and date, so one date's rows sit together: 276 rows on just 4 pages. Sampling about 30% of the pages therefore catches most of a date or almost none of it. The clustered index sorts by a random GUID, which spreads the same date's rows across about 271 pages, so sampling it is far steadier.
+
+Rows stored per date in the statistic, where the true figure is 273 to 285:
+
+| Statistic built from | Lowest | Median | Highest |
+|---|---:|---:|---:|
+| Sample, index present | 1 | 458 | 924 |
+| Sample, index disabled | 203 | 326 | 549 |
+| `FULLSCAN` | 273 | 274 | 285 |
+
+The W2 estimate follows that statistic. For the same query and date, it was 13 on one generated data set and 119 on another. Across 365 dates on one more sampled statistic, it ranged from 7.5 to 411. After `FULLSCAN` it stayed between 135 and 139.
+
+**What I didn't prove:** I never reproduced the exact 1 for W2, because the data set behind the saved plan no longer exists. The lowest W2 estimate I measured was 7.5. A later sampled build did store just 1 row for one date, so the cause fits, but it's an inference for that saved plan.
+
+**A second, smaller error:** even `FULLSCAN` overestimates, at about 135 against 71. Without the `Status` filter, SQL Server uses the index's branch-and-date density and estimates 69. With it, the numbers match separate estimates for each filter, combined with exponential backoff: date, then the square root of branch, then the fourth root of status. That comes to about 135. Backoff assumes the filters overlap, but here they're close to independent: 274 rows × 25% for the branch × 95% for `Paid` is about 65.
+
+**Decision:** no change to the application or the migrations. W2 used the same index seek at each estimate where I checked the plan: 1 in the saved plan, then 13, 119, 136 and 414. So I found no sign that the error changes the plan, though I didn't check the shape at all 365 dates. If it ever did, I'd update this statistic with `FULLSCAN` on a schedule rather than add an index. I also left the volume generator alone, so the saved plans still describe how they were captured.
+
+Script: [`05_w2_estimate_investigation.sql`](sql/performance/05_w2_estimate_investigation.sql). Output: [`w2-estimate-investigation.txt`](docs/statistics/w2-estimate-investigation.txt).
 
 ## Choosing OPTION (RECOMPILE)
 
