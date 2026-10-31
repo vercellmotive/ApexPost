@@ -155,7 +155,7 @@ Plans: [`refunded`](docs/plans/M2-psp-off-refunded-compiles.sqlplan), [`paid reu
 
 ## Blocking demonstration
 
-Two real sessions, using `sql/transactions/blocking_session_1_writer.sql` and `blocking_session_2_reader.sql`, while session 1 held an uncommitted update to one stock row.
+Two real `sqlcmd` sessions, using `sql/transactions/blocking_session_1_writer.sql` and `blocking_session_2_reader.sql`, while session 1 held an uncommitted update to one stock row.
 
 **My first prediction was wrong.** I expected default `READ COMMITTED` to block, and it didn't: EF Core turned on `READ_COMMITTED_SNAPSHOT` when it created the database (`is_read_committed_snapshot_on = 1`).
 
@@ -189,7 +189,7 @@ While blocked, `sys.dm_exec_requests` showed:
 | 4 | 10 | 10 | 0 | 0 |
 | 5 | 10 | 10 | 0 | 0 |
 
-Each trial sold exactly the available stock, left no stuck transactions and never went negative. Five trials at this one load level don't prove 409s can't happen, and the retry costs latency under contention, which I didn't measure.
+Each trial sold exactly the available stock, left no stuck transactions and never went negative. That burst produced no 409s, but the heavier load test below shows they can still happen.
 
 ## How the design avoids deadlocks
 
@@ -197,7 +197,35 @@ Each trial sold exactly the available stock, left no stuck transactions and neve
 - **Short transactions:** optimistic concurrency holds no locks while a clerk works, and the courier rate call finishes before the save begins.
 - **Automatic retry:** `EnableRetryOnFailure` treats deadlock error 1205 as transient and retries it.
 
-No deadlocks appeared in these runs, but I didn't deliberately try to force one, so this is a design argument, not proof.
+### Forcing a real deadlock
+
+`sql/transactions/deadlock_session_1.sql` and `deadlock_session_2.sql` update two stock rows in opposite orders, which the app never does. Session 2 runs at `DEADLOCK_PRIORITY LOW`, so it should be chosen as the victim. Run in two `sqlcmd` sessions:
+
+| Session | Result |
+|---|---|
+| 1 | Finished: `Session 1 survived` |
+| 2 | `Msg 1205, Level 13`: "chosen as the deadlock victim" |
+
+`OppositeUpdateOrder_Deadlocks_AndTheVictimIsRetryableAndRolledBack` repeats this against SQL Server. It confirms error 1205, that the victim's update was rolled back, and that EF Core's `SqlServerRetryingExecutionStrategy` would retry that error.
+
+The server's deadlock counter read 2 after the load test below. One forced demo and one run of that test account for both, so the load test itself appears to have caused none. The counter is server-wide, so this is an inference.
+
+## Sustained load test
+
+`docs/load-test/load_test.py` drove the running app over HTTPS through real sign-ins, with raw numbers in [`docs/load-test/results.json`](docs/load-test/results.json). It used a Release build, with the login rate limit raised for this demo instance only. The app, the test client and the emulated SQL Server shared one machine, so these numbers are comparisons, not capacity figures.
+
+| Phase | Clerks | Length | Requests/s | Outcomes | p50 | p95 | p99 | Max |
+|---|---|---|---:|---|---:|---:|---:|---:|
+| Baseline, sales of one product | 1 | 60 s | 21.1 | 1,269 sold | 45 ms | 64 ms | 83 ms | 375 ms |
+| Contention, sales of one product | 20 | 60 s | 51.8 | 3,024 sold, **98 got 409** | 364 ms | 696 ms | 899 ms | 1,093 ms |
+| Sustained, sales across 9 products | 8 | 5 min | 55.2 | 8,311 sold, 0 errors | 135 ms | 213 ms | 256 ms | 377 ms |
+| Sustained, screen reads | 8 | 5 min | (shared) | 8,260 OK, 0 errors | 150 ms | 250 ms | 306 ms | 531 ms |
+
+**Data stayed correct.** The 12,604 successful sales exactly matched the 12,604 units taken from stock and the 12,604 new transactions. No stock went negative, no transaction stayed open, and the log had 0 `fail:` lines.
+
+**What the retry costs.** Median sale time rose from 45 ms to 364 ms at 20 clerks on one product. That figure mixes retries with ordinary queueing, so it's an upper limit on the retry's cost rather than a direct measurement.
+
+**What the retry doesn't cover.** 98 of 3,122 contended sales (3.1%) used all 5 attempts and got a 409. Those clerks see a conflict message and can try again, and no stock was oversold. Twenty clerks non-stop on one product is far beyond a real branch, so I kept the limit of 5: more attempts would make requests wait longer under the same pressure.
 
 ## N+1 evidence
 
@@ -221,7 +249,7 @@ The command count stays the same however many rows are shown.
 5. **Two of my predictions were wrong** (blocking and plan reuse), and both had server features behind them: Read Committed Snapshot and PSP. Running it mattered.
 6. **Safe wasn't enough for concurrency.** `rowversion` alone never oversold but rejected valid sales, and a bounded retry fixed that without giving up safety.
 
-**Limits of this evidence:** one small emulated server, one run of synthetic data with even date and branch spreads, and no sustained load test. Reads are reliable, while timings are only comparisons.
+**Limits of this evidence:** one small emulated server, one run of synthetic data with even date and branch spreads, and a five-minute load test rather than a long soak on production-like hardware. Reads are reliable, while timings are only comparisons.
 
 ## Generated SQL
 
