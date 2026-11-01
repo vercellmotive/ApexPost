@@ -23,6 +23,7 @@ All numbers here were measured, and each plan is saved in [`docs/plans`](docs/pl
 | W2 daily sales | 4,619 | 440 | -90% | 32 → 3 | Clustered scan → seek |
 | W3 shipment search | 700 | 26 | -96% | 16 → 2 | Hash join with scan → nested loops with seek |
 | W4 high-value money orders | 412 | 10 | -98% | 5 → 1 | Clustered scan → filtered index scan |
+| W5 stock history, one product at one branch | 4,188 | 165 | -96% | 96 → 2 | Clustered scan and sort → seek plus 50 key lookups |
 
 ## Raw STATISTICS IO and TIME output
 
@@ -127,7 +128,7 @@ Plans: [`before`](docs/plans/W2-daily-sales-before.sqlplan), [`after`](docs/plan
 
 ## W3: shipment search by zone and service level
 
-**Indexes:** `IX_ShippingRates_Zone_Level (ZoneId, ServiceLevel)` and `IX_Shipments_Rate (ShippingRateId) INCLUDE (TransactionLineId)`
+**Indexes:** `IX_Shipments_Rate (ShippingRateId) INCLUDE (TransactionLineId)`. I also tried `IX_ShippingRates_Zone_Level (ZoneId, ServiceLevel)`, covered in the finding below.
 
 | Measure | Before | After |
 |---|---|---|
@@ -136,7 +137,7 @@ Plans: [`before`](docs/plans/W2-daily-sales-before.sqlplan), [`after`](docs/plan
 | Reads, `ShippingRates` | 2 | 2 |
 | CPU (ms) | 16 | 2 |
 
-**Honest finding:** `IX_ShippingRates_Zone_Level` made no measurable difference, with 2 reads both ways, because the table has only 60 rows and `UQ_ShippingRates_Zone_Type_Level` already leads on `ZoneId`. All of the gain came from `IX_Shipments_Rate`. The rates index costs only 16 KB and rates rarely change, so it does little harm, but the evidence says it could be removed.
+**Honest finding:** `IX_ShippingRates_Zone_Level` made no measurable difference, with 2 reads both ways, because the table has only 60 rows and `UQ_ShippingRates_Zone_Type_Level` already leads on `ZoneId`. All of the gain came from `IX_Shipments_Rate`. The rates index cost only 16 KB, but the evidence said it wasn't needed, so the `DropRedundantShippingRateIndex` migration removed it. The saved "after" plan below was captured while it still existed; the same 2 reads now come from `UQ_ShippingRates_Zone_Type_Level`.
 
 Plans: [`before`](docs/plans/W3-shipments-before.sqlplan), [`after`](docs/plans/W3-shipments-after.sqlplan).
 
@@ -154,13 +155,30 @@ The "after" plan is still a scan, and that's the right plan: the index holds exa
 
 Plans: [`before`](docs/plans/W4-money-orders-before.sqlplan), [`after`](docs/plans/W4-money-orders-after.sqlplan).
 
+## W5: stock history for one product at one branch
+
+`IX_StockAdjustments_Branch_Sku_Time` came with the first workload indexes but wasn't one of the four workloads above, so here is its evidence. The lookup is the one the history table exists for: the latest 50 changes to one product at one branch, newest first. The application only writes this table, through `usp_AdjustStock`, so no screen runs this query yet; the index is for the auditor lookup the table is meant to serve.
+
+Script: [`06_stock_history_index.sql`](sql/performance/06_stock_history_index.sql), run on a freshly seeded throwaway database with 300,000 fictional adjustments (150 branch-and-product pairs, 2,000 rows each). Output: [`stock-history-index.txt`](docs/statistics/stock-history-index.txt). Plans: [`before`](docs/plans/W5-stock-history-before.sqlplan), [`after`](docs/plans/W5-stock-history-after.sqlplan).
+
+| Measure | Index disabled | Index rebuilt |
+|---|---|---|
+| Plan shape | Clustered index scan of the table, then a top-50 sort | Seek on branch, product and time, then 50 key lookups, no sort |
+| Logical reads | 4,188 | 165 |
+| CPU (ms), second run | 96 | 2 |
+| Insert of 100,000 rows, three runs (ms) | 1,815 / 1,850 / 1,842 | 2,498 / 2,559 / 2,600 |
+| Index size | none | 28,656 KB for 300,000 rows |
+
+**Key order:** the two equality columns, `BranchCode` and `Sku`, come first and `ChangedAtUtc` last, so the rows for one pair are already in time order and `ORDER BY ... DESC` needs no sort. **No INCLUDE columns:** the lookup returns only 50 rows, and covering the other four columns would make the index much larger for a query that runs rarely. The key lookups account for most of the 165 reads.
+
+**Cost:** inserts were about 39% slower in this run, roughly 7 microseconds a row. An earlier run of the same script, made before I saved the plans, gave a smaller gap: 2,180 ms against 2,445 ms at the median. So treat the overhead as somewhere between 10% and 40%. Stock adjustments are rare next to sales and `usp_AdjustStock` writes one row per call, so I kept the index. The rolled-back inserts leave the clustered index larger than its data, so I report no table size.
+
 ## Write overhead and storage
 
 | Index | Size | Rows |
 |---|---|---|
 | `IX_BranchStock_LowStock` | 104 KB | 1,939 |
 | `IX_CounterTransactions_Branch_Date` | 7,888 KB | 200,234 |
-| `IX_ShippingRates_Zone_Level` | 16 KB | 60 |
 | `IX_Shipments_Rate` | 2,192 KB | 50,078 |
 | `IX_MoneyOrders_HighValue` | 680 KB | 1,015 |
 
@@ -346,7 +364,7 @@ Writes follow the same rule. A sale reads all of its basket's stock in one query
 
 1. **Measure before trusting an index.** My low-stock index looked right on paper, but it made bulk updates about 6× slower. The filtered replacement is better on every measure, and I wouldn't have found it from reads alone.
 2. **Filtered indexes suit this workload.** Both are tiny and cut reads by 98–99%, because auditors and low-stock reports only want a small part of each table. The cost is a threshold fixed in the index.
-3. **One index didn't earn its place.** `IX_ShippingRates_Zone_Level` gave no measurable gain on a 60-row table.
+3. **One index didn't earn its place, so it was dropped.** `IX_ShippingRates_Zone_Level` gave no measurable gain on a 60-row table (`DropRedundantShippingRateIndex`).
 4. **The plan name isn't enough.** The `YEAR()` query was an "Index Seek" and still read more than twice as much.
 5. **Two of my predictions were wrong** (blocking and plan reuse), and both had server features behind them: Read Committed Snapshot and PSP. Running it mattered.
 6. **Safe wasn't enough for concurrency.** `rowversion` alone never oversold but rejected valid sales, and a bounded retry fixed that without giving up safety.
