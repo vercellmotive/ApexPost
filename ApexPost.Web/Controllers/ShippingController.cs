@@ -51,7 +51,7 @@ public sealed class ShippingController : Controller
         catch (DomainValidationException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
-            return View(model);
+            return this.BadRequestView(null, model);
         }
     }
 }

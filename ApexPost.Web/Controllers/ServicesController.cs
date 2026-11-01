@@ -129,7 +129,7 @@ public sealed class ServicesController : Controller, IRepopulatesForm
         {
             ModelState.AddModelError(string.Empty, exception.Message);
             await PopulateCountersAsync(model, ct);
-            return (View(model), null);
+            return (this.BadRequestView(null, model), null);
         }
         catch (UnauthorizedDomainActionException)
         {

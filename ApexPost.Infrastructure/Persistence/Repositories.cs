@@ -194,18 +194,28 @@ public static class StoredProcedureErrors
 
 public sealed class PriceRevisionCommand(ApexPostDbContext db) : IPriceRevisionCommand
 {
-    public Task<int> ReviseByCategoryAsync(string category, decimal percentChange, CancellationToken ct = default)
+    private const int CheckConstraintViolation = 547;
+
+    public async Task<int> ReviseByCategoryAsync(string category, decimal percentChange, CancellationToken ct = default)
     {
         var categoryId = ReferenceData.CategoryIds[category];
         var factor = 1m + (percentChange / 100m);
         var now = DateTime.UtcNow;
-        return db.Products
-            .Where(product => product.CategoryId == categoryId)
-            .ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(product => product.UnitPrice, product => Math.Round(product.UnitPrice * factor, 2))
-                    .SetProperty(product => EF.Property<DateTime?>(product, AuditColumns.ModifiedAtUtc), now),
-                ct);
+        try
+        {
+            return await db.Products
+                .Where(product => product.CategoryId == categoryId)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(product => product.UnitPrice, product => Math.Round(product.UnitPrice * factor, 2))
+                        .SetProperty(product => EF.Property<DateTime?>(product, AuditColumns.ModifiedAtUtc), now),
+                    ct);
+        }
+        catch (SqlException exception) when (exception.Number == CheckConstraintViolation)
+        {
+            // One statement, so nothing changed. A small price rounded to 0.00 and broke CK_Products_UnitPrice.
+            throw new DomainValidationException("That change would round at least one price to zero. Choose a smaller reduction.");
+        }
     }
 }
 

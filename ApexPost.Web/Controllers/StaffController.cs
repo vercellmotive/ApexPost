@@ -53,7 +53,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
         {
             ModelState.AddModelError(string.Empty, exception.Message);
             await PopulateBranchesAsync(model, ct);
-            return View("Form", model);
+            return this.BadRequestView("Form", model);
         }
     }
 
@@ -94,7 +94,7 @@ public sealed class StaffController : Controller, IRepopulatesForm
         {
             ModelState.AddModelError(string.Empty, exception.Message);
             await PopulateBranchesAsync(model, ct);
-            return View("Form", model);
+            return this.BadRequestView("Form", model);
         }
     }
 

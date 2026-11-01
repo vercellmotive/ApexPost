@@ -132,7 +132,7 @@ public class CounterController : Controller, IRepopulatesForm
         {
             ModelState.AddModelError(string.Empty, ex.Message);
             await PopulateCheckoutViewAsync(model, branchCode, ct);
-            return View("Index", model);
+            return this.BadRequestView("Index", model);
         }
         catch (UnauthorizedDomainActionException)
         {
