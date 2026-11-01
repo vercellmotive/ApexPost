@@ -4,4 +4,8 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Microsoft.Data.SqlClient asks for a vulnerable Pkcs 9.0.x package. The ASP.NET Core shared framework already ships a newer one, so the package is left out of the graph (ADR-32). -->
+    <PrunePackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.0" />
+  </ItemGroup>
 </Project>
