@@ -28,8 +28,7 @@ public sealed class IpRestrictionMiddleware
         var remoteIp = context.Connection.RemoteIpAddress;
         if (remoteIp is null || !allowedIps.Any(ip => IPAddress.TryParse(ip, out var parsed) && parsed.Equals(remoteIp)))
         {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await context.Response.WriteAsJsonAsync(new { error = "IP address is not allowed." });
+            await ProblemResponse.WriteAsync(context, StatusCodes.Status403Forbidden, "IP address is not allowed.");
             return;
         }
 

@@ -126,7 +126,7 @@ public static class ServiceRegistration
                     context.HttpContext.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
                 }
 
-                await context.HttpContext.Response.WriteAsync("Request rate limit exceeded.", cancellationToken);
+                await ProblemResponse.WriteAsync(context.HttpContext, StatusCodes.Status429TooManyRequests, "Request rate limit exceeded.");
             };
         });
         return services;

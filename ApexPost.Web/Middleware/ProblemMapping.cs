@@ -15,4 +15,15 @@ public static class ProblemMapping
         UnauthorizedDomainActionException => (StatusCodes.Status403Forbidden, "This action is not allowed.", null),
         _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", "The request could not be completed. Use the trace ID when contacting support.")
     };
+
+    // For a response that ended with only a status, such as a failed antiforgery check or a forbidden action.
+    public static string TitleFor(int status) => status switch
+    {
+        StatusCodes.Status400BadRequest => "The request could not be processed.",
+        StatusCodes.Status401Unauthorized => "Sign-in is required.",
+        StatusCodes.Status403Forbidden => "This action is not allowed.",
+        StatusCodes.Status404NotFound => "The record was not found.",
+        StatusCodes.Status405MethodNotAllowed => "This method is not allowed here.",
+        _ => "The request could not be completed."
+    };
 }

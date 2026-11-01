@@ -29,7 +29,7 @@ public sealed class PersistenceModelTests
 
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(
-            ["InitialCreate", "AddWorkloadIndexes", "AddStoredProcedures", "AddRemainingAuditColumns", "ReplaceLowStockIndexWithFiltered", "AddShipmentDestinationAddress", "StampCreatedByInAdjustStock"],
+            ["InitialCreate", "AddWorkloadIndexes", "AddStoredProcedures", "AddRemainingAuditColumns", "ReplaceLowStockIndexWithFiltered", "AddShipmentDestinationAddress", "StampCreatedByInAdjustStock", "AddShipmentDimensionsCheck", "ValidateChangedByInAdjustStock"],
             db.Database.GetMigrations().Select(id => id[(id.IndexOf('_') + 1)..]));
     }
 

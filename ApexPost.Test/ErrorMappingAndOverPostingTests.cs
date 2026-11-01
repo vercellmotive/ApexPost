@@ -4,6 +4,7 @@ using ApexPost.Application.Interfaces;
 using ApexPost.Application.Queries;
 using ApexPost.Domain.Common;
 using ApexPost.Domain.Enums;
+using ApexPost.Web.Configuration;
 using ApexPost.Web.Middleware;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -16,6 +17,7 @@ namespace ApexPost.Test;
 
 public sealed class ErrorMappingAndOverPostingTests : IClassFixture<ApexPostWebApplicationFactory>
 {
+    private const string AllowedPartnerIp = "127.0.0.25";
     private static int _clientNumber = 100;
     private readonly ApexPostWebApplicationFactory _factory;
 
@@ -255,6 +257,62 @@ public sealed class ErrorMappingAndOverPostingTests : IClassFixture<ApexPostWebA
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains($"\"status\":{(int)expected}", body);
         Assert.Contains("\"traceId\"", body);
+    }
+
+    [Fact]
+    public async Task ResponsesWithOnlyAStatus_BecomeProblemDetails()
+    {
+        var client = CreateClient(_factory);
+        await LoginAsync(client, "ben@apexpost.com", "Apex-Ben-2026!");
+        var token = await GetTokenAsync(client, "/Counter");
+        var form = new Dictionary<string, string> { ["TransactionId"] = Guid.NewGuid().ToString(), ["Reason"] = "Check" };
+
+        await AssertProblemAsync(await client.PostAsync("/Counter/Void", new FormUrlEncodedContent(form)), HttpStatusCode.BadRequest);
+        await AssertProblemAsync(await client.GetAsync("/No/Such/Page"), HttpStatusCode.NotFound);
+
+        form["__RequestVerificationToken"] = token;
+        await AssertProblemAsync(await client.PostAsync("/Counter/Void", new FormUrlEncodedContent(form)), HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task PartnerApiErrors_AreProblemDetails()
+    {
+        var client = CreateClient(_factory, AllowedPartnerIp);
+
+        await AssertProblemAsync(await client.GetAsync("/integration/parcel-status"), HttpStatusCode.Unauthorized);
+
+        client.DefaultRequestHeaders.Add("X-Api-Key", "wrong-key");
+        await AssertProblemAsync(await client.GetAsync("/integration/parcel-status"), HttpStatusCode.Unauthorized);
+
+        var blocked = CreateClient(_factory, "203.0.113.1");
+        await AssertProblemAsync(await blocked.GetAsync("/integration/parcel-status"), HttpStatusCode.Forbidden);
+    }
+
+    [Theory]
+    [InlineData("?trackingId=")]
+    [InlineData("?trackingId=%20")]
+    public async Task PartnerApi_RejectsABlankTrackingId(string query)
+    {
+        var client = CreateClient(_factory, AllowedPartnerIp);
+        client.DefaultRequestHeaders.Add("X-Api-Key", "test-integration-key");
+
+        await AssertProblemAsync(await client.GetAsync("/integration/parcel-status" + query), HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task MaintenanceMode_ReturnsProblemDetails()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/Catalog";
+        context.Response.Body = new MemoryStream();
+        var middleware = new MaintenanceModeMiddleware(
+            _ => Task.CompletedTask,
+            new TestOptionsMonitor<MaintenanceOptions>(new MaintenanceOptions { Enabled = true, RetryAfterSeconds = 120 }));
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
+        Assert.Equal("application/problem+json", context.Response.ContentType);
     }
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory, string? clientIp = null)

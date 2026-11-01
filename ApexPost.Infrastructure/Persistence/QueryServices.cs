@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ApexPost.Infrastructure.Persistence;
 
 // Query shapes live here so tests can capture their SQL with ToQueryString(); IQueryable stays inside Infrastructure.
-public static class QueryShapes
+internal static class QueryShapes
 {
     public static IQueryable<BranchRecord> TrackedBranch(ApexPostDbContext db, BranchCode code) =>
         db.Branches.Include(branch => branch.Counters).Where(branch => branch.Code == code);

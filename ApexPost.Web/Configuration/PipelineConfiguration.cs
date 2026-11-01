@@ -27,7 +27,11 @@ public static class PipelineConfiguration
             .AddSupportedCultures("en-AU")
             .AddSupportedUICultures("en-AU"));
         app.UseResponseCompression();
-        app.UseStatusCodePages();
+        app.UseStatusCodePages(context =>
+        {
+            var response = context.HttpContext.Response;
+            return ProblemResponse.WriteAsync(context.HttpContext, response.StatusCode, ProblemMapping.TitleFor(response.StatusCode));
+        });
         app.UseCookiePolicy();
         app.UseHttpsRedirection();
         app.UseStaticFiles();

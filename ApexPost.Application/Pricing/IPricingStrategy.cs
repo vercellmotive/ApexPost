@@ -39,6 +39,11 @@ public class TieredShippingPricingStrategy : IPricingStrategy
         var itemType = details.IsParcel ? "Parcel" : "Letter";
         if (details.Weight.Kilograms <= 0) throw new DomainValidationException($"{itemType} weight must be greater than zero.");
         if (details.Weight > maxWeight) throw new DomainValidationException($"{itemType} weight ({details.Weight.Kilograms} kg) exceeds limit of {maxWeight.Kilograms} kg for {details.ServiceLevel}.");
+        if (details.Dimensions.LengthCm < 0 || details.Dimensions.WidthCm < 0 || details.Dimensions.HeightCm < 0)
+        {
+            throw new DomainValidationException($"{itemType} dimensions can't be negative.");
+        }
+
         if (details.IsParcel
             && (details.Dimensions.LengthCm <= 0 || details.Dimensions.WidthCm <= 0 || details.Dimensions.HeightCm <= 0))
         {

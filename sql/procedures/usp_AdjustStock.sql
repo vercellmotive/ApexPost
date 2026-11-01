@@ -16,6 +16,8 @@ BEGIN
         THROW 50004, N'@Delta must be a non-zero quantity.', 1;
     IF @Reason IS NULL OR @Reason NOT IN ('Replenishment', 'Damage', 'CountCorrection', 'CustomerReturn')
         THROW 50005, N'@Reason is not a recognised adjustment reason.', 1;
+    IF NOT EXISTS (SELECT 1 FROM dbo.Staff WHERE Id = @ChangedBy)
+        THROW 50007, N'@ChangedBy is not a known staff member.', 1;
 
     DECLARE @Updated TABLE (QuantityOnHand int NOT NULL);
 

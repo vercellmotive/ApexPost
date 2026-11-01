@@ -359,7 +359,11 @@ internal sealed class ShipmentConfiguration : IEntityTypeConfiguration<ShipmentR
     public void Configure(EntityTypeBuilder<ShipmentRecord> builder)
     {
         builder.ToTable("Shipments", table =>
-            table.HasCheckConstraint("CK_Shipments_Weight", "[WeightKg] > 0 AND [WeightKg] <= 20"));
+        {
+            table.HasCheckConstraint("CK_Shipments_Weight", "[WeightKg] > 0 AND [WeightKg] <= 20");
+            // Not > 0: a letter's size is optional, and only a parcel must have one (the pricing rule checks that).
+            table.HasCheckConstraint("CK_Shipments_Dimensions", "[LengthCm] >= 0 AND [WidthCm] >= 0 AND [HeightCm] >= 0");
+        });
         builder.HasKey(shipment => shipment.Id);
         builder.Property(shipment => shipment.Id).ValueGeneratedNever();
         builder.Property(shipment => shipment.Weight).HasConversion(ValueConverters.Weight).HasColumnName("WeightKg").HasColumnType("decimal(9,3)");
