@@ -64,7 +64,7 @@ dotnet ef migrations script --idempotent --project ApexPost.Infrastructure --sta
 dotnet test ApexPost.slnx
 ```
 
-This runs 171 tests with no database and reports 23 as skipped. To run those too, point this at a server you control. The tests create and drop their own disposable database and never touch `ApexPostDb`:
+This runs 179 tests with no database and reports 25 as skipped. To run those too, point this at a server you control. The tests create and drop their own disposable database and never touch `ApexPostDb`:
 
 ```bash
 APEXPOST_TEST_SQLSERVER="Server=localhost;User Id=<user>;Password=<password>;TrustServerCertificate=True" dotnet test ApexPost.slnx
@@ -229,7 +229,7 @@ Run the app under a restricted login rather than `sa`. Create the login and its 
 
 | Path | Contents |
 |---|---|
-| `ApexPost.Infrastructure/Persistence/Migrations` | `InitialCreate`, `AddWorkloadIndexes`, `AddStoredProcedures`, `AddRemainingAuditColumns`, `ReplaceLowStockIndexWithFiltered`, `AddShipmentDestinationAddress`, `StampCreatedByInAdjustStock` |
+| `ApexPost.Infrastructure/Persistence/Migrations` | `InitialCreate`, `AddWorkloadIndexes`, `AddStoredProcedures`, `AddRemainingAuditColumns`, `ReplaceLowStockIndexWithFiltered`, `AddShipmentDestinationAddress`, `StampCreatedByInAdjustStock`, `AddShipmentDimensionsCheck`, `ValidateChangedByInAdjustStock` |
 | `sql/schema` | Generated idempotent schema script |
 | `sql/procedures` | Stored procedures, with `CREATE OR ALTER` |
 | `sql/reports` | Reporting queries |

@@ -1,6 +1,6 @@
 # Git history
 
-Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #12. It can't list the commit that updates it, so GitHub is the full record.
+Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #13. It can't list the commit that updates it, so GitHub is the full record.
 
 ## Pull requests
 
@@ -18,6 +18,7 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | [#10](https://github.com/vercellmotive/ApexPost/pull/10) | Close the gaps from grading against the brief | MERGED |
 | [#11](https://github.com/vercellmotive/ApexPost/pull/11) | Return Problem Details from action errors | MERGED |
 | [#12](https://github.com/vercellmotive/ApexPost/pull/12) | Make the README setup work from a clean unzip | MERGED |
+| [#13](https://github.com/vercellmotive/ApexPost/pull/13) | Close the remaining remarks from the brief | MERGED |
 
 ## Commits on `master` (merges left out)
 
@@ -54,6 +55,9 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | `bdf981c` | 2026-10-31 | fix: return Problem Details from void, refund, stock and admin errors |
 | `bafa304` | 2026-10-31 | docs: record the error boundary decision and update counts |
 | `c439882` | 2026-10-31 | docs: make the README setup work from a clean unzip |
+| `96d1c28` | 2026-10-31 | refactor: read basket stock in one query and move rules into the Domain |
+| `a137b4f` | 2026-10-31 | docs: reproduce the W2 estimate and measure procedure against LINQ |
+| `bc8fe0d` | 2026-10-31 | docs: strengthen ADR-27, add ADR-39 and update counts |
 
 ## Early commit messages
 

@@ -4,7 +4,7 @@
 
 SQL Server, reached through EF Core 10, is now the system of record, behind interfaces in the Application layer. ADRs that Week 3 replaced say so at the top.
 
-**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 194 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
+**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 204 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
 
 ### Layers and dependencies
 
@@ -209,6 +209,7 @@ The columns, types and keys above were generated from the migrated database. Dec
 | Quantities not negative, amounts positive | `CK_BranchStock_Quantity`, `CK_TransactionLines_Quantity`, `CK_MoneyOrders_Amount`, `CK_Products_UnitPrice` |
 | Allowed status and type values | `CK_CounterTransactions_Status`, `CK_TransactionLines_Type`, `CK_Payments_Kind` |
 | Weight limits | `CK_Shipments_Weight`, `CK_ShippingRates_MaxWeight` |
+| Sizes not negative | `CK_Shipments_Dimensions`. It allows 0 because a letter's size is optional; the pricing rule requires a parcel's to be above 0 |
 | Masked documents only | `varchar(10)` and `CK_IdentityVerifications_Masked` |
 | Counter belongs to the branch | Composite foreign key from `CounterTransactions` to `Counters` |
 
@@ -229,7 +230,7 @@ The columns, types and keys above were generated from the migrated database. Dec
 
 ### Stored procedures and least privilege
 
-`usp_DailyBranchSales`, `usp_LowStockReport` and `usp_AdjustStock` are in `sql/procedures` and deployed by the `AddStoredProcedures` migration. A later migration can replace a body, as `StampCreatedByInAdjustStock` does. The body an older migration needs stays in `sql/procedures/history`, because that migration runs before later columns exist. EF Core calls them only through parameterized `SqlQuery`. Tested with a restricted login and the test `LeastPrivilegeRole_CanRunTheAppButCannotDeleteOrChangeSchema`, the application login needs the `apexpost_app` role from `sql/security/least_privilege_role.sql`: `SELECT`, `INSERT` and `UPDATE` on `dbo`, `EXECUTE` on the three procedures, no `DELETE`, and no schema changes. It can only add to `AuditEntries`. Migrations run under a separate deployment login. A reporting tool can use `sql/security/reporting_role.sql` instead: `EXECUTE` on the two report procedures and no table access, tested by `ReportingRole_CanRunTheReportProceduresButCannotReadTablesOrChangeStock`.
+`usp_DailyBranchSales`, `usp_LowStockReport` and `usp_AdjustStock` are in `sql/procedures` and deployed by the `AddStoredProcedures` migration. A later migration can replace a body, as `StampCreatedByInAdjustStock` and `ValidateChangedByInAdjustStock` do. The body an older migration needs stays in `sql/procedures/history`, because that migration runs before later columns exist. EF Core calls them only through parameterized `SqlQuery`. Tested with a restricted login and the test `LeastPrivilegeRole_CanRunTheAppButCannotDeleteOrChangeSchema`, the application login needs the `apexpost_app` role from `sql/security/least_privilege_role.sql`: `SELECT`, `INSERT` and `UPDATE` on `dbo`, `EXECUTE` on the three procedures, no `DELETE`, and no schema changes. It can only add to `AuditEntries`. Migrations run under a separate deployment login. A reporting tool can use `sql/security/reporting_role.sql` instead: `EXECUTE` on the two report procedures and no table access, tested by `ReportingRole_CanRunTheReportProceduresButCannotReadTablesOrChangeStock`.
 
 ### Deviations to review
 
@@ -238,6 +239,8 @@ The columns, types and keys above were generated from the migrated database. Dec
 - **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database also exist, and run when `APEXPOST_TEST_SQLSERVER` is set.
 - **Zero-value payments:** `CK_Payments_Amount` is `>= 0`, not `> 0`. An identity check is free, so a basket holding only that check records a payment of 0. Requiring more than zero would reject those sales.
 - **Week 2 test file:** `DomainRulesTests.cs` is identical to the Week 2 commit `3065b8e`, so `dotnet format` reports one whitespace issue in it. Leaving it is what proves the file is unchanged.
+- **Week 2 service tests:** the business-rule file is unchanged, but the other Week 2 test files had to follow the new persistence contracts, and 7 Week 2 test names no longer exist. Tests that checked stock was restored after a failed save, such as `LaterReservationFailure_RestoresEarlierReservations`, became checks that a failed sale never commits (`FailedBusinessValidation_NeverCommitsAndLeavesStockUnchanged`), because nothing is written until the single commit. Others were renamed or widened, such as `VoidRestocksRetailStockExactlyOnce` to `VoidRestocksRetailStock` and `RefundRestocksInOneCommitAndCannotRepeat`, and `ConcurrentCreatesDoNotAssignDuplicateIdsOrEmails` gave way to `CreateCommitsOnceAndAssignsADistinctId` and the database's unique-email test.
+- **Staff email:** `UQ_Staff_Email` is a unique index, not a `UNIQUE` constraint like `BranchCode` and `Sku`. It enforces the same rule, and EF Core won't let an alternate key change, which would stop a manager correcting an email.
 - **Blocking demo tool:** the demo ran in `sqlcmd` sessions on a Mac, where SSMS isn't available. The SSMS run the brief asks for **is still to be done**, and README has the steps. Blocking happens on the server, so the waits should be the same.
 - **Seed loading:** seed files in `ApexPost.Infrastructure/Data` are JSON, read once by `DatabaseSeeder`. They aren't a persistence store.
 - **Not implemented:** the offline synchronization topics in the lab list aren't in this assignment's requirements.
@@ -297,7 +300,7 @@ The pipeline order is deliberate:
 8. `MaintenanceModeMiddleware` returns 503 and `Retry-After`, except for `/health`.
 9. `UseRequestLocalization` sets the supported `en-AU` culture.
 10. `UseResponseCompression` compresses eligible responses (not HTTPS responses by default).
-11. `UseStatusCodePages` supplies bodies for otherwise-empty HTTP error statuses.
+11. `UseStatusCodePages` writes Problem Details for otherwise-empty HTTP error statuses, such as a forbidden action or a failed antiforgery check.
 12. `UseCookiePolicy` applies secure, HttpOnly, strict-same-site cookie requirements.
 13. `UseHttpsRedirection` runs before static content can be served over HTTP.
 14. `UseStaticFiles` serves local CSS/JavaScript without authentication or MVC work.
@@ -796,7 +799,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Alternatives:** Build Problem Details in each controller (repeats the mapping and loses the trace ID); show a friendly page for every error (doesn't meet the brief's mapping).
 
-**Consequences:** One boundary formats these errors, and tests now assert the real responses. The audit filter reads the status from the exception, so audit rows stay correct. A manager who voids a sale twice sees a Problem Details response rather than a friendly message. The explicit `BranchManagerOnly` checks still return a plain 403, which isn't in the brief's mapping.
+**Consequences:** One boundary formats these errors, and tests now assert the real responses. The audit filter reads the status from the exception, so audit rows stay correct. A manager who voids a sale twice sees a Problem Details response rather than a friendly message. `ProblemResponse` writes every error body, including the ones with no exception behind them: a forbidden action or failed antiforgery check through `UseStatusCodePages`, and API key, IP, maintenance and rate-limit rejections from their own middleware. A partner that read the old `{"error": ...}` field now reads `title`.
 
 ### ADR-39: Keep what the unchanged Week 2 tests need in the Domain
 
@@ -838,7 +841,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 ## Validation
 
-`ApexPost.Test` has 194 tests, and all 194 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 171 run and 23 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
+`ApexPost.Test` has 204 tests, and all 204 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 179 run and 25 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
 
 | Layer | Needs a database | What it covers |
 |---|---|---|
