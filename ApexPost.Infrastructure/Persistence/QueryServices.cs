@@ -17,8 +17,8 @@ public static class QueryShapes
     public static IQueryable<ProductRecord> TrackedProduct(ApexPostDbContext db, Sku sku) =>
         db.Products.Include(product => product.Category).Where(product => product.Sku == sku);
 
-    public static IQueryable<BranchStock> TrackedStock(ApexPostDbContext db, BranchCode branchCode, Sku sku) =>
-        db.BranchStock.Where(stock => stock.BranchCode == branchCode && stock.ProductSku == sku);
+    public static IQueryable<BranchStock> TrackedStock(ApexPostDbContext db, BranchCode branchCode, IReadOnlyCollection<Sku> skus) =>
+        db.BranchStock.Where(stock => stock.BranchCode == branchCode && skus.Contains(stock.ProductSku));
 
     // Split queries stop the one-to-many lines and payments from multiplying rows.
     public static IQueryable<CounterTransactionRecord> TrackedTransaction(ApexPostDbContext db, Guid id) =>

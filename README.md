@@ -64,7 +64,7 @@ dotnet ef migrations script --idempotent --project ApexPost.Infrastructure --sta
 dotnet test ApexPost.slnx
 ```
 
-This runs 164 tests with no database and reports 20 as skipped. To run those too, point this at a server you control. The tests create and drop their own disposable database and never touch `ApexPostDb`:
+This runs 171 tests with no database and reports 23 as skipped. To run those too, point this at a server you control. The tests create and drop their own disposable database and never touch `ApexPostDb`:
 
 ```bash
 APEXPOST_TEST_SQLSERVER="Server=localhost;User Id=<user>;Password=<password>;TrustServerCertificate=True" dotnet test ApexPost.slnx
@@ -219,6 +219,8 @@ The evidence in `PERFORMANCE.md` was captured with `sqlcmd`. To repeat it in SSM
 3. In a third window, run the `sys.dm_exec_requests` query from step 3 of the first script, and take a screenshot.
 4. Run `ROLLBACK TRANSACTION` in the first window. The second window then finishes.
 
+Save the screenshot as `docs/screenshots/14-ssms-blocking.png`, and add it to the blocking section of `PERFORMANCE.md`. In `sqlcmd`, these scripts need `-I`, because the filtered index on `BranchStock` requires `QUOTED_IDENTIFIER ON`. SSMS turns it on by default.
+
 ## Least-privilege login
 
 Run the app under a restricted login rather than `sa`. Create the login and its password outside source control, apply migrations with a deployment login, run `sql/security/least_privilege_role.sql`, then add the user to the `apexpost_app` role. The app has been tested this way.
@@ -233,7 +235,7 @@ Run the app under a restricted login rather than `sa`. Create the login and its 
 | `sql/reports` | Reporting queries |
 | `sql/transactions` | Atomic sale in T-SQL, and the two-session blocking demo |
 | `sql/performance` | Volume generator and evidence scripts for `PERFORMANCE.md` |
-| `sql/security` | Least-privilege role |
+| `sql/security` | Least-privilege application role, and a reporting role with no table access |
 
 ## Seed data
 

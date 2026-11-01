@@ -84,8 +84,8 @@ public sealed class ProductRepository(ApexPostDbContext db) : IProductRepository
 
 public sealed class StockRepository(ApexPostDbContext db) : IStockRepository
 {
-    public Task<BranchStock?> GetAsync(BranchCode branchCode, Sku sku, CancellationToken ct = default) =>
-        QueryShapes.TrackedStock(db, branchCode, sku).FirstOrDefaultAsync(ct);
+    public async Task<IReadOnlyList<BranchStock>> GetManyAsync(BranchCode branchCode, IReadOnlyCollection<Sku> skus, CancellationToken ct = default) =>
+        await QueryShapes.TrackedStock(db, branchCode, skus).ToListAsync(ct);
 
     public void Add(BranchStock stock) => db.BranchStock.Add(stock);
 }

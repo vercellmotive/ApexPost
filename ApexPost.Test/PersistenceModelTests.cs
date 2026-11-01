@@ -166,7 +166,7 @@ public sealed class PersistenceModelTests
 
         Assert.Contains("[Counters]", QueryShapes.TrackedBranch(db, branch).ToQueryString());
         Assert.Contains("[ProductCategories]", QueryShapes.TrackedProduct(db, sku).ToQueryString());
-        Assert.Contains("[RowVersion]", QueryShapes.TrackedStock(db, branch, sku).ToQueryString());
+        Assert.Contains("[RowVersion]", QueryShapes.TrackedStock(db, branch, [sku]).ToQueryString());
         Assert.Contains("[CounterTransactions]", QueryShapes.TrackedTransaction(db, Guid.NewGuid()).ToQueryString());
         Assert.Contains("[IsActive]", QueryShapes.DashboardBranches(db, null).ToQueryString());
         Assert.Contains("[BranchCode]", QueryShapes.BranchTransactionCount(db, "B001").ToQueryString());

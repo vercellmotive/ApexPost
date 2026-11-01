@@ -101,7 +101,7 @@ public class SimulatedCourierRateService : ICourierRateService
             _gate.Release();
         }
 
-        return _pricing.CalculateShippingPrice(details, zone.Multiplier);
+        return _pricing.CalculateShippingPrice(details, zone.UsableMultiplier());
     }
 }
 

@@ -474,16 +474,17 @@ public sealed class TransactionService
         branch.EnsureAcceptsTransaction(DateTimeOffset.UtcNow);
         branch.EnsureHasCounter(transaction.CounterId);
 
+        // One query for the whole basket, however many lines it has.
+        var stocks = (await _stocks.GetManyAsync(transaction.BranchCode, requestedItems.Select(item => item.Sku).ToList(), ct))
+            .ToDictionary(stock => stock.ProductSku);
+
         foreach (var requestedItem in requestedItems)
         {
             var product = await _catalogue.GetProductBySkuAsync(requestedItem.Sku, ct)
                 ?? throw new KeyNotFoundException($"Product {requestedItem.Sku.Value} was not found.");
-            if (!ProductCategories.IsSupported(product.Category))
-            {
-                throw new DomainValidationException($"Product {product.Id.Value} has an unsupported category.");
-            }
+            product.EnsureSellable();
 
-            var stock = await _stocks.GetAsync(transaction.BranchCode, requestedItem.Sku, ct)
+            var stock = stocks.GetValueOrDefault(requestedItem.Sku)
                 ?? throw new DomainValidationException($"Product {requestedItem.Sku.Value} is not stocked at this branch.");
             stock.ReduceStock(requestedItem.Quantity);
             transaction.AddRetailProduct(product, requestedItem.Quantity);

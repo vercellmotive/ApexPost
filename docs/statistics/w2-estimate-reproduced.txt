@@ -1,0 +1,14 @@
+W2 on the date 2025-09-15, on a copy of the 200,237-transaction demo database.
+
+True rows and index pages for the date:
+RowsOnDate|IndexPages
+----------|----------
+274|5
+
+UPDATE STATISTICS dbo.CounterTransactions _WA_Sys_00000007_7F2BE32F WITH SAMPLE 63000 ROWS;
+Histogram step (RANGE_HI_KEY|RANGE_ROWS|EQ_ROWS|DISTINCT_RANGE_ROWS|AVG_RANGE_ROWS):
+2025-09-15|839.11969|1.0|4|209.36452
+W2 seek: Index Seek [IX_CounterTransactions_Branch_Date], estimated 1, actual 68
+
+UPDATE STATISTICS dbo.CounterTransactions _WA_Sys_00000007_7F2BE32F WITH FULLSCAN;
+W2 seek: Index Seek [IX_CounterTransactions_Branch_Date], estimated 134.079, actual 68

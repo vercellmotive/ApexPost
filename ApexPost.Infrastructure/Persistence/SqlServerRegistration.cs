@@ -27,7 +27,10 @@ public static class SqlServerRegistration
                 CoreEventId.QueryIterationFailed,
                 CoreEventId.SaveChangesFailed,
                 CoreEventId.OptimisticConcurrencyException,
-                RelationalEventId.CommandError));
+                RelationalEventId.CommandError,
+                // A shipment with no destination has all five address columns NULL, and EF Core then loads no
+                // Address. That is the intended meaning, and tests prove it in both directions (see DESIGN.md).
+                RelationalEventId.OptionalDependentWithoutIdentifyingPropertyWarning));
         });
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -55,6 +58,8 @@ public sealed class ApexPostDesignTimeFactory : IDesignTimeDbContextFactory<Apex
     {
         var connectionString = Environment.GetEnvironmentVariable("APEXPOST_DESIGN_CONNECTION")
             ?? "Server=localhost;Database=ApexPostDb;Integrated Security=true;TrustServerCertificate=true";
-        return new ApexPostDbContext(new DbContextOptionsBuilder<ApexPostDbContext>().UseSqlServer(connectionString).Options);
+        return new ApexPostDbContext(new DbContextOptionsBuilder<ApexPostDbContext>().UseSqlServer(connectionString)
+            .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.OptionalDependentWithoutIdentifyingPropertyWarning))
+            .Options);
     }
 }

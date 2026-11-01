@@ -223,38 +223,8 @@ public sealed partial class ProductManagementService
         return revised;
     }
 
-    private static Product Build(string sku, ProductRecordInput input)
-    {
-        if (string.IsNullOrWhiteSpace(input.Name))
-        {
-            throw new DomainValidationException("A product name is required.");
-        }
-
-        if (!ProductCategories.IsSupported(input.Category))
-        {
-            throw new DomainValidationException("Select a valid product category.");
-        }
-
-        if (input.UnitPrice <= 0)
-        {
-            throw new DomainValidationException("The unit price must be greater than zero.");
-        }
-
-        if (!Enum.IsDefined(input.TaxCategory))
-        {
-            throw new DomainValidationException("Select a valid tax category.");
-        }
-
-        return new Product
-        {
-            Id = new Sku(sku),
-            Name = input.Name.Trim(),
-            Category = ProductCategories.All.First(category =>
-                category.Equals(input.Category, StringComparison.OrdinalIgnoreCase)),
-            UnitPrice = new Money(input.UnitPrice),
-            TaxCategory = input.TaxCategory
-        };
-    }
+    private static Product Build(string sku, ProductRecordInput input) =>
+        Product.Create(new Sku(sku), input.Name, input.Category, input.UnitPrice, input.TaxCategory);
 
     [GeneratedRegex("^[A-Z0-9][A-Z0-9-]{2,19}$")]
     private static partial Regex SkuFormat();

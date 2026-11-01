@@ -123,4 +123,40 @@ public class DomainBehaviourTests
 
         Assert.Throws<DomainValidationException>(() => transaction.AddRetailProduct(NewProduct(), 1));
     }
+
+    [Fact]
+    public void Product_Create_NormalisesItsInput()
+    {
+        var product = Product.Create(new Sku("SKU-001"), "  Tape  ", "packaging", 2.50m, TaxCategory.StandardGst);
+
+        Assert.Equal("Tape", product.Name);
+        Assert.Equal(ProductCategories.Packaging, product.Category);
+        Assert.Equal(new Money(2.50m), product.UnitPrice);
+    }
+
+    [Theory]
+    [InlineData(" ", "Packaging", 1, TaxCategory.StandardGst)]
+    [InlineData("Tape", "Unknown", 1, TaxCategory.StandardGst)]
+    [InlineData("Tape", "Packaging", 0, TaxCategory.StandardGst)]
+    [InlineData("Tape", "Packaging", 1, (TaxCategory)99)]
+    public void Product_Create_RejectsInvalidInput(string name, string category, int price, TaxCategory tax)
+    {
+        Assert.Throws<DomainValidationException>(() => Product.Create(new Sku("SKU-001"), name, category, price, tax));
+    }
+
+    [Fact]
+    public void Product_WithAnUnsupportedCategory_CannotBeSold()
+    {
+        var product = new Product { Id = new Sku("SKU-001"), Name = "Old", Category = "Retired", UnitPrice = new Money(1m), TaxCategory = TaxCategory.Exempt };
+
+        Assert.Throws<DomainValidationException>(product.EnsureSellable);
+        Product.Create(new Sku("SKU-002"), "Tape", ProductCategories.Packaging, 1m, TaxCategory.Exempt).EnsureSellable();
+    }
+
+    [Fact]
+    public void ShippingZone_OnlyOffersAPositiveMultiplier()
+    {
+        Assert.Equal(1.5m, new ShippingZone { Id = "Zone 5", Name = "Zone 5", Multiplier = 1.5m }.UsableMultiplier());
+        Assert.Throws<DomainValidationException>(() => new ShippingZone { Id = "Zone 0", Name = "Zone 0", Multiplier = 0m }.UsableMultiplier());
+    }
 }

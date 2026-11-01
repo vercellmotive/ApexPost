@@ -218,13 +218,13 @@ Rows stored per date in the statistic, where the true figure is 273 to 285:
 
 The W2 estimate follows that statistic. For the same query and date, it was 13 on one generated data set and 119 on another. Across 365 dates on one more sampled statistic, it ranged from 7.5 to 411. After `FULLSCAN` it stayed between 135 and 139.
 
-**What I didn't prove:** I never reproduced the exact 1 for W2, because the data set behind the saved plan no longer exists. The lowest W2 estimate I measured was 7.5. A later sampled build did store just 1 row for one date, so the cause fits, but it's an inference for that saved plan.
+**Reproduced:** the data set behind the saved plan no longer exists, so I recreated the state on a copy of the same demo data. With `WITH SAMPLE 63000 ROWS`, the date `2025-09-15`, which truly has 274 rows on 5 index pages, is stored with `EQ_ROWS` of 1. W2 then estimates **1 row against 68 actual**, on the same index seek as the saved plan. A `FULLSCAN` takes the same query to 134. The date differs from the saved plan's, because a sample picks different pages each time it's sized differently, but the estimate, the plan and the cause are the same. I tried 20 sample sizes before stopping at this one. It was the only one that reached 1, and the next lowest date estimate was 5.6, so an estimate this low is rare but real.
 
 **A second, smaller error:** even `FULLSCAN` overestimates, at about 135 against 71. Without the `Status` filter, SQL Server uses the index's branch-and-date density and estimates 69. With it, the numbers match separate estimates for each filter, combined with exponential backoff: date, then the square root of branch, then the fourth root of status. That comes to about 135. Backoff assumes the filters overlap, but here they're close to independent: 274 rows × 25% for the branch × 95% for `Paid` is about 65.
 
-**Decision:** no change to the application or the migrations. W2 used the same index seek at each estimate where I checked the plan: 1 in the saved plan, then 13, 119, 136 and 414. So I found no sign that the error changes the plan, though I didn't check the shape at all 365 dates. If it ever did, I'd update this statistic with `FULLSCAN` on a schedule rather than add an index. I also left the volume generator alone, so the saved plans still describe how they were captured.
+**Decision:** no change to the application or the migrations. W2 used the same index seek at each estimate where I checked the plan: 1 in the saved plan and again when reproduced, then 13, 119, 134, 136 and 414. So I found no sign that the error changes the plan, though I didn't check the shape at all 365 dates. If it ever did, I'd update this statistic with `FULLSCAN` on a schedule rather than add an index. I also left the volume generator alone, so the saved plans still describe how they were captured.
 
-Script: [`05_w2_estimate_investigation.sql`](sql/performance/05_w2_estimate_investigation.sql). Output: [`w2-estimate-investigation.txt`](docs/statistics/w2-estimate-investigation.txt).
+Script: [`05_w2_estimate_investigation.sql`](sql/performance/05_w2_estimate_investigation.sql). Output: [`w2-estimate-investigation.txt`](docs/statistics/w2-estimate-investigation.txt) and [`w2-estimate-reproduced.txt`](docs/statistics/w2-estimate-reproduced.txt). Plans: [`estimate of 1`](docs/plans/M3-w2-sampled-estimate-one.sqlplan), [`after FULLSCAN`](docs/plans/M3-w2-fullscan-same-date.sqlplan).
 
 ## Choosing OPTION (RECOMPILE)
 
@@ -237,9 +237,22 @@ Script: [`05_w2_estimate_investigation.sql`](sql/performance/05_w2_estimate_inve
 | `OPTIMIZE FOR UNKNOWN` | One average plan that suits neither case, and it couldn't match the filtered index. |
 | Dynamic SQL | Workable with `sp_executesql`, but harder to read and easy to get wrong. |
 
+## Procedure versus LINQ for the low-stock report
+
+The same report, at a threshold of 5, on a copy of the 62,186-row stock table. Reads are from `STATISTICS IO`.
+
+| Scope | LINQ (`QueryShapes.LowStock`) | `usp_LowStockReport` |
+|---|---:|---:|
+| One branch | 208 reads, seek plus lookups | 86 reads, filtered index |
+| Every branch | 1,032 reads, clustered scan | 25 reads, filtered index |
+
+EF Core sends the threshold as a parameter, and a filtered index can't match a parameter unless the statement recompiles. LINQ can't add `OPTION (RECOMPILE)` without a custom command interceptor. The all-branch figure of 25 is higher than the 15 quoted above. It was measured later on a different copy of the data, with the same 1,939 rows at or below the threshold, and I didn't investigate the difference.
+
+The dashboard keeps the LINQ query. It's a busier page, and that choice avoids a compile on every load in exchange for these extra reads. I haven't measured the compile cost, so this is a judgement rather than a measured result.
+
 ## Blocking demonstration
 
-Two real `sqlcmd` sessions, using `sql/transactions/blocking_session_1_writer.sql` and `blocking_session_2_reader.sql`, while session 1 held an uncommitted update to one stock row.
+Two real `sqlcmd` sessions on a Mac, where SSMS isn't available, using `sql/transactions/blocking_session_1_writer.sql` and `blocking_session_2_reader.sql`, while session 1 held an uncommitted update to one stock row.
 
 **My first prediction was wrong.** I expected default `READ COMMITTED` to block, and it didn't: EF Core turned on `READ_COMMITTED_SNAPSHOT` when it created the database (`is_read_committed_snapshot_on = 1`).
 
@@ -256,6 +269,8 @@ While blocked, `sys.dm_exec_requests` showed:
 | 52 | 51 | `LCK_M_S` | `SELECT` |
 
 **What this means for the app:** report and screen reads don't wait for clerks' sales, and they never see uncommitted stock. Snapshot versions use `tempdb`, which is the cost of that benefit. Writers still block each other, which is why `rowversion` handles sales.
+
+**The tool doesn't change the result.** Blocking happens on the server, so SSMS would show the same waits, but the brief asks for SSMS and that run is still to be done (see the README). I re-ran these scripts on the current schema and saw the same `LCK_M_S` wait. Run through `sqlcmd`, the scripts need `-I`: without it, the update fails with Msg 1934, because a filtered index needs `QUOTED_IDENTIFIER ON`. SSMS turns that on by default.
 
 ## Concurrency: selling the last units
 
@@ -324,6 +339,8 @@ Counted from `Microsoft.EntityFrameworkCore.Database.Command` logs in Developmen
 | `/` (dashboard) | counts and alerts | 4 |
 
 The command count stays the same however many rows are shown.
+
+Writes follow the same rule. A sale reads all of its basket's stock in one query, however many products it holds, and `Mvc_SaleOfSeveralProducts_ReadsStockInOneQuery` proves this with a three-product sale. Products come from the catalogue cache.
 
 ## Conclusions
 
