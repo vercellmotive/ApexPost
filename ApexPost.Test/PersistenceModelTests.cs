@@ -34,6 +34,20 @@ public sealed class PersistenceModelTests
     }
 
     [Fact]
+    public void BranchCodeAndSku_AreUniqueConstraints_AndStaffEmailIsAUniqueIndex()
+    {
+        using var db = CreateContext();
+
+        Assert.Contains(db.Model.FindEntityType(typeof(BranchRecord))!.GetKeys(), key => key.GetName() == "UQ_Branches_BranchCode");
+        Assert.Contains(db.Model.FindEntityType(typeof(ProductRecord))!.GetKeys(), key => key.GetName() == "UQ_Products_Sku");
+
+        // Email is an index rather than a key, because EF Core makes a key value read-only once it is saved.
+        var staff = db.Model.FindEntityType(typeof(Staff))!;
+        Assert.Contains(staff.GetIndexes(), index => index.IsUnique && index.GetDatabaseName() == "UQ_Staff_Email");
+        Assert.DoesNotContain(staff.GetKeys(), key => key.Properties.Any(property => property.Name == nameof(Staff.Email)));
+    }
+
+    [Fact]
     public void EveryNameColumn_IsUnicode()
     {
         using var db = CreateContext();

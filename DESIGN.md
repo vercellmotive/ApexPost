@@ -4,7 +4,7 @@
 
 SQL Server, reached through EF Core 10, is now the system of record, behind interfaces in the Application layer. ADRs that Week 3 replaced say so at the top.
 
-**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 207 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
+**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 209 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
 
 ### Layers and dependencies
 
@@ -239,7 +239,7 @@ The columns, types and keys above were generated from the migrated database. Dec
 - **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database also exist, and run when `APEXPOST_TEST_SQLSERVER` is set.
 - **Week 2 test file:** `DomainRulesTests.cs` is identical to the Week 2 commit `3065b8e`, so `dotnet format` reports one whitespace issue in it. Leaving it is what proves the file is unchanged.
 - **Week 2 service tests:** the business-rule file is unchanged, but the other Week 2 test files had to follow the new persistence contracts, and 7 Week 2 test names no longer exist. Tests that checked stock was restored after a failed save, such as `LaterReservationFailure_RestoresEarlierReservations`, became checks that a failed sale never commits (`FailedBusinessValidation_NeverCommitsAndLeavesStockUnchanged`), because nothing is written until the single commit. Others were renamed or widened, such as `VoidRestocksRetailStockExactlyOnce` to `VoidRestocksRetailStock` and `RefundRestocksInOneCommitAndCannotRepeat`, and `ConcurrentCreatesDoNotAssignDuplicateIdsOrEmails` gave way to `CreateCommitsOnceAndAssignsADistinctId` and the database's unique-email test.
-- **Staff email:** `UQ_Staff_Email` is a unique index, not a `UNIQUE` constraint like `BranchCode` and `Sku`. It enforces the same rule, and EF Core won't let an alternate key change, which would stop a manager correcting an email.
+- **Staff email:** `UQ_Staff_Email` is a unique index, not a `UNIQUE` constraint like `BranchCode` and `Sku`. I tried an alternate key and EF Core's model validation refused it ("The property 'Staff.Email' must be marked as read-only after it has been saved because it is part of a key"), which would stop a manager correcting an email. The index enforces the same rule; a clash is error 2601 instead of 2627, and `UnitOfWork` maps both to a 409. Only a hand-written constraint in a migration could change this, and it would leave the model and the database disagreeing about the kind of object, so I left it. `UniqueValues_AreEnforced_AndAStaffEmailCanStillBeCorrected` pins the behaviour.
 - **Blocking demo tool:** the demo ran in `sqlcmd` sessions on a Mac, where SSMS isn't available. The SSMS run the brief asks for **is still to be done**, and README has the steps. Blocking happens on the server, so the waits should be the same.
 - **Seed loading:** seed files in `ApexPost.Infrastructure/Data` are JSON, read once by `DatabaseSeeder`. They aren't a persistence store.
 - **Not implemented:** the offline synchronization topics in the lab list aren't in this assignment's requirements.
@@ -252,7 +252,7 @@ The generated `Up` and `Down` of every migration are read as C# and as SQL (`sql
 |---|---|
 | Apply all 11 migrations to an empty database | Succeeds |
 | Roll back to zero (`dotnet ef database update 0`) | Leaves 0 tables, 0 procedures and 0 history rows |
-| Apply all 11 again, then compare `sql/schema/schema_fingerprint.sql` with the first run | Identical hash of 309 facts: columns, indexes, checks, defaults, foreign keys with their delete actions, procedure text and reference data. Defaults are compared by table and column, because SQL Server gives each one an unrelated generated name |
+| Apply all 11 again, then compare `sql/schema/schema_fingerprint.sql` with the first run | Identical hash of 309 facts: columns, indexes (and whether a unique one is a constraint), checks, defaults, foreign keys with their delete actions, procedure text and reference data. Defaults are compared by table and column, because SQL Server gives each one an unrelated generated name |
 | Step back one migration, add a zero-value payment, go forward | `TightenPaymentAndRoleColumns` removes the row and applies the new check |
 | `Model_HasNoChangesMissingFromMigrations` and the idempotent-script tests | Run on every build, so a model change without a migration fails a test |
 
@@ -868,7 +868,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 ## Validation
 
-`ApexPost.Test` has 207 tests, and all 207 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 180 run and 27 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
+`ApexPost.Test` has 209 tests, and all 209 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 181 run and 28 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
 
 | Layer | Needs a database | What it covers |
 |---|---|---|

@@ -1,6 +1,6 @@
 # Git history
 
-Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #14. It can't list the commit that updates it, so GitHub is the full record.
+Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #15. It can't list the commit that updates it, so GitHub is the full record.
 
 ## Pull requests
 
@@ -20,6 +20,7 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | [#12](https://github.com/vercellmotive/ApexPost/pull/12) | Make the README setup work from a clean unzip | MERGED |
 | [#13](https://github.com/vercellmotive/ApexPost/pull/13) | Close the remaining remarks from the brief | MERGED |
 | [#14](https://github.com/vercellmotive/ApexPost/pull/14) | Close the last gaps from the score card | MERGED |
+| [#15](https://github.com/vercellmotive/ApexPost/pull/15) | Close the remaining code gaps from re-checking the brief | MERGED |
 
 ## Commits on `master` (merges left out)
 
@@ -63,6 +64,10 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | `be638e4` | 2026-11-01 | fix: return Problem Details from every error response |
 | `22a9990` | 2026-11-01 | refactor: make QueryShapes internal |
 | `36164a6` | 2026-11-01 | docs: record the staff email and Week 2 test deviations and update counts |
+| `44443d8` | 2026-11-01 | build: prune the vulnerable Pkcs package instead of referencing a patched one |
+| `1af8f10` | 2026-11-01 | fix: answer 400 when a form is shown again, and reject a price change that rounds to zero |
+| `61d4a84` | 2026-11-01 | feat: require positive payments, unicode role names, and drop a redundant index |
+| `8da478b` | 2026-11-01 | docs: measure the stock history index |
 
 ## Early commit messages
 

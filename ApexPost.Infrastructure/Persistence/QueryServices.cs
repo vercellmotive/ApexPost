@@ -11,17 +11,17 @@ namespace ApexPost.Infrastructure.Persistence;
 // Query shapes live here so tests can capture their SQL with ToQueryString(); IQueryable stays inside Infrastructure.
 internal static class QueryShapes
 {
-    public static IQueryable<BranchRecord> TrackedBranch(ApexPostDbContext db, BranchCode code) =>
+    internal static IQueryable<BranchRecord> TrackedBranch(ApexPostDbContext db, BranchCode code) =>
         db.Branches.Include(branch => branch.Counters).Where(branch => branch.Code == code);
 
-    public static IQueryable<ProductRecord> TrackedProduct(ApexPostDbContext db, Sku sku) =>
+    internal static IQueryable<ProductRecord> TrackedProduct(ApexPostDbContext db, Sku sku) =>
         db.Products.Include(product => product.Category).Where(product => product.Sku == sku);
 
-    public static IQueryable<BranchStock> TrackedStock(ApexPostDbContext db, BranchCode branchCode, IReadOnlyCollection<Sku> skus) =>
+    internal static IQueryable<BranchStock> TrackedStock(ApexPostDbContext db, BranchCode branchCode, IReadOnlyCollection<Sku> skus) =>
         db.BranchStock.Where(stock => stock.BranchCode == branchCode && skus.Contains(stock.ProductSku));
 
     // Split queries stop the one-to-many lines and payments from multiplying rows.
-    public static IQueryable<CounterTransactionRecord> TrackedTransaction(ApexPostDbContext db, Guid id) =>
+    internal static IQueryable<CounterTransactionRecord> TrackedTransaction(ApexPostDbContext db, Guid id) =>
         db.CounterTransactions
             .Include(transaction => transaction.Payments)
             .Include(transaction => transaction.Lines).ThenInclude(line => line.Shipment!).ThenInclude(shipment => shipment.Rate)
@@ -30,7 +30,7 @@ internal static class QueryShapes
             .AsSplitQuery()
             .Where(transaction => transaction.Id == id);
 
-    public static IQueryable<DashboardBranchShape> DashboardBranches(ApexPostDbContext db, string? branchCode)
+    internal static IQueryable<DashboardBranchShape> DashboardBranches(ApexPostDbContext db, string? branchCode)
     {
         var code = new BranchCode(branchCode ?? string.Empty);
         return db.Branches.AsNoTracking()
@@ -39,13 +39,13 @@ internal static class QueryShapes
             .Select(branch => new DashboardBranchShape(branch.Code, branch.IsActive));
     }
 
-    public static IQueryable<CounterTransactionRecord> BranchTransactionCount(ApexPostDbContext db, string? branchCode)
+    internal static IQueryable<CounterTransactionRecord> BranchTransactionCount(ApexPostDbContext db, string? branchCode)
     {
         var code = new BranchCode(branchCode ?? string.Empty);
         return db.CounterTransactions.Where(transaction => branchCode == null || transaction.BranchCode == code);
     }
 
-    public static IQueryable<LowStockShape> LowStock(ApexPostDbContext db, string? branchCode, int threshold)
+    internal static IQueryable<LowStockShape> LowStock(ApexPostDbContext db, string? branchCode, int threshold)
     {
         var code = new BranchCode(branchCode ?? string.Empty);
         return from stock in db.BranchStock.AsNoTracking()
@@ -55,7 +55,7 @@ internal static class QueryShapes
                select new LowStockShape(stock.BranchCode, stock.ProductSku, product.Name, stock.QuantityOnHand);
     }
 
-    public static IQueryable<ShippingVolumeShape> ShippingVolume(ApexPostDbContext db, string? branchCode)
+    internal static IQueryable<ShippingVolumeShape> ShippingVolume(ApexPostDbContext db, string? branchCode)
     {
         var code = new BranchCode(branchCode ?? string.Empty);
         return from shipment in db.Shipments.AsNoTracking()
@@ -68,7 +68,7 @@ internal static class QueryShapes
                select new ShippingVolumeShape(grouped.Key.ZoneId, grouped.Key.ServiceLevel, grouped.Sum(line => line.Quantity));
     }
 
-    public static IQueryable<LineTypeCountShape> MoneyOrderAudit(ApexPostDbContext db, string? branchCode)
+    internal static IQueryable<LineTypeCountShape> MoneyOrderAudit(ApexPostDbContext db, string? branchCode)
     {
         var code = new BranchCode(branchCode ?? string.Empty);
         return from line in db.TransactionLines.AsNoTracking()
@@ -79,7 +79,7 @@ internal static class QueryShapes
                select new LineTypeCountShape(grouped.Key.BranchCode, grouped.Key.LineType, grouped.Count());
     }
 
-    public static IQueryable<TransactionShape> BranchTransactions(ApexPostDbContext db, string branchCode, int take)
+    internal static IQueryable<TransactionShape> BranchTransactions(ApexPostDbContext db, string branchCode, int take)
     {
         var code = new BranchCode(branchCode);
         return db.CounterTransactions.AsNoTracking()
@@ -98,7 +98,7 @@ internal static class QueryShapes
                 transaction.VoidReason));
     }
 
-    public static IQueryable<CatalogueShape> BranchCatalogue(ApexPostDbContext db, string branchCode)
+    internal static IQueryable<CatalogueShape> BranchCatalogue(ApexPostDbContext db, string branchCode)
     {
         var code = new BranchCode(branchCode);
         return db.Products.AsNoTracking()
@@ -113,7 +113,7 @@ internal static class QueryShapes
                     .FirstOrDefault() ?? 0));
     }
 
-    public static IQueryable<DateOnly> LatestSalesDate(ApexPostDbContext db, string? branchCode)
+    internal static IQueryable<DateOnly> LatestSalesDate(ApexPostDbContext db, string? branchCode)
     {
         var code = new BranchCode(branchCode ?? string.Empty);
         return db.CounterTransactions.AsNoTracking()
@@ -122,7 +122,7 @@ internal static class QueryShapes
             .Select(transaction => transaction.BusinessDate);
     }
 
-    public static IQueryable<ProductShape> Products(ApexPostDbContext db, string? sku)
+    internal static IQueryable<ProductShape> Products(ApexPostDbContext db, string? sku)
     {
         var key = new Sku(sku ?? string.Empty);
         return db.Products.AsNoTracking()
@@ -131,7 +131,7 @@ internal static class QueryShapes
             .Select(product => new ProductShape(product.Sku, product.Name, product.Category!.Name, product.UnitPrice, product.TaxCategory));
     }
 
-    public static IQueryable<BranchShape> Branches(ApexPostDbContext db, string? code)
+    internal static IQueryable<BranchShape> Branches(ApexPostDbContext db, string? code)
     {
         var key = new BranchCode(code ?? string.Empty);
         return db.Branches.AsNoTracking()
@@ -148,7 +148,7 @@ internal static class QueryShapes
                 branch.Counters.OrderBy(counter => counter.TerminalCode).Select(counter => counter.TerminalCode).ToList()));
     }
 
-    public static IQueryable<StaffShape> Staff(ApexPostDbContext db, string? id) =>
+    internal static IQueryable<StaffShape> Staff(ApexPostDbContext db, string? id) =>
         db.Staff.AsNoTracking()
             .Where(staff => id == null || staff.Id == id)
             .OrderBy(staff => staff.HomeBranchCode)
