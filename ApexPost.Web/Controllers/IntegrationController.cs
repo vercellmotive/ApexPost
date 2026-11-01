@@ -28,6 +28,11 @@ public class IntegrationController : ControllerBase
         string trackingId = "APX-2025-001",
         CancellationToken ct = default)
     {
+        if (Request.Query.TryGetValue("trackingId", out var supplied) && string.IsNullOrWhiteSpace(supplied))
+        {
+            return Problem(title: "The tracking ID can't be blank.", statusCode: StatusCodes.Status400BadRequest);
+        }
+
         try
         {
             var status = await _tracking.GetStatusAsync(trackingId, ct);

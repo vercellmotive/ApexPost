@@ -25,8 +25,7 @@ public sealed class ApiKeyAuthenticationMiddleware
 
         if (!_apiKeyValidator.HasConfiguredKeys)
         {
-            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-            await context.Response.WriteAsJsonAsync(new { error = "Integration API key is not configured." });
+            await ProblemResponse.WriteAsync(context, StatusCodes.Status500InternalServerError, "Integration API key is not configured.");
             return;
         }
 
@@ -36,8 +35,10 @@ public sealed class ApiKeyAuthenticationMiddleware
         var partnerId = _apiKeyValidator.FindPartnerId(providedKey);
         if (partnerId is null)
         {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsJsonAsync(new { error = string.IsNullOrWhiteSpace(providedKey) ? "API key is required." : "Invalid API key." });
+            await ProblemResponse.WriteAsync(
+                context,
+                StatusCodes.Status401Unauthorized,
+                string.IsNullOrWhiteSpace(providedKey) ? "API key is required." : "Invalid API key.");
             return;
         }
 

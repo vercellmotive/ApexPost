@@ -1,6 +1,3 @@
-using System.Text.Json;
-using Microsoft.AspNetCore.Mvc;
-
 namespace ApexPost.Web.Middleware;
 
 public sealed class GlobalExceptionMiddleware
@@ -46,16 +43,7 @@ public sealed class GlobalExceptionMiddleware
             }
 
             context.Response.Clear();
-            context.Response.StatusCode = status;
-            var problem = new ProblemDetails
-            {
-                Status = status,
-                Title = title,
-                Detail = detail
-            };
-            problem.Extensions["traceId"] = context.Items["CorrelationId"] as string ?? context.TraceIdentifier;
-            context.Response.ContentType = "application/problem+json";
-            await JsonSerializer.SerializeAsync(context.Response.Body, problem, cancellationToken: context.RequestAborted);
+            await ProblemResponse.WriteAsync(context, status, title, detail);
         }
     }
 }
