@@ -10,7 +10,6 @@ namespace ApexPost.Infrastructure.Persistence;
 public static class IndexNames
 {
     public const string StockAdjustmentHistory = "IX_StockAdjustments_Branch_Sku_Time";
-    public const string RateByZoneAndLevel = "IX_ShippingRates_Zone_Level";
     public const string TransactionByBranchAndDate = "IX_CounterTransactions_Branch_Date";
     public const string ShipmentByRate = "IX_Shipments_Rate";
     public const string HighValueMoneyOrder = "IX_MoneyOrders_HighValue";
@@ -73,7 +72,6 @@ public sealed class StockAdjustmentRecord
     public DateTime ChangedAtUtc { get; set; }
 }
 
-[Index(nameof(ZoneId), nameof(ServiceLevel), Name = IndexNames.RateByZoneAndLevel)]
 public sealed class ShippingRateRecord
 {
     public int Id { get; set; }

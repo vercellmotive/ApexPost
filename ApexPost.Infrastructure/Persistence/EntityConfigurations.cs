@@ -102,7 +102,7 @@ internal sealed class RoleConfiguration : IEntityTypeConfiguration<RoleRecord>
         builder.ToTable("Roles");
         builder.HasKey(role => role.Id);
         builder.Property(role => role.Id).HasConversion<int>().ValueGeneratedNever();
-        builder.Property(role => role.Name).HasColumnType("varchar(30)").IsRequired();
+        builder.Property(role => role.Name).HasColumnType("nvarchar(30)").IsRequired();
         builder.HasIndex(role => role.Name).IsUnique();
         builder.HasData(Enum.GetValues<StaffRole>().Select(role => new RoleRecord { Id = role, Name = role.ToString() }));
         AuditColumns.AddTo(builder);
@@ -437,7 +437,7 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<PaymentRec
     {
         builder.ToTable("Payments", table =>
         {
-            table.HasCheckConstraint("CK_Payments_Amount", "[Amount] >= 0");
+            table.HasCheckConstraint("CK_Payments_Amount", "[Amount] > 0");
             table.HasCheckConstraint("CK_Payments_Kind", "[Kind] IN ('Sale','Void','Refund')");
             table.HasCheckConstraint("CK_Payments_Method", "[Method] IN ('Cash','Card','EFTPOS')");
         });

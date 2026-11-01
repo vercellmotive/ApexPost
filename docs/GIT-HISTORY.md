@@ -1,6 +1,6 @@
 # Git history
 
-Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #13. It can't list the commit that updates it, so GitHub is the full record.
+Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`, so this snapshot shows how the work was done, up to PR #14. It can't list the commit that updates it, so GitHub is the full record.
 
 ## Pull requests
 
@@ -19,6 +19,7 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | [#11](https://github.com/vercellmotive/ApexPost/pull/11) | Return Problem Details from action errors | MERGED |
 | [#12](https://github.com/vercellmotive/ApexPost/pull/12) | Make the README setup work from a clean unzip | MERGED |
 | [#13](https://github.com/vercellmotive/ApexPost/pull/13) | Close the remaining remarks from the brief | MERGED |
+| [#14](https://github.com/vercellmotive/ApexPost/pull/14) | Close the last gaps from the score card | MERGED |
 
 ## Commits on `master` (merges left out)
 
@@ -58,6 +59,10 @@ Repository: <https://github.com/vercellmotive/ApexPost>. A zip leaves out `.git`
 | `96d1c28` | 2026-10-31 | refactor: read basket stock in one query and move rules into the Domain |
 | `a137b4f` | 2026-10-31 | docs: reproduce the W2 estimate and measure procedure against LINQ |
 | `bc8fe0d` | 2026-10-31 | docs: strengthen ADR-27, add ADR-39 and update counts |
+| `7ed05d4` | 2026-11-01 | fix: reject negative shipment sizes and unknown staff on stock changes |
+| `be638e4` | 2026-11-01 | fix: return Problem Details from every error response |
+| `22a9990` | 2026-11-01 | refactor: make QueryShapes internal |
+| `36164a6` | 2026-11-01 | docs: record the staff email and Week 2 test deviations and update counts |
 
 ## Early commit messages
 

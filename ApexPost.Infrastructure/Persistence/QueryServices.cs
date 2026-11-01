@@ -280,7 +280,7 @@ public sealed class ScreenQueries(ApexPostDbContext db) : IScreenQueries
                 row.ClerkStaffId,
                 row.LineCount,
                 row.GrandTotal,
-                row.PaymentMethod ?? "Pending",
+                row.PaymentMethod ?? (row.Status == TransactionStatus.Open ? "Pending" : "No charge"),
                 row.Status,
                 row.VoidReason))
             .ToList();

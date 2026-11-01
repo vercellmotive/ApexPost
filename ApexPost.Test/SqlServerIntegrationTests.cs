@@ -429,6 +429,49 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
     }
 
     [SqlServerFact]
+    public async Task PriceRevision_ThatRoundsAPriceToZero_IsRejectedAndChangesNothing()
+    {
+        await using var db = database.CreateContext();
+        var before = await db.Products.AsNoTracking().OrderBy(product => product.Id).Select(product => product.UnitPrice).ToListAsync();
+
+        await Assert.ThrowsAsync<DomainValidationException>(() =>
+            new PriceRevisionCommand(db).ReviseByCategoryAsync(ProductCategories.OfficeSupplies, -99.99m));
+
+        Assert.Equal(before, await db.Products.AsNoTracking().OrderBy(product => product.Id).Select(product => product.UnitPrice).ToListAsync());
+    }
+
+    [SqlServerFact]
+    public async Task FreeIdentityCheck_RecordsNoPayment_AndAZeroPaymentIsRejected()
+    {
+        var id = Guid.NewGuid();
+        await using (var db = database.CreateContext())
+        {
+            var transaction = new Transaction { Id = id, BranchCode = B001, CounterId = "C01", ClerkStaffId = "STF002", BusinessDate = new DateOnly(2026, 10, 2) };
+            transaction.AddIdentityVerification(IdVerificationDetails.FromDocumentNumber(DocumentType.Passport, "PA1234567", true));
+            transaction.Complete("Cash", new Money(1000m));
+            new CounterTransactionRepository(db).Add(transaction);
+            await new UnitOfWork(db).SaveChangesAsync();
+        }
+
+        await using (var db = database.CreateContext())
+        {
+            Assert.Equal(0, await db.Payments.CountAsync(payment => payment.TransactionId == id));
+            var restored = await new CounterTransactionRepository(db).GetByIdAsync(id);
+            Assert.Equal(TransactionStatus.Paid, restored!.Status);
+
+            restored.Void((await new StaffRepository(db).GetByIdAsync("STF001"))!, "Test void");
+            new CounterTransactionRepository(db).Update(restored);
+            await new UnitOfWork(db).SaveChangesAsync();
+            Assert.Equal(0, await db.Payments.CountAsync(payment => payment.TransactionId == id));
+            Assert.Equal(TransactionStatus.Voided, (await db.CounterTransactions.AsNoTracking().SingleAsync(row => row.Id == id)).Status);
+
+            var failure = await Assert.ThrowsAsync<SqlException>(() => db.Database.ExecuteSqlAsync(
+                $"INSERT INTO dbo.Payments (Id, TransactionId, Kind, Method, Amount) VALUES ({Guid.NewGuid()}, {id}, {"Sale"}, {"Cash"}, {0m})"));
+            Assert.Contains("CK_Payments_Amount", failure.Message);
+        }
+    }
+
+    [SqlServerFact]
     public async Task ScreenQueries_DoNotIssueOneQueryPerRow()
     {
         var counter = new CommandCounter();
