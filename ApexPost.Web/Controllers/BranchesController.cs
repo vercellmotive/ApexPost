@@ -49,7 +49,7 @@ public sealed class BranchesController : Controller, IRepopulatesForm
         catch (DomainValidationException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
-            return View("Form", model);
+            return this.BadRequestView("Form", model);
         }
     }
 
@@ -92,7 +92,7 @@ public sealed class BranchesController : Controller, IRepopulatesForm
         catch (DomainValidationException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
-            return View("Form", model);
+            return this.BadRequestView("Form", model);
         }
     }
 

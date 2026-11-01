@@ -29,8 +29,22 @@ public sealed class PersistenceModelTests
 
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(
-            ["InitialCreate", "AddWorkloadIndexes", "AddStoredProcedures", "AddRemainingAuditColumns", "ReplaceLowStockIndexWithFiltered", "AddShipmentDestinationAddress", "StampCreatedByInAdjustStock", "AddShipmentDimensionsCheck", "ValidateChangedByInAdjustStock"],
+            ["InitialCreate", "AddWorkloadIndexes", "AddStoredProcedures", "AddRemainingAuditColumns", "ReplaceLowStockIndexWithFiltered", "AddShipmentDestinationAddress", "StampCreatedByInAdjustStock", "AddShipmentDimensionsCheck", "ValidateChangedByInAdjustStock", "TightenPaymentAndRoleColumns", "DropRedundantShippingRateIndex"],
             db.Database.GetMigrations().Select(id => id[(id.IndexOf('_') + 1)..]));
+    }
+
+    [Fact]
+    public void EveryNameColumn_IsUnicode()
+    {
+        using var db = CreateContext();
+
+        var nameColumns = db.Model.GetEntityTypes()
+            .SelectMany(entity => entity.GetProperties())
+            .Where(property => property.Name == "Name" && property.ClrType == typeof(string))
+            .ToList();
+
+        Assert.NotEmpty(nameColumns);
+        Assert.All(nameColumns, property => Assert.StartsWith("nvarchar", property.GetColumnType()));
     }
 
     [Theory]

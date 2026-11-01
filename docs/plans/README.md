@@ -4,7 +4,8 @@ Actual execution plans captured from SQL Server 2022, as described in `PERFORMAN
 
 | Prefix | Contents |
 |---|---|
-| `W1`–`W4` | The four workloads, before and after their indexes |
+| `W1`–`W4` | The four workloads, before and after their indexes. `W3 after` was captured while `IX_ShippingRates_Zone_Level` existed; that index was dropped later and the reads are unchanged |
+| `W5` | The stock history lookup, before and after its index |
 | `P1`–`P3` | Stored procedures |
 | `S1` | The non-SARGable predicate and its fix |
 | `M1`, `M2` | Estimated versus actual rows, with Parameter Sensitive Plan optimization on and off |

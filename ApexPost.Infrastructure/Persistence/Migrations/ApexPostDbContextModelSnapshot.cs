@@ -616,7 +616,7 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Payments", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Payments_Amount", "[Amount] >= 0");
+                            t.HasCheckConstraint("CK_Payments_Amount", "[Amount] > 0");
 
                             t.HasCheckConstraint("CK_Payments_Kind", "[Kind] IN ('Sale','Void','Refund')");
 
@@ -746,7 +746,7 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("varchar(30)");
+                        .HasColumnType("nvarchar(30)");
 
                     b.HasKey("Id");
 
@@ -865,8 +865,6 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
                     b.HasIndex("ZoneId", "IsParcel", "ServiceLevel")
                         .IsUnique()
                         .HasDatabaseName("UQ_ShippingRates_Zone_Type_Level");
-
-                    b.HasIndex(new[] { "ZoneId", "ServiceLevel" }, "IX_ShippingRates_Zone_Level");
 
                     b.ToTable("ShippingRates", null, t =>
                         {

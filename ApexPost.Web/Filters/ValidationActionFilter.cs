@@ -28,6 +28,6 @@ public sealed class ValidationActionFilter : IAsyncActionFilter
             await form.RepopulateFormAsync(model, context.HttpContext.RequestAborted);
         }
 
-        context.Result = controller.View(redisplay.ViewName, model);
+        context.Result = controller.BadRequestView(redisplay.ViewName, model);
     }
 }

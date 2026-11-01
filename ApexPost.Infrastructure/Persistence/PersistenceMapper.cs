@@ -82,9 +82,10 @@ public static class PersistenceMapper
             line.LineNumber = number;
         }
 
-        if (transaction.Status != TransactionStatus.Open)
+        // A sale that took no money, such as a free identity check, records no payment (CK_Payments_Amount needs > 0).
+        if (transaction.Status != TransactionStatus.Open && transaction.GrandTotal.Amount > 0)
         {
-            // Every completed sale has its sale payment, including history that is already reversed.
+            // Every other completed sale has its sale payment, including history that is already reversed.
             record.Payments.Add(CreatePayment(transaction, PaymentKinds.Sale, transaction.PaymentMethod));
         }
 
@@ -107,7 +108,7 @@ public static class PersistenceMapper
             TransactionStatus.Refunded => PaymentKinds.Refund,
             _ => null
         };
-        if (kind is not null && record.Payments.All(payment => payment.Kind != kind))
+        if (kind is not null && transaction.GrandTotal.Amount > 0 && record.Payments.All(payment => payment.Kind != kind))
         {
             record.Payments.Add(CreatePayment(transaction, kind, record.Payments.FirstOrDefault()?.Method ?? transaction.PaymentMethod));
         }

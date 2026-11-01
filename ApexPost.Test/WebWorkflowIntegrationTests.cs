@@ -242,7 +242,7 @@ public sealed class WebWorkflowIntegrationTests : IClassFixture<ApexPostWebAppli
             ["__RequestVerificationToken"] = token
         }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("The Sender field is required.", html);
         Assert.Matches("<option[^>]*value=\"C[0-9]+\"", html);

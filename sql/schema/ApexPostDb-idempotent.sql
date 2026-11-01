@@ -1368,3 +1368,77 @@ END;
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261101095606_TightenPaymentAndRoleColumns'
+)
+BEGIN
+    DELETE FROM [Payments] WHERE [Amount] = 0;
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261101095606_TightenPaymentAndRoleColumns'
+)
+BEGIN
+    ALTER TABLE [Payments] DROP CONSTRAINT [CK_Payments_Amount];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261101095606_TightenPaymentAndRoleColumns'
+)
+BEGIN
+    DROP INDEX [IX_Roles_Name] ON [Roles];
+    DECLARE @var nvarchar(max);
+    SELECT @var = QUOTENAME([d].[name])
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Roles]') AND [c].[name] = N'Name');
+    IF @var IS NOT NULL EXEC(N'ALTER TABLE [Roles] DROP CONSTRAINT ' + @var + ';');
+    ALTER TABLE [Roles] ALTER COLUMN [Name] nvarchar(30) NOT NULL;
+    CREATE UNIQUE INDEX [IX_Roles_Name] ON [Roles] ([Name]);
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261101095606_TightenPaymentAndRoleColumns'
+)
+BEGIN
+    EXEC(N'ALTER TABLE [Payments] ADD CONSTRAINT [CK_Payments_Amount] CHECK ([Amount] > 0)');
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261101095606_TightenPaymentAndRoleColumns'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261101095606_TightenPaymentAndRoleColumns', N'10.0.14');
+END;
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261101100529_DropRedundantShippingRateIndex'
+)
+BEGIN
+    DROP INDEX [IX_ShippingRates_Zone_Level] ON [ShippingRates];
+END;
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20261101100529_DropRedundantShippingRateIndex'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261101100529_DropRedundantShippingRateIndex', N'10.0.14');
+END;
+
+COMMIT;
+GO
+

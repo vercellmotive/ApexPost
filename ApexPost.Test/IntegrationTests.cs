@@ -291,7 +291,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
                 new KeyValuePair<string, string>("__RequestVerificationToken", counterToken.Groups[1].Success ? counterToken.Groups[1].Value : counterToken.Groups[2].Value)
             }));
 
-        Assert.Equal(HttpStatusCode.OK, failure.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, failure.StatusCode);
         Assert.Contains("requires successful identity verification", await failure.Content.ReadAsStringAsync());
         Assert.Equal(stockBefore, _factory.Database.StockOf("B001", "SKU-001"));
     }
@@ -329,7 +329,7 @@ public class IntegrationTests : IClassFixture<ApexPostWebApplicationFactory>
             new KeyValuePair<string, string>("__RequestVerificationToken", token.Groups[1].Success ? token.Groups[1].Value : token.Groups[2].Value)
         }));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("A staff member with this email already exists.", await response.Content.ReadAsStringAsync());
     }
 

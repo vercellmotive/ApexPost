@@ -1,0 +1,35 @@
+300000 150
+A: history index disabled
+   CPU time = 0 ms,  elapsed time = 0 ms.
+SQL Server parse and compile time:
+   CPU time = 6 ms, elapsed time = 6 ms.
+Table 'StockAdjustments'. Scan count 1, logical reads 4188
+   CPU time = 145 ms,  elapsed time = 148 ms.
+SQL Server parse and compile time:
+   CPU time = 10 ms, elapsed time = 15 ms.
+Table 'StockAdjustments'. Scan count 1, logical reads 4188
+   CPU time = 96 ms,  elapsed time = 96 ms.
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 0 ms,  elapsed time = 0 ms.
+insert of 100000 rows without the index, run 1: 1815 ms
+insert of 100000 rows without the index, run 2: 1850 ms
+insert of 100000 rows without the index, run 3: 1842 ms
+B: history index rebuilt
+   CPU time = 1 ms,  elapsed time = 0 ms.
+SQL Server parse and compile time:
+   CPU time = 224 ms, elapsed time = 229 ms.
+Table 'StockAdjustments'. Scan count 1, logical reads 165
+   CPU time = 9 ms,  elapsed time = 9 ms.
+SQL Server parse and compile time:
+   CPU time = 4 ms, elapsed time = 4 ms.
+Table 'StockAdjustments'. Scan count 1, logical reads 165
+   CPU time = 2 ms,  elapsed time = 2 ms.
+   CPU time = 0 ms,  elapsed time = 0 ms.
+   CPU time = 0 ms,  elapsed time = 0 ms.
+insert of 100000 rows with the index, run 1: 2498 ms
+insert of 100000 rows with the index, run 2: 2559 ms
+insert of 100000 rows with the index, run 3: 2600 ms
+IX_StockAdjustments_Branch_Sku_Time 28656 300000
+IX_StockAdjustments_ChangedBy 34040 300000
+IX_StockAdjustments_Sku 35288 300000
+PK_StockAdjustments 99080 300000

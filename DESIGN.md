@@ -4,7 +4,7 @@
 
 SQL Server, reached through EF Core 10, is now the system of record, behind interfaces in the Application layer. ADRs that Week 3 replaced say so at the top.
 
-**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 204 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
+**Evidence status:** this has run on SQL Server 2022 Developer in a local Docker container. All migrations applied, the idempotent script ran twice cleanly, all 207 tests pass against the real server, the app ran under the least-privilege login, and `PERFORMANCE.md` holds measured results. It also had a five-minute load test and a forced deadlock.
 
 ### Layers and dependencies
 
@@ -23,7 +23,7 @@ flowchart TB
     Infra --> Db
 ```
 
-Commands go through services, repositories and the unit of work. Reads go through `IDashboardQueries`, `IReportQueries` and `IScreenQueries`, which use `AsNoTracking` projections or stored procedures and return DTOs. Both sides use the same database; no separate read store exists. The DbContext, repositories, unit of work and services are all scoped, so they share one DbContext per request.
+Commands go through services, repositories and the unit of work. Reads go through `IDashboardQueries`, `IReportQueries` and `IScreenQueries`, which use `AsNoTracking` projections or stored procedures and return DTOs. No separate databases are required: both sides use the same database, and no separate read store exists. The DbContext, repositories, unit of work and services are all scoped, so they share one DbContext per request.
 
 ### ER diagram
 
@@ -134,7 +134,7 @@ erDiagram
     }
     Roles {
         int Id PK
-        varchar(30) Name UK
+        nvarchar(30) Name UK
     }
     Shipments {
         uniqueidentifier Id PK
@@ -206,7 +206,7 @@ The columns, types and keys above were generated from the migrated database. Dec
 | Rule | Where it is enforced |
 |---|---|
 | Unique `BranchCode`, `Sku`, staff email | `UQ_Branches_BranchCode`, `UQ_Products_Sku`, `UQ_Staff_Email` |
-| Quantities not negative, amounts positive | `CK_BranchStock_Quantity`, `CK_TransactionLines_Quantity`, `CK_MoneyOrders_Amount`, `CK_Products_UnitPrice` |
+| Quantities not negative, amounts positive | `CK_BranchStock_Quantity`, `CK_TransactionLines_Quantity`, `CK_MoneyOrders_Amount`, `CK_Products_UnitPrice`, `CK_Payments_Amount` |
 | Allowed status and type values | `CK_CounterTransactions_Status`, `CK_TransactionLines_Type`, `CK_Payments_Kind` |
 | Weight limits | `CK_Shipments_Weight`, `CK_ShippingRates_MaxWeight` |
 | Sizes not negative | `CK_Shipments_Dimensions`. It allows 0 because a letter's size is optional; the pricing rule requires a parcel's to be above 0 |
@@ -235,15 +235,40 @@ The columns, types and keys above were generated from the migrated database. Dec
 ### Deviations to review
 
 - **Index style:** `[Index]` can't express `INCLUDE` or filters and can't be placed on Domain classes, so some indexes combine it with Fluent, and `BranchStock` uses Fluent alone (ADR-26).
-- **Security pin:** `System.Security.Cryptography.Pkcs` isn't on the allowed list. It's pinned to fix a vulnerable version that SqlClient brings in. **This needs trainer approval** (ADR-32). `Microsoft.NET.Test.Sdk` and `xunit.runner.visualstudio` aren't listed either: `dotnet test` needs them to find and run xUnit tests, so they're included in that request.
+- **Test packages:** `Microsoft.NET.Test.Sdk` and `xunit.runner.visualstudio` aren't on the allowed list, but `dotnet test` needs them to find and run xUnit tests. **They need trainer approval.** The earlier direct reference to `System.Security.Cryptography.Pkcs` is gone: the build prunes the vulnerable package instead (ADR-32), so no other unlisted package remains.
 - **Test doubles:** MVC tests that run without a database use in-memory fakes, which is not a second database. The assignment's WebApplicationFactory tests against a test database also exist, and run when `APEXPOST_TEST_SQLSERVER` is set.
-- **Zero-value payments:** `CK_Payments_Amount` is `>= 0`, not `> 0`. An identity check is free, so a basket holding only that check records a payment of 0. Requiring more than zero would reject those sales.
 - **Week 2 test file:** `DomainRulesTests.cs` is identical to the Week 2 commit `3065b8e`, so `dotnet format` reports one whitespace issue in it. Leaving it is what proves the file is unchanged.
 - **Week 2 service tests:** the business-rule file is unchanged, but the other Week 2 test files had to follow the new persistence contracts, and 7 Week 2 test names no longer exist. Tests that checked stock was restored after a failed save, such as `LaterReservationFailure_RestoresEarlierReservations`, became checks that a failed sale never commits (`FailedBusinessValidation_NeverCommitsAndLeavesStockUnchanged`), because nothing is written until the single commit. Others were renamed or widened, such as `VoidRestocksRetailStockExactlyOnce` to `VoidRestocksRetailStock` and `RefundRestocksInOneCommitAndCannotRepeat`, and `ConcurrentCreatesDoNotAssignDuplicateIdsOrEmails` gave way to `CreateCommitsOnceAndAssignsADistinctId` and the database's unique-email test.
 - **Staff email:** `UQ_Staff_Email` is a unique index, not a `UNIQUE` constraint like `BranchCode` and `Sku`. It enforces the same rule, and EF Core won't let an alternate key change, which would stop a manager correcting an email.
 - **Blocking demo tool:** the demo ran in `sqlcmd` sessions on a Mac, where SSMS isn't available. The SSMS run the brief asks for **is still to be done**, and README has the steps. Blocking happens on the server, so the waits should be the same.
 - **Seed loading:** seed files in `ApexPost.Infrastructure/Data` are JSON, read once by `DatabaseSeeder`. They aren't a persistence store.
 - **Not implemented:** the offline synchronization topics in the lab list aren't in this assignment's requirements.
+
+### Migration review
+
+The generated `Up` and `Down` of every migration are read as C# and as SQL (`sql/schema/ApexPostDb-idempotent.sql`) before it is applied, and the whole chain is then exercised on an empty database:
+
+| Check | Result |
+|---|---|
+| Apply all 11 migrations to an empty database | Succeeds |
+| Roll back to zero (`dotnet ef database update 0`) | Leaves 0 tables, 0 procedures and 0 history rows |
+| Apply all 11 again, then compare `sql/schema/schema_fingerprint.sql` with the first run | Identical hash of 309 facts: columns, indexes, checks, defaults, foreign keys with their delete actions, procedure text and reference data. Defaults are compared by table and column, because SQL Server gives each one an unrelated generated name |
+| Step back one migration, add a zero-value payment, go forward | `TightenPaymentAndRoleColumns` removes the row and applies the new check |
+| `Model_HasNoChangesMissingFromMigrations` and the idempotent-script tests | Run on every build, so a model change without a migration fails a test |
+
+| Migration | What it does | What the review found |
+|---|---|---|
+| `InitialCreate` | Creates the 17 tables with keys, checks, defaults and rowversion | Deletes are restrictive except for parts of a transaction (ADR-25) |
+| `AddWorkloadIndexes` | Replaces two single-column foreign key indexes and adds the composite, covering and filtered workload indexes | Each index traces to a measurement in `PERFORMANCE.md` |
+| `AddStoredProcedures` | Creates the three procedures from `/sql` | Procedure files are read when the migration runs, and the current `usp_AdjustStock` needs a column that doesn't exist yet, so this migration reads the frozen `history/usp_AdjustStock_v1.sql` |
+| `AddRemainingAuditColumns` | Adds the audit columns that some tables lacked | Existing rows receive the defaults, so nothing is nullable by accident |
+| `ReplaceLowStockIndexWithFiltered` | Swaps the low-stock index for a filtered one | The first design slowed bulk stock updates about 6 times (ADR-35) |
+| `AddShipmentDestinationAddress` | Adds five nullable address columns | Nullable so older shipments stay valid |
+| `StampCreatedByInAdjustStock` | Replaces `usp_AdjustStock` so history rows record who made them | Body-only change; `Down` restores the frozen v1 body |
+| `AddShipmentDimensionsCheck` | Adds `CK_Shipments_Dimensions` | `>= 0`, because a letter's size is optional |
+| `ValidateChangedByInAdjustStock` | Replaces `usp_AdjustStock` so an unknown staff id is a clear error | Body-only change; `Down` restores the frozen v2 body |
+| `TightenPaymentAndRoleColumns` | `Roles.Name` becomes `nvarchar`; `CK_Payments_Amount` requires more than zero | The provider drops and recreates `IX_Roles_Name` around the column change. Old zero-value payments are deleted first, and `Down` can't bring them back |
+| `DropRedundantShippingRateIndex` | Drops `IX_ShippingRates_Zone_Level` | W3 showed 2 reads with and without it, because `UQ_ShippingRates_Zone_Type_Level` already leads on the zone; `Down` recreates it |
 
 ## Architecture
 
@@ -357,9 +382,11 @@ Audit and performance filters are globally registered through DI. The audit filt
 - **Persistence:** all data is in SQL Server. Seed files in `ApexPost.Infrastructure/Data` are read once by `DatabaseSeeder` on an empty database, in one explicit transaction, and are not a store. The schema is only ever created by migrations.
 - **Sales:** one `SaveChangesAsync` commits the stock decrement, transaction, lines and payment. `CheckoutAsync` re-runs on a `rowversion` conflict, up to 5 attempts with a short random delay, on fresh data, and the last conflict returns a 409.
 - **Voids and refunds:** the status change, payment row and restock commit together.
+- **Free sales:** a basket that takes no money, such as a standalone identity check, is a paid transaction with no payment row, which lets `CK_Payments_Amount` require more than zero. The transaction list shows its payment as "No charge".
 - **Stock adjustments:** these run through `usp_AdjustStock`, which writes `StockAdjustments` history in the same transaction. Only active branch managers may adjust stock, and each change needs an enumerated reason.
-- **Price revisions:** `ExecuteUpdateAsync` updates a whole category in one statement, then the catalogue cache is cleared.
+- **Price revisions:** `ExecuteUpdateAsync` updates a whole category in one statement, then the catalogue cache is cleared. A change that would round a price to 0.00 breaks `CK_Products_UnitPrice`, so the statement is rejected as a 400 and nothing changes.
 - **Reads:** screens and reports use `AsNoTracking` projections or procedures that return DTOs. A DbContext can't run overlapping operations, so reads in one request run in sequence.
+- **Input mapping:** each POST binds to an input model that holds only editable fields (`TransactionFormViewModel`, `StaffFormViewModel`, `BranchFormViewModel` and the others). The controller maps it explicitly to an application command (`CounterCheckoutRequest`, `StaffRecordInput`, `BranchRecordInput`, `ProductRecordInput`), the service validates the command and builds the domain entity, and `PersistenceMapper` maps that to the persistence record. Nothing binds straight to an entity.
 - **Lifetimes:** the DbContext, repositories, unit of work, query services and command services are scoped, so they share one DbContext per request. Middleware receives only singletons, such as options monitors and `PartnerApiKeyValidator`, so it never captures a scoped service. `SqlAuditStore` is a singleton that opens its own scope for each write.
 - **Shared state across requests:** the memory cache, its fill gates and `CourierRateGate` outlive a request; the services using them stay scoped.
 - **Caching:** the product catalogue and zone rates use `IMemoryCache` with a five-minute lifetime and `ValueTask`, and a single-flight gate. `ProductCataloguePerformanceTests` shows 10,000 reads cause one load, and `CourierRatePerformanceTests` shows 200 parallel zone lookups cause one.
@@ -679,7 +706,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Alternatives:** Hand-written SQL indexes (drift from the model); Fluent only (less visible on the class); attributes on Domain (breaks the dependency rule).
 
-**Consequences:** Choices can be repeated from `PERFORMANCE.md`. The filters fix thresholds at 5 and 1,000, so changing them needs a migration. `IX_ShippingRates_Zone_Level` showed no measurable gain and could be removed; it stays for now because it costs 16 KB on a table that rarely changes.
+**Consequences:** Choices can be repeated from `PERFORMANCE.md`. The filters fix thresholds at 5 and 1,000, so changing them needs a migration. `IX_ShippingRates_Zone_Level` showed no measurable gain, so `DropRedundantShippingRateIndex` removed it; the unique index already serves that seek. `IX_StockAdjustments_Branch_Sku_Time` is measured in W5, where it cuts reads from 4,188 to 165.
 
 ### ADR-27: Use stored procedures only where they add value
 
@@ -731,15 +758,15 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Consequences:** Audit rows survive failed sales and denied attempts. A crash between the sale and the audit write can lose that one audit row, and an audit outage produces error logs rather than rows. A later outbox could close that gap.
 
-### ADR-32: Pin a patched cryptography package
+### ADR-32: Keep the vulnerable cryptography package out of the build
 
-**Context:** `Microsoft.EntityFrameworkCore.SqlServer` brings in a version of `System.Security.Cryptography.Pkcs` with known moderate and high vulnerabilities, which fails the zero-warnings build.
+**Context:** `Microsoft.EntityFrameworkCore.SqlServer` brings in `Microsoft.Data.SqlClient`, which asks for `System.Security.Cryptography.Pkcs` 9.0.11. That version has known moderate and high vulnerabilities, so NuGet audit raised NU1902 and NU1903 and failed the zero-warnings build.
 
-**Decision:** Reference the patched `System.Security.Cryptography.Pkcs` directly, at the same 10.0.x servicing level.
+**Decision:** Leave that package out of the dependency graph with one `PrunePackageReference` in `Directory.Build.props`. The ASP.NET Core shared framework that the web project and the tests run on already ships a newer `System.Security.Cryptography.Pkcs`, and .NET uses that copy at run time. No extra package is referenced.
 
-**Alternatives:** Suppress the warning (leaves the vulnerability in place); wait for an upstream fix (blocks the build).
+**Alternatives:** Reference a patched package directly (this fixed the build, but the package isn't on the brief's allowed list, so it needed trainer approval); suppress the warning (leaves the vulnerable version in the output); wait for an upstream fix (blocks the build).
 
-**Consequences:** The build is clean and the vulnerable version is gone. The package is outside the allowed list, so it **needs trainer approval**. Removing the pin was retried on `Microsoft.EntityFrameworkCore.SqlServer` 10.0.14 and still fails the build with NU1902 and NU1903 on Pkcs 9.0.11. Remove the pin once SqlClient carries the fix.
+**Consequences:** The build is clean, no unlisted package is referenced, and `ApexPost.Web.deps.json` and the test project's no longer contain Pkcs. The Pkcs code that runs is whatever the installed runtime provides, so the runtime has to be kept patched. All 207 tests passed on SQL Server with the package pruned. Remove the prune item if SqlClient stops asking for a vulnerable version.
 
 ### ADR-33: Store a business date for reports
 
@@ -795,7 +822,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 **Context:** Void, refund, stock adjustment and the administrator actions caught exceptions and returned plain text, so those errors skipped `GlobalExceptionMiddleware`. The mapping test called the middleware directly, so only running the app showed the gap.
 
-**Decision:** An action with no form to redisplay lets exceptions reach the middleware, and a missing record always throws `KeyNotFoundException`. Form screens still show a `DomainValidationException` on the form, because the brief accepts a view error there and the clerk keeps what they typed. Concurrency conflicts and unique violations aren't caught by those forms, so they always return a 409.
+**Decision:** An action with no form to redisplay lets exceptions reach the middleware, and a missing record always throws `KeyNotFoundException`. Form screens still show a `DomainValidationException` on the form, so the clerk keeps what they typed, but the page now answers 400 instead of 200 (`FormResults.BadRequestView`, also used when model validation fails). The audit log therefore records the failure as a 400. Concurrency conflicts and unique violations aren't caught by those forms, so they always return a 409.
 
 **Alternatives:** Build Problem Details in each controller (repeats the mapping and loses the trace ID); show a friendly page for every error (doesn't meet the brief's mapping).
 
@@ -803,13 +830,13 @@ Each decision records its context, the decision, the alternatives considered and
 
 ### ADR-39: Keep what the unchanged Week 2 tests need in the Domain
 
-**Context:** The brief requires the Week 2 business-rule tests to pass unchanged. `DomainRulesTests.cs` round-trips `BranchStock` and `Transaction` through the default `JsonSerializer`, and calls `BranchStock.RestockForReversal`. Production no longer needs either: state lives in columns, and reversals restock through `usp_AdjustStock` (ADR-37).
+**Context:** The brief requires the Week 2 business-rule tests to pass unchanged. `DomainRulesTests.cs` round-trips `BranchStock` and `Transaction` through the default `JsonSerializer`, and calls `BranchStock.RestockForReversal`. Production no longer needs `RestockForReversal`, because reversals restock through `usp_AdjustStock` (ADR-37). It does still need the JSON attributes: `DatabaseSeeder` reads the seed files through the same default serializer, so `[JsonInclude]` serves production seeding as well as the tests.
 
 **Decision:** Keep `[JsonInclude]` on those private setters and keep `RestockForReversal`. Remove what no Week 2 test needs: `BranchStock.ApplyAdjustment` was only used by the test fake, so the rule moved there.
 
 **Alternatives:** Edit the tests (breaks the brief, and they'd no longer prove the rules are unchanged); use a custom JSON resolver in Infrastructure (the tests call the default serializer, so they'd fail).
 
-**Consequences:** The Domain carries one unused method and a serialization attribute from the base class library. It still references no package or project. Both can go once the Week 2 tests are retired.
+**Consequences:** The Domain carries one method production does not use, and a serialization attribute from the base class library. It still references no package or project. The method can go once the Week 2 tests are retired; the attribute can go once the seed files are read through their own seed types as well.
 
 ## SOLID mapping
 
@@ -841,7 +868,7 @@ Each decision records its context, the decision, the alternatives considered and
 
 ## Validation
 
-`ApexPost.Test` has 204 tests, and all 204 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 179 run and 25 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
+`ApexPost.Test` has 207 tests, and all 207 passed against SQL Server 2022 Developer. Without `APEXPOST_TEST_SQLSERVER`, 180 run and 27 are reported as skipped. The Week 2 business-rule tests in `DomainRulesTests.cs` are identical to the Week 2 commit and pass.
 
 | Layer | Needs a database | What it covers |
 |---|---|---|
