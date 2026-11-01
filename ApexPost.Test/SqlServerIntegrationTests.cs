@@ -182,6 +182,36 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
     }
 
     [SqlServerFact]
+    public async Task UniqueValues_AreEnforced_AndAStaffEmailCanStillBeCorrected()
+    {
+        try
+        {
+            await using var db = database.CreateContext();
+            var constraints = await db.Database.SqlQuery<string>($"SELECT name AS [Value] FROM sys.key_constraints WHERE type = 'UQ'").ToListAsync();
+            Assert.Contains("UQ_Branches_BranchCode", constraints);
+            Assert.Contains("UQ_Products_Sku", constraints);
+            Assert.Equal(1, await db.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM sys.indexes WHERE name = 'UQ_Staff_Email' AND is_unique = 1").SingleAsync());
+
+            var staff = new StaffRepository(db);
+            staff.Add(new Staff { Id = "STF901", Name = "Temp", Email = "temp.stf901@apexpost.example", Role = StaffRole.CounterClerk, HomeBranchCode = B001 });
+            await new UnitOfWork(db).SaveChangesAsync();
+
+            var current = (await staff.GetByIdAsync("STF901"))!;
+            staff.Update(new Staff { Id = current.Id, Name = current.Name, Email = "corrected.stf901@apexpost.example", Role = current.Role, HomeBranchCode = current.HomeBranchCode });
+            await new UnitOfWork(db).SaveChangesAsync();
+            Assert.Equal("corrected.stf901@apexpost.example", await db.Staff.AsNoTracking().Where(item => item.Id == "STF901").Select(item => item.Email).SingleAsync());
+
+            staff.Update(new Staff { Id = current.Id, Name = current.Name, Email = "alice@apexpost.com", Role = current.Role, HomeBranchCode = current.HomeBranchCode });
+            await Assert.ThrowsAsync<DuplicateValueException>(() => new UnitOfWork(db).SaveChangesAsync());
+        }
+        finally
+        {
+            await using var cleanup = database.CreateContext();
+            await cleanup.Staff.Where(item => item.Id == "STF901").ExecuteDeleteAsync();
+        }
+    }
+
+    [SqlServerFact]
     public async Task CheckConstraints_RejectNegativeStockAndUnmaskedDocuments()
     {
         await using var db = database.CreateContext();

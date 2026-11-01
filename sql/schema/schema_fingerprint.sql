@@ -4,7 +4,7 @@
 SET NOCOUNT ON;
 DECLARE @x TABLE (v nvarchar(max) COLLATE DATABASE_DEFAULT);
 INSERT @x SELECT 'C:'+t.name+'.'+c.name+':'+ty.name+':'+CAST(c.max_length AS varchar)+':'+CAST(c.precision AS varchar)+':'+CAST(c.scale AS varchar)+':'+CAST(c.is_nullable AS varchar) FROM sys.columns c JOIN sys.tables t ON t.object_id=c.object_id JOIN sys.types ty ON ty.user_type_id=c.user_type_id WHERE t.name<>'__EFMigrationsHistory';
-INSERT @x SELECT 'I:'+OBJECT_NAME(i.object_id)+'.'+i.name+':'+CAST(i.is_unique AS varchar)+':'+ISNULL(i.filter_definition,'') FROM sys.indexes i WHERE i.name IS NOT NULL AND OBJECTPROPERTY(i.object_id,'IsUserTable')=1 AND OBJECT_NAME(i.object_id)<>'__EFMigrationsHistory';
+INSERT @x SELECT 'I:'+OBJECT_NAME(i.object_id)+'.'+i.name+':'+CAST(i.is_unique AS varchar)+':'+CAST(i.is_unique_constraint AS varchar)+':'+ISNULL(i.filter_definition,'') FROM sys.indexes i WHERE i.name IS NOT NULL AND OBJECTPROPERTY(i.object_id,'IsUserTable')=1 AND OBJECT_NAME(i.object_id)<>'__EFMigrationsHistory';
 INSERT @x SELECT 'K:'+OBJECT_NAME(parent_object_id)+'.'+name+':'+definition FROM sys.check_constraints;
 INSERT @x SELECT 'D:'+OBJECT_NAME(parent_object_id)+'.'+COL_NAME(parent_object_id,parent_column_id)+':'+definition FROM sys.default_constraints;
 INSERT @x SELECT 'F:'+OBJECT_NAME(parent_object_id)+'.'+name+':'+delete_referential_action_desc FROM sys.foreign_keys;
