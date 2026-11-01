@@ -817,6 +817,8 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Shipments", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Shipments_Dimensions", "[LengthCm] >= 0 AND [WidthCm] >= 0 AND [HeightCm] >= 0");
+
                             t.HasCheckConstraint("CK_Shipments_Weight", "[WeightKg] > 0 AND [WeightKg] <= 20");
                         });
                 });

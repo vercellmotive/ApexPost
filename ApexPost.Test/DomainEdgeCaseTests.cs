@@ -46,6 +46,26 @@ public sealed class DomainEdgeCaseTests
         Assert.Throws<DomainValidationException>(() => _pricing.ValidateWeightLimits(details));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void NegativeDimensions_AreRejected(bool isParcel)
+    {
+        var details = new ShippingDetails(isParcel, Weight.FromKilograms(1m), new Dimensions(-1, 1, 1), "Zone 1", ServiceLevel.Standard);
+
+        Assert.Throws<DomainValidationException>(() => _pricing.ValidateWeightLimits(details));
+    }
+
+    [Fact]
+    public void LetterWithNoSize_IsAcceptedButAParcelIsNot()
+    {
+        var letter = new ShippingDetails(false, Weight.FromKilograms(0.1m), new Dimensions(0, 0, 0), "Zone 1", ServiceLevel.Standard);
+        var parcel = letter with { IsParcel = true };
+
+        _pricing.ValidateWeightLimits(letter);
+        Assert.Throws<DomainValidationException>(() => _pricing.ValidateWeightLimits(parcel));
+    }
+
     [Fact]
     public void LineItems_CannotBeChangedWithoutAddLineItem()
     {

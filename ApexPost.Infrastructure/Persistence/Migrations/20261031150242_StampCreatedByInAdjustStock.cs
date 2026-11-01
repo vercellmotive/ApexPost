@@ -10,7 +10,8 @@ namespace ApexPost.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql(SqlScripts.ReadForMigration("usp_AdjustStock"));
+            // The body as shipped: ValidateChangedByInAdjustStock replaces it with the current file.
+            migrationBuilder.Sql(SqlScripts.ReadForMigration("usp_AdjustStock_v2"));
         }
 
         /// <inheritdoc />

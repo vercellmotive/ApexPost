@@ -195,6 +195,26 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
     }
 
     [SqlServerFact]
+    public async Task CheckConstraint_RejectsNegativeShipmentDimensions()
+    {
+        await using var db = database.CreateContext();
+        Assert.True(await db.Shipments.AnyAsync());
+
+        FormattableString[] updates =
+        [
+            $"UPDATE dbo.Shipments SET LengthCm = {-1m}",
+            $"UPDATE dbo.Shipments SET WidthCm = {-1m}",
+            $"UPDATE dbo.Shipments SET HeightCm = {-1m}"
+        ];
+
+        foreach (var update in updates)
+        {
+            var failure = await Assert.ThrowsAsync<SqlException>(() => db.Database.ExecuteSqlAsync(update));
+            Assert.Contains("CK_Shipments_Dimensions", failure.Message);
+        }
+    }
+
+    [SqlServerFact]
     public async Task AdjustStockProcedure_UpdatesStockAndWritesHistory()
     {
         await using var db = database.CreateContext();
@@ -217,6 +237,24 @@ public sealed class SqlServerIntegrationTests(SqlServerTestDatabase database) : 
         await Assert.ThrowsAsync<DomainValidationException>(() => command.AdjustAsync(B001, Sku1, -1000000, StockAdjustmentReason.Damage, "STF001"));
         await Assert.ThrowsAsync<KeyNotFoundException>(() => command.AdjustAsync(B001, new Sku("SKU-404"), 1, StockAdjustmentReason.Damage, "STF001"));
 
+        Assert.Equal(history, await db.StockAdjustments.CountAsync());
+    }
+
+    [SqlServerFact]
+    public async Task AdjustStockProcedure_RejectsABlankOrUnknownStaffIdBeforeChangingAnything()
+    {
+        await using var db = database.CreateContext();
+        var command = new StockAdjustmentCommand(db);
+        var quantity = (await db.BranchStock.AsNoTracking().SingleAsync(row => row.BranchCode == B001 && row.ProductSku == Sku1)).QuantityOnHand;
+        var history = await db.StockAdjustments.CountAsync();
+
+        foreach (var staffId in new[] { "", "STF999" })
+        {
+            var failure = await Assert.ThrowsAsync<DomainValidationException>(() => command.AdjustAsync(B001, Sku1, 1, StockAdjustmentReason.Damage, staffId));
+            Assert.Contains("not a known staff member", failure.Message);
+        }
+
+        Assert.Equal(quantity, (await db.BranchStock.AsNoTracking().SingleAsync(row => row.BranchCode == B001 && row.ProductSku == Sku1)).QuantityOnHand);
         Assert.Equal(history, await db.StockAdjustments.CountAsync());
     }
 
